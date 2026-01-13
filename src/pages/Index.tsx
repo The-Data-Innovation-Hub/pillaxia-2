@@ -1,14 +1,14 @@
-// Update this page (the content is just a fallback if you fail to update the page)
+import Landing from "@/components/landing";
+import { toast } from "sonner";
 
 const Index = () => {
-  return (
-    <div className="flex min-h-screen items-center justify-center bg-background">
-      <div className="text-center">
-        <h1 className="mb-4 text-4xl font-bold">Welcome to Your Blank App</h1>
-        <p className="text-xl text-muted-foreground">Start building your amazing project here!</p>
-      </div>
-    </div>
-  );
+  const handleLogin = (role: "admin" | "pharmacist" | "patient") => {
+    toast.success(`Logged in as ${role}!`, {
+      description: "Dashboard functionality coming soon.",
+    });
+  };
+
+  return <Landing onLogin={handleLogin} />;
 };
 
 export default Index;
