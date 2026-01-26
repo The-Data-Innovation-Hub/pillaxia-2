@@ -58,24 +58,22 @@ export function PatientRosterPage() {
   const [unassignPatient, setUnassignPatient] = useState<PatientDetails | null>(null);
   const [activeTab, setActiveTab] = useState("assigned");
 
-  // Get clinician's assigned patients
-  const { data: assignments, isLoading: assignmentsLoading } = useQuery({
-    queryKey: ["clinician-assignments", user?.id],
+  // Get clinician's assigned patients and all patients in a single query
+  const { data: patientsData, isLoading } = useQuery({
+    queryKey: ["clinician-patients-roster", user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
+      // Get assignments first
+      const { data: assignments, error: assignError } = await supabase
         .from("clinician_patient_assignments")
         .select("patient_user_id, assigned_at, notes")
         .eq("clinician_user_id", user!.id);
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: !!user,
-  });
 
-  // Get all patients (users with patient role)
-  const { data: allPatients, isLoading: patientsLoading } = useQuery({
-    queryKey: ["all-patients", user?.id],
-    queryFn: async () => {
+      if (assignError) throw assignError;
+      
+      const assignmentMap = new Map(
+        (assignments || []).map(a => [a.patient_user_id, a])
+      );
+
       // Get all users with patient role
       const { data: patientRoles, error: rolesError } = await supabase
         .from("user_roles")
@@ -83,7 +81,7 @@ export function PatientRosterPage() {
         .eq("role", "patient");
 
       if (rolesError) throw rolesError;
-      if (!patientRoles?.length) return [];
+      if (!patientRoles?.length) return { assigned: [], unassigned: [] };
 
       const patientIds = patientRoles.map((r) => r.user_id);
 
@@ -111,11 +109,11 @@ export function PatientRosterPage() {
         .gte("scheduled_time", sevenDaysAgo.toISOString());
 
       // Build patient details
-      const patientDetails: PatientDetails[] = patientIds.map((patientId) => {
+      const allPatients: PatientDetails[] = patientIds.map((patientId) => {
         const profile = profiles?.find((p) => p.user_id === patientId);
         const patientMeds = medications?.filter((m) => m.user_id === patientId) || [];
         const patientLogs = logs?.filter((l) => l.user_id === patientId) || [];
-        const assignment = assignments?.find((a) => a.patient_user_id === patientId);
+        const assignment = assignmentMap.get(patientId);
 
         const adherence =
           patientLogs.length > 0
@@ -139,9 +137,12 @@ export function PatientRosterPage() {
         };
       });
 
-      return patientDetails;
+      return {
+        assigned: allPatients.filter(p => p.isAssigned),
+        unassigned: allPatients.filter(p => !p.isAssigned),
+      };
     },
-    enabled: !!user && !!assignments,
+    enabled: !!user,
   });
 
   const assignMutation = useMutation({
@@ -156,8 +157,7 @@ export function PatientRosterPage() {
     },
     onSuccess: () => {
       toast.success("Patient assigned successfully");
-      queryClient.invalidateQueries({ queryKey: ["clinician-assignments"] });
-      queryClient.invalidateQueries({ queryKey: ["all-patients"] });
+      queryClient.invalidateQueries({ queryKey: ["clinician-patients-roster"] });
     },
     onError: (error) => {
       console.error("Assignment error:", error);
@@ -177,8 +177,7 @@ export function PatientRosterPage() {
     onSuccess: () => {
       toast.success("Patient unassigned successfully");
       setUnassignPatient(null);
-      queryClient.invalidateQueries({ queryKey: ["clinician-assignments"] });
-      queryClient.invalidateQueries({ queryKey: ["all-patients"] });
+      queryClient.invalidateQueries({ queryKey: ["clinician-patients-roster"] });
     },
     onError: (error) => {
       console.error("Unassign error:", error);
@@ -186,10 +185,8 @@ export function PatientRosterPage() {
     },
   });
 
-  const isLoading = assignmentsLoading || patientsLoading;
-
-  const assignedPatients = allPatients?.filter((p) => p.isAssigned) || [];
-  const unassignedPatients = allPatients?.filter((p) => !p.isAssigned) || [];
+  const assignedPatients = patientsData?.assigned || [];
+  const unassignedPatients = patientsData?.unassigned || [];
 
   const filterPatients = (patients: PatientDetails[]) => {
     if (!searchQuery) return patients;
