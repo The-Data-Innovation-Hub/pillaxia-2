@@ -5,3 +5,6 @@ verify_jwt = false
 
 [functions.angela-chat]
 verify_jwt = false
+
+[functions.send-medication-reminders]
+verify_jwt = false
