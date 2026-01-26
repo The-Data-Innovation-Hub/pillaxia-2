@@ -83,6 +83,33 @@ export type Database = {
         }
         Relationships: []
       }
+      caregiver_messages: {
+        Row: {
+          caregiver_user_id: string
+          created_at: string
+          id: string
+          is_read: boolean
+          message: string
+          patient_user_id: string
+        }
+        Insert: {
+          caregiver_user_id: string
+          created_at?: string
+          id?: string
+          is_read?: boolean
+          message: string
+          patient_user_id: string
+        }
+        Update: {
+          caregiver_user_id?: string
+          created_at?: string
+          id?: string
+          is_read?: boolean
+          message?: string
+          patient_user_id?: string
+        }
+        Relationships: []
+      }
       clinician_patient_assignments: {
         Row: {
           assigned_at: string

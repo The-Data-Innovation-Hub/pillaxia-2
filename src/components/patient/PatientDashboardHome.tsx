@@ -8,7 +8,7 @@ import { Pill, Calendar, ClipboardList, TrendingUp, Plus, Bot } from "lucide-rea
 import { format } from "date-fns";
 import { useNavigate } from "react-router-dom";
 import { CaregiverInvitationsReceived } from "./CaregiverInvitationsReceived";
-
+import { PatientMessagesCard } from "./PatientMessagesCard";
 interface DashboardStats {
   totalMedications: number;
   todaysDoses: number;
@@ -97,6 +97,8 @@ export function PatientDashboardHome() {
       {/* Caregiver Invitations (if any) */}
       <CaregiverInvitationsReceived />
 
+      {/* Encouragement Messages from Caregivers */}
+      <PatientMessagesCard />
       {/* Welcome Section */}
       <div className="flex items-center justify-between">
         <div>
