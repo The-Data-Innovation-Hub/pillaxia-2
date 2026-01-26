@@ -1,13 +1,14 @@
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
+import { useNavigate } from "react-router-dom";
 import heroImage from "@/assets/hero-angela.png";
 
 interface HeroSectionProps {
   onGetStarted?: () => void;
-  onLogin?: () => void;
 }
 
-const HeroSection = ({ onGetStarted, onLogin }: HeroSectionProps) => {
+const HeroSection = ({ onGetStarted }: HeroSectionProps) => {
+  const navigate = useNavigate();
   return (
     <section className="relative bg-background overflow-hidden pt-32 pb-20">
       <div className="container mx-auto px-4">
@@ -77,7 +78,7 @@ const HeroSection = ({ onGetStarted, onLogin }: HeroSectionProps) => {
                 size="lg"
                 variant="outline"
                 className="border-pillaxia-cyan text-pillaxia-cyan hover:bg-pillaxia-cyan hover:text-primary-foreground text-xl py-6 px-8 rounded-xl shadow-lg"
-                onClick={onLogin}
+                onClick={() => navigate("/auth")}
               >
                 Login
               </Button>

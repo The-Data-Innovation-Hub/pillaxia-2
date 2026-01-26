@@ -50,14 +50,12 @@ const Landing = ({ onLogin }: LandingProps) => {
   return (
     <div className="min-h-screen bg-background">
       <Navbar
-        onLoginClick={handleLoginClick}
         onSignupClick={handleSignupClick}
       />
       
       <main>
         <HeroSection
           onGetStarted={handleSignupClick}
-          onLogin={handleLoginClick}
         />
         <FeaturesSection />
         <BenefitsSection />
