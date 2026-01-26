@@ -30,21 +30,25 @@ async function sendEmail(to: string[], subject: string, html: string): Promise<{
   return res.json();
 }
 
+interface MedicationInfo {
+  name: string;
+  dosage: string;
+  dosage_unit: string;
+  form: string;
+  instructions: string | null;
+}
+
+interface ScheduleInfo {
+  quantity: number;
+  with_food: boolean;
+}
+
 interface MedicationDose {
   id: string;
   scheduled_time: string;
   user_id: string;
-  medications: {
-    name: string;
-    dosage: string;
-    dosage_unit: string;
-    form: string;
-    instructions: string | null;
-  }[] | null;
-  medication_schedules: {
-    quantity: number;
-    with_food: boolean;
-  }[] | null;
+  medications: MedicationInfo | MedicationInfo[] | null;
+  medication_schedules: ScheduleInfo | ScheduleInfo[] | null;
 }
 
 Deno.serve(async (req: Request) => {
@@ -124,13 +128,18 @@ Deno.serve(async (req: Request) => {
 
       // Build medication list HTML
       const medicationListHtml = userDoses.map((dose) => {
-        const meds = dose.medications;
-        const schedules = dose.medication_schedules;
+        const medsData = dose.medications;
+        const schedulesData = dose.medication_schedules;
         
-        if (!meds || meds.length === 0) return "";
+        // Handle both array and object formats from Supabase
+        const med: MedicationInfo | null = Array.isArray(medsData) 
+          ? (medsData[0] || null) 
+          : medsData;
+        const schedule: ScheduleInfo | null = Array.isArray(schedulesData) 
+          ? (schedulesData[0] || null) 
+          : schedulesData;
         
-        const med = meds[0];
-        const schedule = schedules?.[0];
+        if (!med) return "";
         
         const scheduledTime = new Date(dose.scheduled_time).toLocaleTimeString("en-US", {
           hour: "numeric",
