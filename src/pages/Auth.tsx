@@ -9,7 +9,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "sonner";
 import { z } from "zod";
 import { Loader2, User, Stethoscope, Pill, Shield } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 
 type AppRole = "patient" | "clinician" | "pharmacist" | "admin";
 
@@ -32,7 +31,6 @@ const Auth = () => {
   
   const [isLogin, setIsLogin] = useState(true);
   const [loading, setLoading] = useState(false);
-  const [seedingUsers, setSeedingUsers] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [firstName, setFirstName] = useState("");
@@ -46,20 +44,6 @@ const Auth = () => {
       navigate("/dashboard");
     }
   }, [user, authLoading, navigate]);
-
-  const seedDemoUsers = async () => {
-    setSeedingUsers(true);
-    try {
-      const { data, error } = await supabase.functions.invoke("seed-demo-users");
-      if (error) throw error;
-      toast.success("Demo users created successfully!");
-    } catch (err) {
-      console.error("Error seeding demo users:", err);
-      toast.error("Failed to create demo users. They may already exist.");
-    } finally {
-      setSeedingUsers(false);
-    }
-  };
 
   const handleDemoLogin = (demoUser: typeof DEMO_USERS[0]) => {
     setEmail(demoUser.email);
@@ -160,24 +144,7 @@ const Auth = () => {
         {/* Demo Users Section */}
         <Card className="shadow-pillaxia-card border-pillaxia-cyan/20">
           <CardHeader className="pb-3">
-            <CardTitle className="text-lg flex items-center justify-between">
-              Demo Accounts
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={seedDemoUsers}
-                disabled={seedingUsers}
-              >
-                {seedingUsers ? (
-                  <>
-                    <Loader2 className="mr-2 h-3 w-3 animate-spin" />
-                    Creating...
-                  </>
-                ) : (
-                  "Setup Demo Users"
-                )}
-              </Button>
-            </CardTitle>
+            <CardTitle className="text-lg">Demo Accounts</CardTitle>
             <CardDescription className="text-sm">
               Click to auto-fill credentials, then click Sign In
             </CardDescription>
