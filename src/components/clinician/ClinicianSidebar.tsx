@@ -1,4 +1,4 @@
-import { Users, Pill, Activity, LayoutDashboard, LogOut } from "lucide-react";
+import { Users, Pill, Activity, LayoutDashboard, LogOut, Heart } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -20,6 +20,7 @@ const menuItems = [
   { title: "Patient Roster", url: "/dashboard/patients", icon: Users },
   { title: "Medication Review", url: "/dashboard/medications", icon: Pill },
   { title: "Adherence Monitor", url: "/dashboard/adherence", icon: Activity },
+  { title: "Caregiver View", url: "/dashboard/caregiver-view", icon: Heart },
 ];
 
 export function ClinicianSidebar() {
