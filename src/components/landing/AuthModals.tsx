@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Dialog,
   DialogContent,
@@ -11,6 +12,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import { z } from "zod";
+import { Loader2 } from "lucide-react";
 
 interface AuthModalsProps {
   isOpen?: boolean;
@@ -19,23 +23,21 @@ interface AuthModalsProps {
   onLogin?: (role: "admin" | "pharmacist" | "patient") => void;
 }
 
-const demoCredentials = [
-  { role: "Admin", email: "sarah@pillaxia.com", password: "demo123" },
-  { role: "Pharmacist", email: "michael@citymed.com", password: "demo123" },
-  { role: "Patient", email: "john@example.com", password: "demo123" },
-];
+// Validation schemas
+const emailSchema = z.string().email("Please enter a valid email address");
+const passwordSchema = z.string().min(6, "Password must be at least 6 characters");
 
 const AuthModals = ({
   isOpen = false,
   onOpenChange,
   defaultView = "login",
-  onLogin,
 }: AuthModalsProps) => {
+  const navigate = useNavigate();
   const [view, setView] = useState(defaultView);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   // Signup form state
   const [name, setName] = useState("");
@@ -46,37 +48,55 @@ const AuthModals = ({
     setView(defaultView);
   }, [defaultView]);
 
-  const fillCredentials = (userEmail: string, userPassword: string) => {
-    setEmail(userEmail);
-    setPassword(userPassword);
-    setError("");
+  const validateLogin = () => {
+    const newErrors: Record<string, string> = {};
+    
+    try {
+      emailSchema.parse(email);
+    } catch (e) {
+      if (e instanceof z.ZodError) {
+        newErrors.email = e.errors[0].message;
+      }
+    }
+    
+    try {
+      passwordSchema.parse(password);
+    } catch (e) {
+      if (e instanceof z.ZodError) {
+        newErrors.password = e.errors[0].message;
+      }
+    }
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
   };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError("");
+    
+    if (!validateLogin()) return;
+    
     setLoading(true);
 
     try {
-      // Simulate login delay
-      await new Promise((resolve) => setTimeout(resolve, 500));
-
-      // Map email to role
-      let role: "admin" | "pharmacist" | "patient" = "patient";
-      if (email === "sarah@pillaxia.com") {
-        role = "admin";
-      } else if (email === "michael@citymed.com") {
-        role = "pharmacist";
-      }
-
-      toast.success(`Welcome back!`, {
-        description: `Logged in as ${role}`,
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
       });
 
-      if (onOpenChange) onOpenChange(false);
-      if (onLogin) onLogin(role);
+      if (error) {
+        if (error.message.includes("Invalid login credentials")) {
+          toast.error("Invalid email or password");
+        } else {
+          toast.error(error.message);
+        }
+      } else {
+        toast.success("Welcome back!");
+        if (onOpenChange) onOpenChange(false);
+        navigate("/dashboard");
+      }
     } catch (err) {
-      setError("Invalid credentials");
+      toast.error("An unexpected error occurred");
     } finally {
       setLoading(false);
     }
@@ -87,6 +107,8 @@ const AuthModals = ({
     setLoading(true);
 
     try {
+      // For the waiting list, just show a success message
+      // In a real app, this would store the signup in a database
       await new Promise((resolve) => setTimeout(resolve, 500));
       
       toast.success("You've been added to the waiting list!", {
@@ -98,10 +120,15 @@ const AuthModals = ({
       setSignupEmail("");
       setOrganization("");
     } catch (err) {
-      setError("Something went wrong");
+      toast.error("Something went wrong");
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleGoToFullAuth = () => {
+    if (onOpenChange) onOpenChange(false);
+    navigate("/auth");
   };
 
   return (
@@ -114,29 +141,17 @@ const AuthModals = ({
             </DialogTitle>
             <DialogDescription className="text-center text-muted-foreground">
               {view === "login"
-                ? "Click on a credential card below to auto-fill the login form"
+                ? "Sign in to access your health dashboard"
                 : "Join our waiting list to get early access to medication management"}
             </DialogDescription>
           </DialogHeader>
 
           {view === "login" ? (
             <>
-              <div className="mb-4 space-y-2">
-                {demoCredentials.map((cred) => (
-                  <div
-                    key={cred.email}
-                    onClick={() => fillCredentials(cred.email, cred.password)}
-                    className="p-3 bg-muted/50 rounded-lg border border-primary/10 cursor-pointer hover:bg-muted hover:border-primary/20 transition-colors"
-                  >
-                    <div className="text-sm font-medium text-primary">{cred.role}:</div>
-                    <div className="text-sm text-muted-foreground">Email: {cred.email}</div>
-                    <div className="text-sm text-muted-foreground">Password: {cred.password}</div>
-                  </div>
-                ))}
-              </div>
-
-              <form onSubmit={handleLogin} className="space-y-4">
-                {error && <p className="text-destructive text-sm text-center">{error}</p>}
+              <form onSubmit={handleLogin} className="space-y-4 mt-4">
+                {errors.form && (
+                  <p className="text-destructive text-sm text-center">{errors.form}</p>
+                )}
                 
                 <div className="space-y-2">
                   <Label htmlFor="email">Email</Label>
@@ -146,8 +161,11 @@ const AuthModals = ({
                     placeholder="Enter your email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    required
+                    className={errors.email ? "border-destructive" : ""}
                   />
+                  {errors.email && (
+                    <p className="text-sm text-destructive">{errors.email}</p>
+                  )}
                 </div>
                 
                 <div className="space-y-2">
@@ -158,8 +176,11 @@ const AuthModals = ({
                     placeholder="Enter your password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    required
+                    className={errors.password ? "border-destructive" : ""}
                   />
+                  {errors.password && (
+                    <p className="text-sm text-destructive">{errors.password}</p>
+                  )}
                 </div>
                 
                 <Button
@@ -167,25 +188,32 @@ const AuthModals = ({
                   disabled={loading}
                   className="w-full bg-primary hover:bg-pillaxia-navy-dark"
                 >
-                  {loading ? "Logging in..." : "Log In"}
+                  {loading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Signing in...
+                    </>
+                  ) : (
+                    "Sign In"
+                  )}
                 </Button>
                 
-                <p className="text-center text-sm text-muted-foreground">
-                  Don't have an account?{" "}
-                  <button
-                    type="button"
-                    onClick={() => setView("signup")}
-                    className="text-primary hover:text-pillaxia-navy-dark font-semibold"
-                  >
-                    Sign up
-                  </button>
-                </p>
+                <div className="text-center space-y-2">
+                  <p className="text-sm text-muted-foreground">
+                    Don't have an account?{" "}
+                    <button
+                      type="button"
+                      onClick={handleGoToFullAuth}
+                      className="text-primary hover:text-pillaxia-navy-dark font-semibold"
+                    >
+                      Sign up
+                    </button>
+                  </p>
+                </div>
               </form>
             </>
           ) : (
-            <form onSubmit={handleSignup} className="space-y-4">
-              {error && <p className="text-destructive text-sm text-center">{error}</p>}
-              
+            <form onSubmit={handleSignup} className="space-y-4 mt-4">
               <div className="space-y-2">
                 <Label htmlFor="name">Full Name</Label>
                 <Input
@@ -224,7 +252,14 @@ const AuthModals = ({
                 disabled={loading}
                 className="w-full bg-primary hover:bg-pillaxia-navy-dark"
               >
-                {loading ? "Signing up..." : "Join Waiting List"}
+                {loading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Joining...
+                  </>
+                ) : (
+                  "Join Waiting List"
+                )}
               </Button>
               
               <p className="text-center text-sm text-muted-foreground">
