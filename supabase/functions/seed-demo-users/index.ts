@@ -10,6 +10,11 @@ const DEMO_USERS = [
   { email: "clinician@demo.pillaxia.com", password: "demo123456", role: "clinician", firstName: "Demo", lastName: "Clinician" },
   { email: "pharmacist@demo.pillaxia.com", password: "demo123456", role: "pharmacist", firstName: "Demo", lastName: "Pharmacist" },
   { email: "admin@demo.pillaxia.com", password: "demo123456", role: "admin", firstName: "Demo", lastName: "Admin" },
+  // Additional mock patients for testing
+  { email: "alice.johnson@demo.pillaxia.com", password: "demo123456", role: "patient", firstName: "Alice", lastName: "Johnson" },
+  { email: "bob.smith@demo.pillaxia.com", password: "demo123456", role: "patient", firstName: "Bob", lastName: "Smith" },
+  { email: "carol.williams@demo.pillaxia.com", password: "demo123456", role: "patient", firstName: "Carol", lastName: "Williams" },
+  { email: "david.brown@demo.pillaxia.com", password: "demo123456", role: "patient", firstName: "David", lastName: "Brown" },
 ];
 
 Deno.serve(async (req) => {
@@ -26,12 +31,12 @@ Deno.serve(async (req) => {
 
     const results = [];
 
-    for (const user of DEMO_USERS) {
-      // Check if user already exists
-      const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers();
-      const exists = existingUsers?.users?.some(u => u.email === user.email);
+    // Get existing users once
+    const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers();
+    const existingEmails = new Set(existingUsers?.users?.map(u => u.email) || []);
 
-      if (exists) {
+    for (const user of DEMO_USERS) {
+      if (existingEmails.has(user.email)) {
         results.push({ email: user.email, status: "already exists" });
         continue;
       }
