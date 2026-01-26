@@ -22,6 +22,13 @@ import {
   MedicationReviewPage,
   AdherenceMonitorPage,
 } from "@/components/clinician";
+import {
+  PharmacistLayout,
+  PharmacistDashboardHome,
+  PrescriptionsPage,
+  InventoryPage,
+  RefillRequestsPage,
+} from "@/components/pharmacist";
 
 const queryClient = new QueryClient();
 
@@ -44,19 +51,9 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-// Patient Dashboard Layout
-function PatientDashboard() {
-  return <PatientLayout />;
-}
-
-// Clinician Dashboard Layout
-function ClinicianDashboard() {
-  return <ClinicianLayout />;
-}
-
 // Role-based dashboard router
 function DashboardRouter() {
-  const { isPatient, isClinician, isPharmacist, isAdmin, roles, loading } = useAuth();
+  const { isPatient, isClinician, isPharmacist, isAdmin, loading } = useAuth();
 
   if (loading) {
     return (
@@ -66,19 +63,30 @@ function DashboardRouter() {
     );
   }
 
-  // Clinician gets their own dashboard
+  // Route based on role
+  if (isPharmacist) {
+    return <PharmacistLayout />;
+  }
+  
   if (isClinician) {
-    return <ClinicianDashboard />;
+    return <ClinicianLayout />;
   }
 
   // Default to patient dashboard
-  return <PatientDashboard />;
+  return <PatientLayout />;
 }
 
 // Determine which home component to show based on role
 function DashboardHome() {
-  const { isClinician } = useAuth();
-  return isClinician ? <ClinicianDashboardHome /> : <PatientDashboardHome />;
+  const { isClinician, isPharmacist } = useAuth();
+  
+  if (isPharmacist) {
+    return <PharmacistDashboardHome />;
+  }
+  if (isClinician) {
+    return <ClinicianDashboardHome />;
+  }
+  return <PatientDashboardHome />;
 }
 
 const App = () => (
@@ -110,6 +118,10 @@ const App = () => (
               {/* Clinician Routes */}
               <Route path="patients" element={<PatientRosterPage />} />
               <Route path="adherence" element={<AdherenceMonitorPage />} />
+              {/* Pharmacist Routes */}
+              <Route path="prescriptions" element={<PrescriptionsPage />} />
+              <Route path="inventory" element={<InventoryPage />} />
+              <Route path="refills" element={<RefillRequestsPage />} />
             </Route>
             
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
