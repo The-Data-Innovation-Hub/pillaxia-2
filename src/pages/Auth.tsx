@@ -5,9 +5,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { z } from "zod";
 import { Loader2 } from "lucide-react";
+
+type AppRole = "patient" | "clinician" | "pharmacist" | "admin";
 
 // Validation schemas
 const emailSchema = z.string().email("Please enter a valid email address");
@@ -24,6 +27,7 @@ const Auth = () => {
   const [password, setPassword] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
+  const [selectedRole, setSelectedRole] = useState<AppRole>("patient");
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   // Redirect if already authenticated
@@ -95,7 +99,7 @@ const Auth = () => {
           navigate("/dashboard");
         }
       } else {
-        const { error } = await signUp(email, password, firstName, lastName);
+        const { error } = await signUp(email, password, firstName, lastName, selectedRole);
         if (error) {
           if (error.message.includes("already registered")) {
             toast.error("This email is already registered. Please sign in instead.");
@@ -139,34 +143,51 @@ const Auth = () => {
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             {!isLogin && (
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="firstName">First Name</Label>
-                  <Input
-                    id="firstName"
-                    placeholder="John"
-                    value={firstName}
-                    onChange={(e) => setFirstName(e.target.value)}
-                    className={errors.firstName ? "border-destructive" : ""}
-                  />
-                  {errors.firstName && (
-                    <p className="text-sm text-destructive">{errors.firstName}</p>
-                  )}
+              <>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="firstName">First Name</Label>
+                    <Input
+                      id="firstName"
+                      placeholder="John"
+                      value={firstName}
+                      onChange={(e) => setFirstName(e.target.value)}
+                      className={errors.firstName ? "border-destructive" : ""}
+                    />
+                    {errors.firstName && (
+                      <p className="text-sm text-destructive">{errors.firstName}</p>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="lastName">Last Name</Label>
+                    <Input
+                      id="lastName"
+                      placeholder="Doe"
+                      value={lastName}
+                      onChange={(e) => setLastName(e.target.value)}
+                      className={errors.lastName ? "border-destructive" : ""}
+                    />
+                    {errors.lastName && (
+                      <p className="text-sm text-destructive">{errors.lastName}</p>
+                    )}
+                  </div>
                 </div>
+
                 <div className="space-y-2">
-                  <Label htmlFor="lastName">Last Name</Label>
-                  <Input
-                    id="lastName"
-                    placeholder="Doe"
-                    value={lastName}
-                    onChange={(e) => setLastName(e.target.value)}
-                    className={errors.lastName ? "border-destructive" : ""}
-                  />
-                  {errors.lastName && (
-                    <p className="text-sm text-destructive">{errors.lastName}</p>
-                  )}
+                  <Label htmlFor="role">I am a...</Label>
+                  <Select value={selectedRole} onValueChange={(value: AppRole) => setSelectedRole(value)}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select your role" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-background">
+                      <SelectItem value="patient">Patient - Managing my medications</SelectItem>
+                      <SelectItem value="clinician">Clinician - Healthcare provider</SelectItem>
+                      <SelectItem value="pharmacist">Pharmacist - Pharmacy professional</SelectItem>
+                      <SelectItem value="admin">Administrator - System management</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
-              </div>
+              </>
             )}
 
             <div className="space-y-2">

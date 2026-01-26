@@ -24,7 +24,7 @@ interface AuthContextType {
   roles: AppRole[];
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
-  signUp: (email: string, password: string, firstName?: string, lastName?: string) => Promise<{ error: Error | null }>;
+  signUp: (email: string, password: string, firstName?: string, lastName?: string, role?: AppRole) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   hasRole: (role: AppRole) => boolean;
   isAdmin: boolean;
@@ -133,7 +133,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     email: string,
     password: string,
     firstName?: string,
-    lastName?: string
+    lastName?: string,
+    role?: AppRole
   ) => {
     try {
       const redirectUrl = `${window.location.origin}/`;
@@ -146,6 +147,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           data: {
             first_name: firstName,
             last_name: lastName,
+            role: role || 'patient',
           },
         },
       });
