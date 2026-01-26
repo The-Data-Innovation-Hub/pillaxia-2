@@ -1,4 +1,4 @@
-import { Users, Pill, Activity, LayoutDashboard, LogOut, Heart } from "lucide-react";
+import { Users, Pill, Activity, LayoutDashboard, LogOut, Heart, History } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/contexts/AuthContext";
 import { useHasCaregiverRelationships } from "@/hooks/useHasCaregiverRelationships";
@@ -23,12 +23,17 @@ const baseMenuItems = [
   { title: "Adherence Monitor", url: "/dashboard/adherence", icon: Activity },
 ];
 
+const caregiverMenuItems = [
+  { title: "Caregiver View", url: "/dashboard/caregiver-view", icon: Heart },
+  { title: "Alert History", url: "/dashboard/caregiver-history", icon: History },
+];
+
 export function ClinicianSidebar() {
   const { signOut, profile } = useAuth();
   const { data: hasCaregiverRelationships } = useHasCaregiverRelationships();
 
   const menuItems = hasCaregiverRelationships
-    ? [...baseMenuItems, { title: "Caregiver View", url: "/dashboard/caregiver-view", icon: Heart }]
+    ? [...baseMenuItems, ...caregiverMenuItems]
     : baseMenuItems;
 
   return (
