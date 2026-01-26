@@ -1,1 +1,7 @@
 project_id = "dkhshgsieaodbjttzxaf"
+
+[functions.seed-demo-users]
+verify_jwt = false
+
+[functions.angela-chat]
+verify_jwt = false
