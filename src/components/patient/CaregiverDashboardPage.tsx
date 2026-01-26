@@ -269,8 +269,8 @@ export function CaregiverDashboardPage() {
               value={patient.patient_user_id}
               className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
             >
-              {patient.patient_profile?.first_name || "Patient"}{" "}
-              {patient.patient_profile?.last_name?.[0] || ""}
+            {patient.patient_profile?.first_name || "Patient"}{" "}
+            {patient.patient_profile?.last_name || ""}
             </TabsTrigger>
           ))}
         </TabsList>
