@@ -29,6 +29,13 @@ import {
   InventoryPage,
   RefillRequestsPage,
 } from "@/components/pharmacist";
+import {
+  AdminLayout,
+  AdminDashboardHome,
+  UserManagementPage,
+  SystemAnalyticsPage,
+  AuditLogPage,
+} from "@/components/admin";
 
 const queryClient = new QueryClient();
 
@@ -63,7 +70,11 @@ function DashboardRouter() {
     );
   }
 
-  // Route based on role
+  // Route based on role priority
+  if (isAdmin) {
+    return <AdminLayout />;
+  }
+  
   if (isPharmacist) {
     return <PharmacistLayout />;
   }
@@ -78,8 +89,11 @@ function DashboardRouter() {
 
 // Determine which home component to show based on role
 function DashboardHome() {
-  const { isClinician, isPharmacist } = useAuth();
+  const { isAdmin, isClinician, isPharmacist } = useAuth();
   
+  if (isAdmin) {
+    return <AdminDashboardHome />;
+  }
   if (isPharmacist) {
     return <PharmacistDashboardHome />;
   }
@@ -122,6 +136,10 @@ const App = () => (
               <Route path="prescriptions" element={<PrescriptionsPage />} />
               <Route path="inventory" element={<InventoryPage />} />
               <Route path="refills" element={<RefillRequestsPage />} />
+              {/* Admin Routes */}
+              <Route path="users" element={<UserManagementPage />} />
+              <Route path="analytics" element={<SystemAnalyticsPage />} />
+              <Route path="audit-logs" element={<AuditLogPage />} />
             </Route>
             
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
