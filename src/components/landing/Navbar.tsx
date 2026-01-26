@@ -1,17 +1,17 @@
 import { Button } from "@/components/ui/button";
 import { Menu, X } from "lucide-react";
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import pillaxiaLogo from "@/assets/pillaxia-logo.png";
 
 interface NavbarProps {
-  onLoginClick?: () => void;
   onSignupClick?: () => void;
 }
 
 const Navbar = ({
-  onLoginClick = () => {},
   onSignupClick = () => {},
 }: NavbarProps) => {
+  const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const navLinks = [
@@ -46,7 +46,7 @@ const Navbar = ({
             <Button
               variant="outline"
               className="border-pillaxia-cyan text-pillaxia-cyan hover:bg-pillaxia-cyan hover:text-primary-foreground shadow-pillaxia"
-              onClick={onLoginClick}
+              onClick={() => navigate("/auth")}
             >
               Login
             </Button>
@@ -89,7 +89,7 @@ const Navbar = ({
                 variant="outline"
                 className="w-full border-pillaxia-cyan text-pillaxia-cyan hover:bg-pillaxia-cyan hover:text-primary-foreground"
                 onClick={() => {
-                  onLoginClick();
+                  navigate("/auth");
                   setMobileMenuOpen(false);
                 }}
               >
