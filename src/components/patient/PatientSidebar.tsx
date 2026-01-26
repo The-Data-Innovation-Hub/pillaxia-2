@@ -21,7 +21,8 @@ import {
   Settings,
   LogOut,
   Bot,
-  Users
+  Users,
+  Heart,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -31,6 +32,7 @@ const menuItems = [
   { title: "Today's Schedule", url: "/dashboard/schedule", icon: Calendar },
   { title: "Symptom Diary", url: "/dashboard/symptoms", icon: ClipboardList },
   { title: "Caregivers", url: "/dashboard/caregivers", icon: Users },
+  { title: "Caregiver View", url: "/dashboard/caregiver-view", icon: Heart },
   { title: "Ask Angela", url: "/dashboard/angela", icon: Bot },
 ];
 

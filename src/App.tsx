@@ -15,6 +15,7 @@ import {
   SymptomsPage,
   AngelaPage,
   CaregiversPage,
+  CaregiverDashboardPage,
 } from "@/components/patient";
 import {
   ClinicianLayout,
@@ -130,6 +131,7 @@ const App = () => (
               <Route path="schedule" element={<SchedulePage />} />
               <Route path="symptoms" element={<SymptomsPage />} />
               <Route path="caregivers" element={<CaregiversPage />} />
+              <Route path="caregiver-view" element={<CaregiverDashboardPage />} />
               <Route path="angela" element={<AngelaPage />} />
               {/* Clinician Routes */}
               <Route path="patients" element={<PatientRosterPage />} />
