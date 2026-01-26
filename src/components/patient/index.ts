@@ -13,3 +13,5 @@ export { MedicationCard } from "./MedicationCard";
 export { AddMedicationDialog } from "./AddMedicationDialog";
 export { TodayScheduleCard } from "./TodayScheduleCard";
 export { SymptomEntryDialog } from "./SymptomEntryDialog";
+export { SendEncouragementDialog } from "./SendEncouragementDialog";
+export { PatientMessagesCard } from "./PatientMessagesCard";

@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -11,6 +11,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -24,8 +25,10 @@ import {
   User,
   Calendar,
   Bell,
+  MessageCircleHeart,
 } from "lucide-react";
 import { format, subDays } from "date-fns";
+import { SendEncouragementDialog } from "./SendEncouragementDialog";
 
 interface CaregiverPermissions {
   view_medications?: boolean;
@@ -312,10 +315,11 @@ export function CaregiverDashboardPage() {
 }
 
 function PatientDetailView({ patient }: { patient: PatientWithData }) {
+  const [showEncouragementDialog, setShowEncouragementDialog] = useState(false);
+  
   const patientName = patient.patient_profile?.first_name
     ? `${patient.patient_profile.first_name} ${patient.patient_profile.last_name || ""}`
     : "Patient";
-
   return (
     <div className="space-y-6">
       {/* Patient Header */}
@@ -331,7 +335,16 @@ function PatientDetailView({ patient }: { patient: PatientWithData }) {
                 {patient.patient_profile?.email || "Email not available"}
               </CardDescription>
             </div>
-            <div className="flex gap-2">
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowEncouragementDialog(true)}
+                className="gap-1.5"
+              >
+                <MessageCircleHeart className="h-4 w-4" />
+                Send Encouragement
+              </Button>
               {patient.permissions.view_medications && (
                 <Badge variant="outline" className="text-xs">
                   <Pill className="h-3 w-3 mr-1" />
@@ -353,6 +366,13 @@ function PatientDetailView({ patient }: { patient: PatientWithData }) {
             </div>
           </div>
         </CardHeader>
+        
+        <SendEncouragementDialog
+          open={showEncouragementDialog}
+          onOpenChange={setShowEncouragementDialog}
+          patientUserId={patient.patient_user_id}
+          patientName={patientName}
+        />
       </Card>
 
       <div className="grid gap-6 md:grid-cols-2">
