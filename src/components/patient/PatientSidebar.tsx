@@ -1,5 +1,6 @@
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/contexts/AuthContext";
+import { useHasCaregiverRelationships } from "@/hooks/useHasCaregiverRelationships";
 import {
   Sidebar,
   SidebarContent,
@@ -17,7 +18,6 @@ import {
   Pill, 
   Calendar, 
   ClipboardList, 
-  MessageCircle,
   Settings,
   LogOut,
   Bot,
@@ -26,18 +26,22 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-const menuItems = [
+const baseMenuItems = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
   { title: "Medications", url: "/dashboard/medications", icon: Pill },
   { title: "Today's Schedule", url: "/dashboard/schedule", icon: Calendar },
   { title: "Symptom Diary", url: "/dashboard/symptoms", icon: ClipboardList },
   { title: "Caregivers", url: "/dashboard/caregivers", icon: Users },
-  { title: "Caregiver View", url: "/dashboard/caregiver-view", icon: Heart },
   { title: "Ask Angela", url: "/dashboard/angela", icon: Bot },
 ];
 
 export function PatientSidebar() {
   const { signOut, profile } = useAuth();
+  const { data: hasCaregiverRelationships } = useHasCaregiverRelationships();
+
+  const menuItems = hasCaregiverRelationships
+    ? [...baseMenuItems.slice(0, 5), { title: "Caregiver View", url: "/dashboard/caregiver-view", icon: Heart }, baseMenuItems[5]]
+    : baseMenuItems;
 
   return (
     <Sidebar className="border-r">
