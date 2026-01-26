@@ -107,6 +107,155 @@ export type Database = {
         }
         Relationships: []
       }
+      medication_logs: {
+        Row: {
+          created_at: string
+          id: string
+          medication_id: string
+          notes: string | null
+          schedule_id: string
+          scheduled_time: string
+          status: string
+          taken_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          medication_id: string
+          notes?: string | null
+          schedule_id: string
+          scheduled_time: string
+          status?: string
+          taken_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          medication_id?: string
+          notes?: string | null
+          schedule_id?: string
+          scheduled_time?: string
+          status?: string
+          taken_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "medication_logs_medication_id_fkey"
+            columns: ["medication_id"]
+            isOneToOne: false
+            referencedRelation: "medications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "medication_logs_schedule_id_fkey"
+            columns: ["schedule_id"]
+            isOneToOne: false
+            referencedRelation: "medication_schedules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      medication_schedules: {
+        Row: {
+          created_at: string
+          days_of_week: number[] | null
+          id: string
+          is_active: boolean
+          medication_id: string
+          quantity: number
+          time_of_day: string
+          user_id: string
+          with_food: boolean | null
+        }
+        Insert: {
+          created_at?: string
+          days_of_week?: number[] | null
+          id?: string
+          is_active?: boolean
+          medication_id: string
+          quantity?: number
+          time_of_day: string
+          user_id: string
+          with_food?: boolean | null
+        }
+        Update: {
+          created_at?: string
+          days_of_week?: number[] | null
+          id?: string
+          is_active?: boolean
+          medication_id?: string
+          quantity?: number
+          time_of_day?: string
+          user_id?: string
+          with_food?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "medication_schedules_medication_id_fkey"
+            columns: ["medication_id"]
+            isOneToOne: false
+            referencedRelation: "medications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      medications: {
+        Row: {
+          created_at: string
+          dosage: string
+          dosage_unit: string
+          end_date: string | null
+          form: string
+          id: string
+          instructions: string | null
+          is_active: boolean
+          name: string
+          pharmacy: string | null
+          prescriber: string | null
+          refills_remaining: number | null
+          start_date: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          dosage: string
+          dosage_unit?: string
+          end_date?: string | null
+          form?: string
+          id?: string
+          instructions?: string | null
+          is_active?: boolean
+          name: string
+          pharmacy?: string | null
+          prescriber?: string | null
+          refills_remaining?: number | null
+          start_date?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          dosage?: string
+          dosage_unit?: string
+          end_date?: string | null
+          form?: string
+          id?: string
+          instructions?: string | null
+          is_active?: boolean
+          name?: string
+          pharmacy?: string | null
+          prescriber?: string | null
+          refills_remaining?: number | null
+          start_date?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -148,6 +297,47 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      symptom_entries: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          medication_id: string | null
+          recorded_at: string
+          severity: number
+          symptom_type: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          medication_id?: string | null
+          recorded_at?: string
+          severity: number
+          symptom_type: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          medication_id?: string | null
+          recorded_at?: string
+          severity?: number
+          symptom_type?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "symptom_entries_medication_id_fkey"
+            columns: ["medication_id"]
+            isOneToOne: false
+            referencedRelation: "medications"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_roles: {
         Row: {
