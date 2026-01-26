@@ -23,6 +23,7 @@ import {
   Bot,
   Users,
   Heart,
+  History,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -35,12 +36,17 @@ const baseMenuItems = [
   { title: "Ask Angela", url: "/dashboard/angela", icon: Bot },
 ];
 
+const caregiverMenuItems = [
+  { title: "Caregiver View", url: "/dashboard/caregiver-view", icon: Heart },
+  { title: "Alert History", url: "/dashboard/caregiver-history", icon: History },
+];
+
 export function PatientSidebar() {
   const { signOut, profile } = useAuth();
   const { data: hasCaregiverRelationships } = useHasCaregiverRelationships();
 
   const menuItems = hasCaregiverRelationships
-    ? [...baseMenuItems.slice(0, 5), { title: "Caregiver View", url: "/dashboard/caregiver-view", icon: Heart }, baseMenuItems[5]]
+    ? [...baseMenuItems.slice(0, 5), ...caregiverMenuItems, baseMenuItems[5]]
     : baseMenuItems;
 
   return (
