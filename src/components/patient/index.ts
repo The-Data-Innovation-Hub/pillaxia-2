@@ -7,6 +7,7 @@ export { SymptomsPage } from "./SymptomsPage";
 export { AngelaPage } from "./AngelaPage";
 export { CaregiversPage } from "./CaregiversPage";
 export { CaregiverInvitationsReceived } from "./CaregiverInvitationsReceived";
+export { CaregiverDashboardPage } from "./CaregiverDashboardPage";
 export { MedicationCard } from "./MedicationCard";
 export { AddMedicationDialog } from "./AddMedicationDialog";
 export { TodayScheduleCard } from "./TodayScheduleCard";
