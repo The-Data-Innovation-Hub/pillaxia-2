@@ -7,6 +7,7 @@ import { Progress } from "@/components/ui/progress";
 import { Pill, Calendar, ClipboardList, TrendingUp, Plus, Bot } from "lucide-react";
 import { format } from "date-fns";
 import { useNavigate } from "react-router-dom";
+import { CaregiverInvitationsReceived } from "./CaregiverInvitationsReceived";
 
 interface DashboardStats {
   totalMedications: number;
@@ -93,6 +94,9 @@ export function PatientDashboardHome() {
 
   return (
     <div className="space-y-6">
+      {/* Caregiver Invitations (if any) */}
+      <CaregiverInvitationsReceived />
+
       {/* Welcome Section */}
       <div className="flex items-center justify-between">
         <div>
