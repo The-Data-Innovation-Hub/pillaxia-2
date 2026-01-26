@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Menu, X } from "lucide-react";
 import { useState } from "react";
+import pillaxiaLogo from "@/assets/pillaxia-logo.png";
 
 interface NavbarProps {
   onLoginClick?: () => void;
@@ -25,7 +26,7 @@ const Navbar = ({
       <div className="max-w-7xl mx-auto flex items-center justify-between">
         {/* Logo */}
         <div className="flex items-center">
-          <h1 className="text-2xl font-bold text-pillaxia-cyan">Pillaxia</h1>
+          <img src={pillaxiaLogo} alt="Pillaxia" className="h-8" />
         </div>
 
         {/* Desktop Navigation */}
