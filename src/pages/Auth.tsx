@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { z } from "zod";
-import { Loader2, User, Stethoscope, Pill, Shield } from "lucide-react";
+import { Loader2, User, Stethoscope, Pill, Shield, Home } from "lucide-react";
 
 type AppRole = "patient" | "clinician" | "pharmacist" | "admin";
 
@@ -301,14 +301,16 @@ const Auth = () => {
               </p>
             </div>
 
-            <div className="mt-4 text-center">
-              <button
+            <div className="mt-6">
+              <Button
                 type="button"
+                variant="outline"
                 onClick={() => navigate("/")}
-                className="text-sm text-muted-foreground hover:text-foreground"
+                className="w-full border-pillaxia-cyan/50 text-muted-foreground hover:text-foreground hover:border-pillaxia-cyan"
               >
-                ← Back to home
-              </button>
+                <Home className="mr-2 h-4 w-4" />
+                Back to Home
+              </Button>
             </div>
           </CardContent>
         </Card>
