@@ -20,7 +20,8 @@ import {
   MessageCircle,
   Settings,
   LogOut,
-  Bot
+  Bot,
+  Users
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -29,6 +30,7 @@ const menuItems = [
   { title: "Medications", url: "/dashboard/medications", icon: Pill },
   { title: "Today's Schedule", url: "/dashboard/schedule", icon: Calendar },
   { title: "Symptom Diary", url: "/dashboard/symptoms", icon: ClipboardList },
+  { title: "Caregivers", url: "/dashboard/caregivers", icon: Users },
   { title: "Ask Angela", url: "/dashboard/angela", icon: Bot },
 ];
 
