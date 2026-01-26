@@ -21,6 +21,7 @@ interface SendEncouragementDialogProps {
   onOpenChange: (open: boolean) => void;
   patientUserId: string;
   patientName: string;
+  caregiverName: string;
 }
 
 const QUICK_MESSAGES = [
@@ -35,6 +36,7 @@ export function SendEncouragementDialog({
   onOpenChange,
   patientUserId,
   patientName,
+  caregiverName,
 }: SendEncouragementDialogProps) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -44,6 +46,7 @@ export function SendEncouragementDialog({
     mutationFn: async (messageText: string) => {
       if (!user) throw new Error("Not authenticated");
 
+      // Insert the message into the database
       const { error } = await supabase.from("caregiver_messages").insert({
         caregiver_user_id: user.id,
         patient_user_id: patientUserId,
@@ -51,6 +54,20 @@ export function SendEncouragementDialog({
       });
 
       if (error) throw error;
+
+      // Send email notification (fire and forget - don't fail if email fails)
+      try {
+        await supabase.functions.invoke("send-encouragement-email", {
+          body: {
+            patient_user_id: patientUserId,
+            caregiver_name: caregiverName,
+            message: messageText.trim(),
+          },
+        });
+      } catch (emailError) {
+        console.error("Failed to send email notification:", emailError);
+        // Don't throw - the message was saved, email is optional
+      }
     },
     onSuccess: () => {
       toast({

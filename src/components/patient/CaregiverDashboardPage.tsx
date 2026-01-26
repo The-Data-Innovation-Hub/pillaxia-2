@@ -68,7 +68,7 @@ interface PatientWithData {
 }
 
 export function CaregiverDashboardPage() {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
 
   // Fetch all accepted caregiver relationships with patient data
   const { data: patients, isLoading } = useQuery({
@@ -300,21 +300,26 @@ export function CaregiverDashboardPage() {
           ))}
         </TabsList>
 
-        {patients.map((patient) => (
-          <TabsContent
-            key={patient.patient_user_id}
-            value={patient.patient_user_id}
-            className="space-y-6"
-          >
-            <PatientDetailView patient={patient} />
-          </TabsContent>
-        ))}
+        {patients.map((patient) => {
+          const caregiverName = profile?.first_name 
+            ? `${profile.first_name} ${profile.last_name || ""}`.trim()
+            : "Your Caregiver";
+          return (
+            <TabsContent
+              key={patient.patient_user_id}
+              value={patient.patient_user_id}
+              className="space-y-6"
+            >
+              <PatientDetailView patient={patient} caregiverName={caregiverName} />
+            </TabsContent>
+          );
+        })}
       </Tabs>
     </div>
   );
 }
 
-function PatientDetailView({ patient }: { patient: PatientWithData }) {
+function PatientDetailView({ patient, caregiverName }: { patient: PatientWithData; caregiverName: string }) {
   const [showEncouragementDialog, setShowEncouragementDialog] = useState(false);
   
   const patientName = patient.patient_profile?.first_name
@@ -372,6 +377,7 @@ function PatientDetailView({ patient }: { patient: PatientWithData }) {
           onOpenChange={setShowEncouragementDialog}
           patientUserId={patient.patient_user_id}
           patientName={patientName}
+          caregiverName={caregiverName}
         />
       </Card>
 
