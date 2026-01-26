@@ -15,6 +15,13 @@ import {
   SymptomsPage,
   AngelaPage,
 } from "@/components/patient";
+import {
+  ClinicianLayout,
+  ClinicianDashboardHome,
+  PatientRosterPage,
+  MedicationReviewPage,
+  AdherenceMonitorPage,
+} from "@/components/clinician";
 
 const queryClient = new QueryClient();
 
@@ -37,6 +44,16 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+// Patient Dashboard Layout
+function PatientDashboard() {
+  return <PatientLayout />;
+}
+
+// Clinician Dashboard Layout
+function ClinicianDashboard() {
+  return <ClinicianLayout />;
+}
+
 // Role-based dashboard router
 function DashboardRouter() {
   const { isPatient, isClinician, isPharmacist, isAdmin, roles, loading } = useAuth();
@@ -49,14 +66,19 @@ function DashboardRouter() {
     );
   }
 
-  // Default to patient dashboard for now
-  // Other role dashboards will be added in later phases
-  if (isPatient || roles.length === 0) {
-    return <PatientLayout />;
+  // Clinician gets their own dashboard
+  if (isClinician) {
+    return <ClinicianDashboard />;
   }
 
-  // Placeholder for other roles - show patient dashboard for now
-  return <PatientLayout />;
+  // Default to patient dashboard
+  return <PatientDashboard />;
+}
+
+// Determine which home component to show based on role
+function DashboardHome() {
+  const { isClinician } = useAuth();
+  return isClinician ? <ClinicianDashboardHome /> : <PatientDashboardHome />;
 }
 
 const App = () => (
@@ -79,11 +101,15 @@ const App = () => (
                 </ProtectedRoute>
               }
             >
-              <Route index element={<PatientDashboardHome />} />
+              <Route index element={<DashboardHome />} />
+              {/* Patient Routes */}
               <Route path="medications" element={<MedicationsPage />} />
               <Route path="schedule" element={<SchedulePage />} />
               <Route path="symptoms" element={<SymptomsPage />} />
               <Route path="angela" element={<AngelaPage />} />
+              {/* Clinician Routes */}
+              <Route path="patients" element={<PatientRosterPage />} />
+              <Route path="adherence" element={<AdherenceMonitorPage />} />
             </Route>
             
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
