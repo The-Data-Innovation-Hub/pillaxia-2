@@ -1,6 +1,8 @@
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useMissedDoseAlerts } from "@/hooks/useMissedDoseAlerts";
 import {
   Card,
   CardContent,
@@ -21,10 +23,9 @@ import {
   Clock,
   User,
   Calendar,
-  TrendingUp,
-  TrendingDown,
+  Bell,
 } from "lucide-react";
-import { format, subDays, startOfDay, endOfDay } from "date-fns";
+import { format, subDays } from "date-fns";
 
 interface CaregiverPermissions {
   view_medications?: boolean;
@@ -157,6 +158,21 @@ export function CaregiverDashboardPage() {
     enabled: !!user,
   });
 
+  // Prepare patient info for missed dose alerts
+  const patientInfoForAlerts = useMemo(() => {
+    if (!patients) return [];
+    return patients.map((p) => ({
+      patient_user_id: p.patient_user_id,
+      patient_name: p.patient_profile?.first_name
+        ? `${p.patient_profile.first_name} ${p.patient_profile.last_name || ""}`
+        : "Patient",
+      medications: new Map(p.medications.map((m) => [m.id, m.name])),
+    }));
+  }, [patients]);
+
+  // Enable real-time missed dose alerts
+  useMissedDoseAlerts(patientInfoForAlerts, !!patients && patients.length > 0);
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -191,11 +207,17 @@ export function CaregiverDashboardPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Caregiver Dashboard</h1>
-        <p className="text-muted-foreground">
-          Monitoring {patients.length} patient{patients.length !== 1 ? "s" : ""}
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">Caregiver Dashboard</h1>
+          <p className="text-muted-foreground">
+            Monitoring {patients.length} patient{patients.length !== 1 ? "s" : ""}
+          </p>
+        </div>
+        <Badge variant="outline" className="flex items-center gap-1.5 px-3 py-1.5">
+          <Bell className="h-3.5 w-3.5 text-primary animate-pulse" />
+          <span className="text-xs">Real-time alerts active</span>
+        </Badge>
       </div>
 
       {/* Overview Cards */}
