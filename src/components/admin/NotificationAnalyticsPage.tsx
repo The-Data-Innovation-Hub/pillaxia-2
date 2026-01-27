@@ -45,50 +45,34 @@ import {
   MessageSquare,
   Smartphone,
   CheckCircle,
-  XCircle,
-  TrendingUp,
-  Clock,
   TestTube,
   Loader2,
   User,
   RotateCcw,
   AlertTriangle,
   Timer,
+  Phone,
 } from "lucide-react";
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip as RechartsTooltip,
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-  LineChart,
-  Line,
-  Legend,
-} from "recharts";
 import { format, subDays, startOfDay, endOfDay } from "date-fns";
+import {
+  AnalyticsOverviewCards,
+  EngagementFunnelChart,
+  ChannelEngagementTable,
+  DeliveryTrendChart,
+} from "./analytics";
 
 const CHANNEL_COLORS: Record<string, string> = {
   push: "#8B5CF6",
   email: "#3B82F6",
   whatsapp: "#22C55E",
-};
-
-const STATUS_COLORS: Record<string, string> = {
-  sent: "#22C55E",
-  delivered: "#10B981",
-  failed: "#EF4444",
-  pending: "#F59E0B",
+  sms: "#F59E0B",
 };
 
 const CHANNEL_ICONS: Record<string, typeof Bell> = {
   push: Smartphone,
   email: Mail,
   whatsapp: MessageSquare,
+  sms: Phone,
 };
 
 type TimeRange = "7d" | "14d" | "30d";
@@ -103,6 +87,7 @@ export function NotificationAnalyticsPage() {
   const queryClient = useQueryClient();
   const days = timeRange === "7d" ? 7 : timeRange === "14d" ? 14 : 30;
   const startDate = startOfDay(subDays(new Date(), days - 1));
+  const endDate = endOfDay(new Date());
 
   // Fetch current admin's email from their profile
   const { data: currentUserProfile } = useQuery({
@@ -120,31 +105,40 @@ export function NotificationAnalyticsPage() {
       return profile;
     },
   });
-  const endDate = endOfDay(new Date());
 
   const { data: analytics, isLoading } = useQuery({
     queryKey: ["notification-analytics", timeRange],
     queryFn: async () => {
       const { data: notifications, error } = await supabase
         .from("notification_history")
-        .select("channel, status, notification_type, created_at")
+        .select("channel, status, notification_type, created_at, delivered_at, opened_at, clicked_at")
         .gte("created_at", startDate.toISOString())
         .lte("created_at", endDate.toISOString())
         .order("created_at", { ascending: true });
 
       if (error) throw error;
 
-      // Aggregate by channel
-      const byChannel: Record<string, { sent: number; failed: number; total: number }> = {
-        push: { sent: 0, failed: 0, total: 0 },
-        email: { sent: 0, failed: 0, total: 0 },
-        whatsapp: { sent: 0, failed: 0, total: 0 },
+      // Initialize channel stats with engagement metrics
+      const byChannel: Record<string, {
+        total: number;
+        sent: number;
+        delivered: number;
+        opened: number;
+        clicked: number;
+        failed: number;
+      }> = {
+        push: { total: 0, sent: 0, delivered: 0, opened: 0, clicked: 0, failed: 0 },
+        email: { total: 0, sent: 0, delivered: 0, opened: 0, clicked: 0, failed: 0 },
+        whatsapp: { total: 0, sent: 0, delivered: 0, opened: 0, clicked: 0, failed: 0 },
+        sms: { total: 0, sent: 0, delivered: 0, opened: 0, clicked: 0, failed: 0 },
       };
 
       // Aggregate by status
       const byStatus: Record<string, number> = {
         sent: 0,
         delivered: 0,
+        opened: 0,
+        clicked: 0,
         failed: 0,
         pending: 0,
       };
@@ -152,37 +146,96 @@ export function NotificationAnalyticsPage() {
       // Aggregate by notification type
       const byType: Record<string, number> = {};
 
-      // Aggregate by day for trend chart
-      const byDay: Record<string, { date: string; sent: number; failed: number }> = {};
+      // Aggregate by day for trend chart with engagement data
+      const byDay: Record<string, {
+        date: string;
+        sent: number;
+        delivered: number;
+        opened: number;
+        clicked: number;
+        failed: number;
+      }> = {};
+
+      // Total engagement counters
+      let totalDelivered = 0;
+      let totalOpened = 0;
+      let totalClicked = 0;
 
       notifications?.forEach((n) => {
-        // By channel
-        if (byChannel[n.channel]) {
-          byChannel[n.channel].total++;
-          if (n.status === "sent" || n.status === "delivered") {
-            byChannel[n.channel].sent++;
-          } else if (n.status === "failed") {
-            byChannel[n.channel].failed++;
-          }
+        const channel = n.channel;
+        
+        // Initialize channel if not exists
+        if (!byChannel[channel]) {
+          byChannel[channel] = { total: 0, sent: 0, delivered: 0, opened: 0, clicked: 0, failed: 0 };
         }
 
-        // By status
-        if (n.status in byStatus) {
-          byStatus[n.status]++;
+        byChannel[channel].total++;
+
+        // Count based on status
+        if (n.status === "sent" || n.status === "delivered") {
+          byChannel[channel].sent++;
+          byStatus.sent++;
+        } else if (n.status === "failed") {
+          byChannel[channel].failed++;
+          byStatus.failed++;
+        } else if (n.status === "pending") {
+          byStatus.pending++;
+        }
+
+        // Track delivery timestamps for engagement metrics
+        if (n.delivered_at) {
+          byChannel[channel].delivered++;
+          totalDelivered++;
+          byStatus.delivered++;
+        }
+
+        if (n.opened_at) {
+          byChannel[channel].opened++;
+          totalOpened++;
+        }
+
+        if (n.clicked_at) {
+          byChannel[channel].clicked++;
+          totalClicked++;
         }
 
         // By type
         byType[n.notification_type] = (byType[n.notification_type] || 0) + 1;
 
-        // By day
+        // By day with all metrics
         const day = format(new Date(n.created_at), "yyyy-MM-dd");
         if (!byDay[day]) {
-          byDay[day] = { date: day, sent: 0, failed: 0 };
+          byDay[day] = { date: day, sent: 0, delivered: 0, opened: 0, clicked: 0, failed: 0 };
         }
+
         if (n.status === "sent" || n.status === "delivered") {
           byDay[day].sent++;
         } else if (n.status === "failed") {
           byDay[day].failed++;
+        }
+
+        if (n.delivered_at) {
+          const deliveredDay = format(new Date(n.delivered_at), "yyyy-MM-dd");
+          if (!byDay[deliveredDay]) {
+            byDay[deliveredDay] = { date: deliveredDay, sent: 0, delivered: 0, opened: 0, clicked: 0, failed: 0 };
+          }
+          byDay[deliveredDay].delivered++;
+        }
+
+        if (n.opened_at) {
+          const openedDay = format(new Date(n.opened_at), "yyyy-MM-dd");
+          if (!byDay[openedDay]) {
+            byDay[openedDay] = { date: openedDay, sent: 0, delivered: 0, opened: 0, clicked: 0, failed: 0 };
+          }
+          byDay[openedDay].opened++;
+        }
+
+        if (n.clicked_at) {
+          const clickedDay = format(new Date(n.clicked_at), "yyyy-MM-dd");
+          if (!byDay[clickedDay]) {
+            byDay[clickedDay] = { date: clickedDay, sent: 0, delivered: 0, opened: 0, clicked: 0, failed: 0 };
+          }
+          byDay[clickedDay].clicked++;
         }
       });
 
@@ -190,19 +243,17 @@ export function NotificationAnalyticsPage() {
       const trendData = [];
       for (let i = 0; i < days; i++) {
         const date = format(subDays(new Date(), days - 1 - i), "yyyy-MM-dd");
-        trendData.push(byDay[date] || { date, sent: 0, failed: 0 });
+        trendData.push(byDay[date] || { date, sent: 0, delivered: 0, opened: 0, clicked: 0, failed: 0 });
       }
 
-      // Calculate success rates
-      const channelData = Object.entries(byChannel).map(([channel, stats]) => ({
+      // Calculate channel engagement stats with rates
+      const channelStats = Object.entries(byChannel).map(([channel, stats]) => ({
         channel,
         ...stats,
-        successRate: stats.total > 0 ? ((stats.sent / stats.total) * 100).toFixed(1) : "0.0",
+        deliveryRate: stats.sent > 0 ? ((stats.delivered / stats.sent) * 100).toFixed(1) : "0.0",
+        openRate: stats.delivered > 0 ? ((stats.opened / stats.delivered) * 100).toFixed(1) : "0.0",
+        clickRate: stats.opened > 0 ? ((stats.clicked / stats.opened) * 100).toFixed(1) : "0.0",
       }));
-
-      const statusData = Object.entries(byStatus)
-        .filter(([_, count]) => count > 0)
-        .map(([status, count]) => ({ name: status, value: count }));
 
       const typeData = Object.entries(byType)
         .sort((a, b) => b[1] - a[1])
@@ -218,16 +269,32 @@ export function NotificationAnalyticsPage() {
       const overallSuccessRate = totalNotifications > 0 
         ? ((totalSent / totalNotifications) * 100).toFixed(1) 
         : "0.0";
+      
+      // Calculate overall engagement rates
+      const deliveryRate = totalSent > 0 
+        ? ((totalDelivered / totalSent) * 100).toFixed(1) 
+        : "0.0";
+      const openRate = totalDelivered > 0 
+        ? ((totalOpened / totalDelivered) * 100).toFixed(1) 
+        : "0.0";
+      const clickRate = totalOpened > 0 
+        ? ((totalClicked / totalOpened) * 100).toFixed(1) 
+        : "0.0";
 
       return {
-        channelData,
-        statusData,
+        channelStats,
         typeData,
         trendData,
         totalNotifications,
         totalSent,
+        totalDelivered,
+        totalOpened,
+        totalClicked,
         totalFailed,
         overallSuccessRate,
+        deliveryRate,
+        openRate,
+        clickRate,
       };
     },
   });
@@ -263,7 +330,6 @@ export function NotificationAnalyticsPage() {
           title: "Notification Retried",
           description: "The notification was successfully resent.",
         });
-        // Refresh both queries
         queryClient.invalidateQueries({ queryKey: ["failed-notifications"] });
         queryClient.invalidateQueries({ queryKey: ["notification-analytics"] });
       } else {
@@ -289,37 +355,6 @@ export function NotificationAnalyticsPage() {
     }
   };
 
-  const overviewCards = [
-    {
-      title: "Total Notifications",
-      value: analytics?.totalNotifications || 0,
-      icon: Bell,
-      color: "text-primary",
-      bgColor: "bg-primary/10",
-    },
-    {
-      title: "Successfully Sent",
-      value: analytics?.totalSent || 0,
-      icon: CheckCircle,
-      color: "text-green-600",
-      bgColor: "bg-green-50",
-    },
-    {
-      title: "Failed",
-      value: analytics?.totalFailed || 0,
-      icon: XCircle,
-      color: "text-red-600",
-      bgColor: "bg-red-50",
-    },
-    {
-      title: "Success Rate",
-      value: `${analytics?.overallSuccessRate || 0}%`,
-      icon: TrendingUp,
-      color: "text-blue-600",
-      bgColor: "bg-blue-50",
-    },
-  ];
-
   const sendTestEmail = async () => {
     if (!testEmail.trim()) {
       toast({
@@ -336,17 +371,14 @@ export function NotificationAnalyticsPage() {
         body: { to: testEmail.trim() },
       });
 
-      // Handle edge function errors (network/invocation issues)
       if (error) {
         throw new Error(error.message || "Failed to connect to email service");
       }
 
-      // Handle application-level errors returned by the function
       if (data?.error) {
         const errorDetails = data.details || data.error;
         let userMessage = errorDetails;
         
-        // Provide helpful context for common Resend errors
         if (errorDetails?.includes("domain")) {
           userMessage = `Domain verification issue: ${errorDetails}. Please verify your domain at resend.com/domains.`;
         } else if (errorDetails?.includes("from")) {
@@ -384,7 +416,7 @@ export function NotificationAnalyticsPage() {
         <div>
           <h1 className="text-2xl font-bold">Notification Analytics</h1>
           <p className="text-muted-foreground">
-            Delivery statistics across all channels
+            Delivery rates, open rates, and engagement metrics across all channels
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -399,7 +431,7 @@ export function NotificationAnalyticsPage() {
               <DialogHeader>
                 <DialogTitle>Test Email Webhook</DialogTitle>
                 <DialogDescription>
-                  Send a test email to verify the Resend webhook integration. After sending, check the notification history to see real-time status updates (sent → delivered).
+                  Send a test email to verify the Resend webhook integration. After sending, check the notification history to see real-time status updates.
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-4">
@@ -465,212 +497,41 @@ export function NotificationAnalyticsPage() {
         </div>
       </div>
 
-      {/* Overview Stats */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {overviewCards.map((card) => (
-          <Card key={card.title}>
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-3">
-                <div className={`p-2 rounded-lg ${card.bgColor}`}>
-                  <card.icon className={`h-5 w-5 ${card.color}`} />
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">{card.title}</p>
-                  {isLoading ? (
-                    <Skeleton className="h-7 w-16" />
-                  ) : (
-                    <p className="text-2xl font-bold">{card.value}</p>
-                  )}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      {/* Overview Stats with Engagement Metrics */}
+      <AnalyticsOverviewCards
+        totalNotifications={analytics?.totalNotifications || 0}
+        totalSent={analytics?.totalSent || 0}
+        totalDelivered={analytics?.totalDelivered || 0}
+        totalOpened={analytics?.totalOpened || 0}
+        totalClicked={analytics?.totalClicked || 0}
+        totalFailed={analytics?.totalFailed || 0}
+        overallSuccessRate={analytics?.overallSuccessRate || "0.0"}
+        deliveryRate={analytics?.deliveryRate || "0.0"}
+        openRate={analytics?.openRate || "0.0"}
+        clickRate={analytics?.clickRate || "0.0"}
+        isLoading={isLoading}
+      />
 
-      {/* Delivery Trend */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Clock className="h-5 w-5" />
-            Delivery Trend
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <Skeleton className="h-64 w-full" />
-          ) : (
-            <ResponsiveContainer width="100%" height={280}>
-              <LineChart data={analytics?.trendData || []}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis 
-                  dataKey="date" 
-                  tickFormatter={(v) => format(new Date(v), "MMM d")}
-                />
-                <YAxis />
-                <RechartsTooltip 
-                  labelFormatter={(v) => format(new Date(v), "MMM d, yyyy")}
-                />
-                <Legend />
-                <Line 
-                  type="monotone" 
-                  dataKey="sent" 
-                  name="Sent"
-                  stroke="#22C55E" 
-                  strokeWidth={2}
-                  dot={false}
-                />
-                <Line 
-                  type="monotone" 
-                  dataKey="failed" 
-                  name="Failed"
-                  stroke="#EF4444" 
-                  strokeWidth={2}
-                  dot={false}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          )}
-        </CardContent>
-      </Card>
+      {/* Engagement Funnel */}
+      <EngagementFunnelChart
+        sent={analytics?.totalSent || 0}
+        delivered={analytics?.totalDelivered || 0}
+        opened={analytics?.totalOpened || 0}
+        clicked={analytics?.totalClicked || 0}
+        isLoading={isLoading}
+      />
 
-      {/* Channel Performance */}
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Channel Performance</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {isLoading ? (
-              <Skeleton className="h-64 w-full" />
-            ) : (
-              <div className="space-y-4">
-                {analytics?.channelData.map((channel) => {
-                  const Icon = CHANNEL_ICONS[channel.channel] || Bell;
-                  const successRate = parseFloat(channel.successRate);
-                  return (
-                    <div key={channel.channel} className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <Icon 
-                            className="h-4 w-4" 
-                            style={{ color: CHANNEL_COLORS[channel.channel] }}
-                          />
-                          <span className="font-medium capitalize">
-                            {channel.channel}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-3 text-sm">
-                          <Badge variant="outline" className="text-green-600">
-                            {channel.sent} sent
-                          </Badge>
-                          <Badge variant="outline" className="text-red-600">
-                            {channel.failed} failed
-                          </Badge>
-                          <span className="font-semibold">
-                            {channel.successRate}%
-                          </span>
-                        </div>
-                      </div>
-                      <div className="h-2 rounded-full bg-muted overflow-hidden">
-                        <div
-                          className="h-full rounded-full transition-all"
-                          style={{
-                            width: `${successRate}%`,
-                            backgroundColor: 
-                              successRate >= 90 ? "#22C55E" :
-                              successRate >= 70 ? "#F59E0B" : "#EF4444",
-                          }}
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
-                {!analytics?.channelData.some((c) => c.total > 0) && (
-                  <div className="h-32 flex items-center justify-center text-muted-foreground">
-                    No notification data in this period
-                  </div>
-                )}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+      {/* Delivery & Engagement Trend */}
+      <DeliveryTrendChart
+        data={analytics?.trendData || []}
+        isLoading={isLoading}
+      />
 
-        {/* Status Distribution */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Status Distribution</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {isLoading ? (
-              <Skeleton className="h-64 w-full" />
-            ) : analytics?.statusData.length ? (
-              <ResponsiveContainer width="100%" height={250}>
-                <PieChart>
-                  <Pie
-                    data={analytics.statusData}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={({ name, percent }) =>
-                      `${name} (${(percent * 100).toFixed(0)}%)`
-                    }
-                    outerRadius={80}
-                    dataKey="value"
-                  >
-                    {analytics.statusData.map((entry) => (
-                      <Cell
-                        key={entry.name}
-                        fill={STATUS_COLORS[entry.name] || "#8884d8"}
-                      />
-                    ))}
-                  </Pie>
-                  <RechartsTooltip />
-                </PieChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="h-64 flex items-center justify-center text-muted-foreground">
-                No notification data in this period
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Notification Types */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Notifications by Type</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <Skeleton className="h-48 w-full" />
-          ) : analytics?.typeData.length ? (
-            <ResponsiveContainer width="100%" height={200}>
-              <BarChart data={analytics.typeData} layout="vertical">
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis type="number" />
-                <YAxis 
-                  dataKey="name" 
-                  type="category" 
-                  width={150}
-                  tick={{ fontSize: 12 }}
-                />
-                <RechartsTooltip />
-                <Bar 
-                  dataKey="count" 
-                  fill="hsl(var(--primary))" 
-                  radius={[0, 4, 4, 0]} 
-                />
-              </BarChart>
-            </ResponsiveContainer>
-          ) : (
-            <div className="h-48 flex items-center justify-center text-muted-foreground">
-              No notification data in this period
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      {/* Channel Engagement Breakdown */}
+      <ChannelEngagementTable
+        channelStats={analytics?.channelStats || []}
+        isLoading={isLoading}
+      />
 
       {/* Failed Notifications with Retry */}
       <Card>
