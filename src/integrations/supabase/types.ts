@@ -383,7 +383,9 @@ export type Database = {
         Row: {
           body: string | null
           channel: string
+          clicked_at: string | null
           created_at: string
+          delivered_at: string | null
           error_message: string | null
           id: string
           last_retry_at: string | null
@@ -391,6 +393,7 @@ export type Database = {
           metadata: Json | null
           next_retry_at: string | null
           notification_type: string
+          opened_at: string | null
           retry_count: number
           status: string
           title: string
@@ -399,7 +402,9 @@ export type Database = {
         Insert: {
           body?: string | null
           channel: string
+          clicked_at?: string | null
           created_at?: string
+          delivered_at?: string | null
           error_message?: string | null
           id?: string
           last_retry_at?: string | null
@@ -407,6 +412,7 @@ export type Database = {
           metadata?: Json | null
           next_retry_at?: string | null
           notification_type: string
+          opened_at?: string | null
           retry_count?: number
           status?: string
           title: string
@@ -415,7 +421,9 @@ export type Database = {
         Update: {
           body?: string | null
           channel?: string
+          clicked_at?: string | null
           created_at?: string
+          delivered_at?: string | null
           error_message?: string | null
           id?: string
           last_retry_at?: string | null
@@ -423,6 +431,7 @@ export type Database = {
           metadata?: Json | null
           next_retry_at?: string | null
           notification_type?: string
+          opened_at?: string | null
           retry_count?: number
           status?: string
           title?: string
