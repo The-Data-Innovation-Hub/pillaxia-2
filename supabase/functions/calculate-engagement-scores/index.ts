@@ -1,9 +1,12 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { Resend } from "https://esm.sh/resend@2.0.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+
+const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
 
 interface EngagementMetrics {
   adherence: {
@@ -129,6 +132,20 @@ Deno.serve(async (req) => {
         riskLevel = "medium";
       }
 
+      // Check if patient is transitioning to high risk
+      const today = new Date().toISOString().split("T")[0];
+      const { data: existingScore } = await supabase
+        .from("patient_engagement_scores")
+        .select("risk_level")
+        .eq("user_id", patientId)
+        .order("score_date", { ascending: false })
+        .limit(1)
+        .single();
+
+      const wasHighRisk = existingScore?.risk_level === "high";
+      const isNowHighRisk = riskLevel === "high";
+      const transitionedToHighRisk = isNowHighRisk && !wasHighRisk;
+
       const metrics: EngagementMetrics = {
         adherence: {
           taken: takenCount,
@@ -151,7 +168,6 @@ Deno.serve(async (req) => {
       };
 
       // Upsert the engagement score
-      const today = new Date().toISOString().split("T")[0];
       const { error: upsertError } = await supabase
         .from("patient_engagement_scores")
         .upsert(
@@ -176,6 +192,96 @@ Deno.serve(async (req) => {
           overallScore: Math.round(overallScore * 100) / 100,
           riskLevel,
         });
+
+        // Send alert to clinicians if patient transitioned to high risk
+        if (transitionedToHighRisk) {
+          console.log(`Patient ${patientId} transitioned to high risk - sending alerts`);
+          
+          // Get patient info
+          const { data: patientProfile } = await supabase
+            .from("profiles")
+            .select("first_name, last_name, email")
+            .eq("user_id", patientId)
+            .single();
+
+          // Get assigned clinicians
+          const { data: assignments } = await supabase
+            .from("clinician_patient_assignments")
+            .select("clinician_user_id")
+            .eq("patient_user_id", patientId);
+
+          if (assignments && assignments.length > 0) {
+            const clinicianIds = assignments.map((a) => a.clinician_user_id);
+            
+            // Get clinician emails
+            const { data: clinicians } = await supabase
+              .from("profiles")
+              .select("user_id, first_name, last_name, email")
+              .in("user_id", clinicianIds);
+
+            const patientName = `${patientProfile?.first_name || "Unknown"} ${patientProfile?.last_name || ""}`.trim();
+
+            // Send email to each clinician
+            for (const clinician of clinicians || []) {
+              if (!clinician.email) continue;
+
+              try {
+                await resend.emails.send({
+                  from: "Pillaxia Alerts <alerts@pillaxia.com>",
+                  to: [clinician.email],
+                  subject: `⚠️ High Risk Alert: ${patientName} needs attention`,
+                  html: `
+                    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                      <div style="background: #dc2626; color: white; padding: 20px; border-radius: 8px 8px 0 0;">
+                        <h1 style="margin: 0; font-size: 24px;">⚠️ Patient Engagement Alert</h1>
+                      </div>
+                      <div style="background: #fef2f2; padding: 20px; border: 1px solid #fecaca;">
+                        <p style="margin: 0 0 16px 0; font-size: 16px;">
+                          Dear ${clinician.first_name || "Clinician"},
+                        </p>
+                        <p style="margin: 0 0 16px 0; font-size: 16px;">
+                          Your patient <strong>${patientName}</strong> has been flagged as <strong style="color: #dc2626;">high risk</strong> based on their engagement metrics.
+                        </p>
+                        <div style="background: white; padding: 16px; border-radius: 8px; margin: 16px 0;">
+                          <h3 style="margin: 0 0 12px 0; color: #374151;">Engagement Summary</h3>
+                          <table style="width: 100%; border-collapse: collapse;">
+                            <tr>
+                              <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb;">Overall Score</td>
+                              <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb; text-align: right; font-weight: bold; color: #dc2626;">${Math.round(overallScore)}%</td>
+                            </tr>
+                            <tr>
+                              <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb;">Adherence</td>
+                              <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb; text-align: right;">${Math.round(adherenceRate)}%</td>
+                            </tr>
+                            <tr>
+                              <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb;">App Usage</td>
+                              <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb; text-align: right;">${Math.round(appUsageScore)}%</td>
+                            </tr>
+                            <tr>
+                              <td style="padding: 8px 0;">Notification Response</td>
+                              <td style="padding: 8px 0; text-align: right;">${Math.round(notificationScore)}%</td>
+                            </tr>
+                          </table>
+                        </div>
+                        <p style="margin: 16px 0 0 0; font-size: 14px; color: #6b7280;">
+                          Consider reaching out to this patient to provide additional support and encourage medication adherence.
+                        </p>
+                      </div>
+                      <div style="background: #f3f4f6; padding: 16px; border-radius: 0 0 8px 8px; text-align: center;">
+                        <p style="margin: 0; font-size: 12px; color: #6b7280;">
+                          This is an automated alert from Pillaxia's engagement monitoring system.
+                        </p>
+                      </div>
+                    </div>
+                  `,
+                });
+                console.log(`Alert email sent to clinician ${clinician.email} for patient ${patientId}`);
+              } catch (emailError) {
+                console.error(`Failed to send alert email to ${clinician.email}:`, emailError);
+              }
+            }
+          }
+        }
       }
     }
 
