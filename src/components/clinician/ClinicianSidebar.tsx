@@ -1,4 +1,4 @@
-import { Users, Pill, Activity, LayoutDashboard, LogOut, Heart, History } from "lucide-react";
+import { Users, Pill, Activity, LayoutDashboard, LogOut, Heart, History, Bell } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/contexts/AuthContext";
 import { useHasCaregiverRelationships } from "@/hooks/useHasCaregiverRelationships";
@@ -21,6 +21,7 @@ const baseMenuItems = [
   { title: "Patient Roster", url: "/dashboard/patients", icon: Users },
   { title: "Medication Review", url: "/dashboard/medications", icon: Pill },
   { title: "Adherence Monitor", url: "/dashboard/adherence", icon: Activity },
+  { title: "Notifications", url: "/dashboard/notifications", icon: Bell },
 ];
 
 const caregiverMenuItems = [
