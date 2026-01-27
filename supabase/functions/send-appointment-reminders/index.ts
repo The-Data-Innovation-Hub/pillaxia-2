@@ -46,6 +46,93 @@ async function sendSMS(
   }
 }
 
+// Send WhatsApp via Twilio
+async function sendWhatsAppViaTwilio(
+  phone: string,
+  message: string,
+  twilioAccountSid: string,
+  twilioAuthToken: string,
+  twilioPhoneNumber: string
+): Promise<{ success: boolean; sid?: string; error?: string }> {
+  try {
+    const formattedPhone = phone.startsWith("+") ? phone : `+${phone.replace(/\D/g, "")}`;
+    const fromWhatsApp = `whatsapp:${twilioPhoneNumber}`;
+    const toWhatsApp = `whatsapp:${formattedPhone}`;
+
+    const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${twilioAccountSid}/Messages.json`;
+    const authHeader = btoa(`${twilioAccountSid}:${twilioAuthToken}`);
+
+    const twilioBody = new URLSearchParams({
+      To: toWhatsApp,
+      From: fromWhatsApp,
+      Body: message,
+    });
+
+    const response = await fetch(twilioUrl, {
+      method: "POST",
+      headers: {
+        "Authorization": `Basic ${authHeader}`,
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: twilioBody,
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      return { success: false, error: result.message || "Twilio WhatsApp API error" };
+    }
+
+    return { success: true, sid: result.sid };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : "Unknown error" };
+  }
+}
+
+// Send WhatsApp via Meta Graph API (fallback)
+async function sendWhatsAppViaMeta(
+  phone: string,
+  message: string
+): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  const whatsappToken = Deno.env.get("WHATSAPP_ACCESS_TOKEN");
+  const whatsappPhoneId = Deno.env.get("WHATSAPP_PHONE_NUMBER_ID");
+
+  if (!whatsappToken || !whatsappPhoneId) {
+    return { success: false, error: "meta_not_configured" };
+  }
+
+  try {
+    const formattedPhone = phone.replace(/\D/g, "");
+
+    const response = await fetch(
+      `https://graph.facebook.com/v18.0/${whatsappPhoneId}/messages`,
+      {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${whatsappToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          messaging_product: "whatsapp",
+          to: formattedPhone,
+          type: "text",
+          text: { body: message },
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      return { success: false, error: JSON.stringify(errorData) };
+    }
+
+    const result = await response.json();
+    return { success: true, messageId: result.messages?.[0]?.id };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : "Unknown error" };
+  }
+}
+
 serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -91,7 +178,7 @@ serve(async (req: Request) => {
       );
     }
 
-    const results = { emailSent: 0, smsSent: 0, failed: 0 };
+    const results = { emailSent: 0, smsSent: 0, whatsappSent: 0, failed: 0 };
 
     for (const appointment of appointments) {
       try {
@@ -112,7 +199,7 @@ serve(async (req: Request) => {
         // Check patient notification preferences
         const { data: prefs } = await supabase
           .from("patient_notification_preferences")
-          .select("email_reminders, sms_reminders")
+          .select("email_reminders, sms_reminders, whatsapp_reminders")
           .eq("user_id", appointment.patient_user_id)
           .single();
 
@@ -126,8 +213,7 @@ serve(async (req: Request) => {
 
         let emailSent = false;
         let smsSent = false;
-
-        // Send email reminder if enabled
+        let whatsappSent = false;
         if (resendApiKey && patientProfile?.email && (prefs?.email_reminders !== false)) {
           const emailHtml = `
             <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
@@ -214,8 +300,60 @@ serve(async (req: Request) => {
           }
         }
 
+        // Send WhatsApp reminder if enabled and phone available
+        if (patientProfile?.phone && (prefs?.whatsapp_reminders !== false)) {
+          const whatsappMessage = `📅 Pillaxia Appointment Reminder\n\nHello ${patientProfile.first_name || "there"},\n\nYour appointment "${appointment.title}" is scheduled for tomorrow at ${appointmentTime}${appointment.location ? ` at ${appointment.location}` : ""}${clinicianProfile ? ` with Dr. ${clinicianProfile.last_name}` : ""}.\n\nPlease arrive on time. Log in to your Pillaxia account to reschedule if needed.`;
+
+          let whatsappResult: { success: boolean; sid?: string; messageId?: string; error?: string };
+          let provider = "twilio";
+
+          // Try Twilio first if configured
+          if (twilioConfigured) {
+            whatsappResult = await sendWhatsAppViaTwilio(
+              patientProfile.phone,
+              whatsappMessage,
+              twilioAccountSid!,
+              twilioAuthToken!,
+              twilioPhoneNumber!
+            );
+          } else {
+            // Fall back to Meta Graph API
+            provider = "meta";
+            whatsappResult = await sendWhatsAppViaMeta(patientProfile.phone, whatsappMessage);
+          }
+
+          // If Twilio failed, try Meta as fallback
+          if (!whatsappResult.success && twilioConfigured) {
+            provider = "meta";
+            whatsappResult = await sendWhatsAppViaMeta(patientProfile.phone, whatsappMessage);
+          }
+
+          if (whatsappResult.success) {
+            whatsappSent = true;
+            results.whatsappSent++;
+            console.log(`WhatsApp reminder sent to ${patientProfile.phone} via ${provider}`);
+
+            // Log WhatsApp notification
+            await supabase.from("notification_history").insert({
+              user_id: appointment.patient_user_id,
+              channel: "whatsapp",
+              notification_type: "appointment_reminder",
+              title: `Appointment Reminder: ${appointment.title}`,
+              body: whatsappMessage.substring(0, 200),
+              status: "sent",
+              metadata: { 
+                appointment_id: appointment.id, 
+                provider,
+                message_id: whatsappResult.sid || whatsappResult.messageId 
+              },
+            });
+          } else if (whatsappResult.error !== "meta_not_configured") {
+            console.error(`Failed to send WhatsApp reminder: ${whatsappResult.error}`);
+          }
+        }
+
         // Mark reminder as sent if at least one channel succeeded
-        if (emailSent || smsSent) {
+        if (emailSent || smsSent || whatsappSent) {
           const { error: updateError } = await supabase
             .from("appointments")
             .update({ reminder_sent: true })
@@ -233,7 +371,7 @@ serve(async (req: Request) => {
       }
     }
 
-    console.log(`Reminder processing complete. Email: ${results.emailSent}, SMS: ${results.smsSent}, Failed: ${results.failed}`);
+    console.log(`Reminder processing complete. Email: ${results.emailSent}, SMS: ${results.smsSent}, WhatsApp: ${results.whatsappSent}, Failed: ${results.failed}`);
 
     return new Response(
       JSON.stringify({
