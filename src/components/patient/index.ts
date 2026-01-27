@@ -1,4 +1,5 @@
 export { PatientLayout } from "./PatientLayout";
+export { PharmacyMapView } from "./PharmacyMapView";
 export { PrescriptionStatusCard } from "./PrescriptionStatusCard";
 export { default as ChatDialog } from "./ChatDialog";
 export { PatientSidebar } from "./PatientSidebar";

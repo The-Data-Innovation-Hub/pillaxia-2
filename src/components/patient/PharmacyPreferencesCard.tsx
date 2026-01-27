@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
   DialogContent,
@@ -22,9 +23,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { MapPin, Star, Plus, Trash2, Search, Bell, BellOff } from "lucide-react";
+import { MapPin, Star, Plus, Trash2, Search, Bell, BellOff, Map } from "lucide-react";
 import { toast } from "sonner";
 import { Label } from "@/components/ui/label";
+import { PharmacyMapView } from "./PharmacyMapView";
 
 const NIGERIAN_STATES = [
   "Abia", "Adamawa", "Akwa Ibom", "Anambra", "Bauchi", "Bayelsa", "Benue", "Borno",
@@ -90,25 +92,25 @@ export function PharmacyPreferencesCard() {
     enabled: !!user?.id,
   });
 
-  // Fetch all pharmacies for adding
+  // Fetch all pharmacies (always load for map view)
   const { data: allPharmacies, isLoading: loadingPharmacies } = useQuery({
-    queryKey: ["all-pharmacies", stateFilter],
+    queryKey: ["all-pharmacies"],
     queryFn: async () => {
-      let query = supabase
+      const { data, error } = await supabase
         .from("pharmacy_locations")
         .select("id, name, address_line1, city, state, phone")
         .eq("is_active", true)
         .order("name");
-
-      if (stateFilter) {
-        query = query.eq("state", stateFilter);
-      }
-
-      const { data, error } = await query;
       if (error) throw error;
       return data as PharmacyLocation[];
     },
-    enabled: showAddDialog,
+    enabled: !!user?.id,
+  });
+
+  // Filter pharmacies for dialog based on state
+  const dialogFilteredPharmacies = allPharmacies?.filter((p) => {
+    if (!stateFilter) return true;
+    return p.state === stateFilter;
   });
 
   // Fetch medication alerts
@@ -246,7 +248,7 @@ export function PharmacyPreferencesCard() {
     },
   });
 
-  const filteredPharmacies = allPharmacies?.filter((p) => {
+  const filteredPharmacies = dialogFilteredPharmacies?.filter((p) => {
     const matchesSearch =
       !searchQuery ||
       p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -257,8 +259,23 @@ export function PharmacyPreferencesCard() {
     return matchesSearch && notAlreadyAdded;
   });
 
+  const preferredPharmacyIds = preferredPharmacies?.map((pp) => pp.pharmacy_id) || [];
+
   return (
     <div className="space-y-6">
+      {/* Map View */}
+      {allPharmacies && allPharmacies.length > 0 && (
+        <PharmacyMapView
+          pharmacies={allPharmacies}
+          preferredPharmacyIds={preferredPharmacyIds}
+          onSelectPharmacy={(pharmacy) => {
+            if (!preferredPharmacyIds.includes(pharmacy.id)) {
+              addPreferredMutation.mutate(pharmacy.id);
+            }
+          }}
+        />
+      )}
+
       {/* Preferred Pharmacies */}
       <Card>
         <CardHeader>
