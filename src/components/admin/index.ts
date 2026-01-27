@@ -4,3 +4,4 @@ export { AdminDashboardHome } from "./AdminDashboardHome";
 export { UserManagementPage } from "./UserManagementPage";
 export { SystemAnalyticsPage } from "./SystemAnalyticsPage";
 export { AuditLogPage } from "./AuditLogPage";
+export { SettingsPage } from "./SettingsPage";

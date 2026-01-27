@@ -1,4 +1,4 @@
-import { LayoutDashboard, Users, BarChart3, FileText, LogOut, Shield } from "lucide-react";
+import { LayoutDashboard, Users, BarChart3, FileText, LogOut, Shield, Settings } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -20,6 +20,7 @@ const menuItems = [
   { title: "User Management", url: "/dashboard/users", icon: Users },
   { title: "System Analytics", url: "/dashboard/analytics", icon: BarChart3 },
   { title: "Audit Logs", url: "/dashboard/audit-logs", icon: FileText },
+  { title: "Settings", url: "/dashboard/settings", icon: Settings },
 ];
 
 export function AdminSidebar() {
