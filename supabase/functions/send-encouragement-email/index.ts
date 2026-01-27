@@ -164,7 +164,7 @@ serve(async (req: Request): Promise<Response> => {
     const patientName = patientProfile.first_name || "there";
 
     // Send the email
-    const { error: emailError } = await resend.emails.send({
+    const emailResponse = await resend.emails.send({
       from: "Pillaxia <noreply@resend.dev>",
       to: [patientProfile.email],
       subject: `💜 ${caregiver_name} sent you an encouragement message!`,
@@ -211,8 +211,8 @@ serve(async (req: Request): Promise<Response> => {
       `,
     });
 
-    if (emailError) {
-      console.error("Email send error:", emailError);
+    if (emailResponse.error) {
+      console.error("Email send error:", emailResponse.error);
       
       // Log failed email notification
       await serviceClient.from("notification_history").insert({
@@ -222,19 +222,19 @@ serve(async (req: Request): Promise<Response> => {
         title: `Encouragement from ${caregiver_name}`,
         body: message.substring(0, 200),
         status: "failed",
-        error_message: emailError.message?.slice(0, 500),
+        error_message: emailResponse.error.message?.slice(0, 500),
         metadata: { caregiver_name, recipient_email: patientProfile.email },
       });
       
       return new Response(
-        JSON.stringify({ error: "Failed to send email", details: emailError.message }),
+        JSON.stringify({ error: "Failed to send email", details: emailResponse.error.message }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    console.log(`Encouragement email sent to ${patientProfile.email}`);
+    console.log(`Encouragement email sent to ${patientProfile.email}, ID: ${emailResponse.data?.id}`);
 
-    // Log successful email notification
+    // Log successful email notification with Resend email ID for webhook tracking
     await serviceClient.from("notification_history").insert({
       user_id: patient_user_id,
       channel: "email",
@@ -242,7 +242,11 @@ serve(async (req: Request): Promise<Response> => {
       title: `Encouragement from ${caregiver_name}`,
       body: message.substring(0, 200),
       status: "sent",
-      metadata: { caregiver_name, recipient_email: patientProfile.email },
+      metadata: { 
+        caregiver_name, 
+        recipient_email: patientProfile.email,
+        resend_email_id: emailResponse.data?.id 
+      },
     });
 
     // Also send push notification if in_app_encouragements is enabled
