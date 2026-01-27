@@ -92,3 +92,6 @@ verify_jwt = false
 
 [functions.check-medication-expiry]
 verify_jwt = false
+
+[functions.send-prescription-status-notification]
+verify_jwt = false
