@@ -6,6 +6,46 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+async function sendSMS(
+  phone: string,
+  message: string,
+  twilioAccountSid: string,
+  twilioAuthToken: string,
+  twilioPhoneNumber: string
+): Promise<{ success: boolean; sid?: string; error?: string }> {
+  try {
+    const formattedPhone = phone.startsWith("+") ? phone : `+1${phone.replace(/\D/g, "")}`;
+    
+    const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${twilioAccountSid}/Messages.json`;
+    const authHeader = btoa(`${twilioAccountSid}:${twilioAuthToken}`);
+
+    const twilioBody = new URLSearchParams({
+      To: formattedPhone,
+      From: twilioPhoneNumber,
+      Body: message,
+    });
+
+    const response = await fetch(twilioUrl, {
+      method: "POST",
+      headers: {
+        "Authorization": `Basic ${authHeader}`,
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: twilioBody,
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      return { success: false, error: result.message || "Twilio API error" };
+    }
+
+    return { success: true, sid: result.sid };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : "Unknown error" };
+  }
+}
+
 serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -15,6 +55,11 @@ serve(async (req: Request) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const resendApiKey = Deno.env.get("RESEND_API_KEY");
+    const twilioAccountSid = Deno.env.get("TWILIO_ACCOUNT_SID");
+    const twilioAuthToken = Deno.env.get("TWILIO_AUTH_TOKEN");
+    const twilioPhoneNumber = Deno.env.get("TWILIO_PHONE_NUMBER");
+
+    const twilioConfigured = twilioAccountSid && twilioAuthToken && twilioPhoneNumber;
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
@@ -46,14 +91,14 @@ serve(async (req: Request) => {
       );
     }
 
-    const results: { success: number; failed: number } = { success: 0, failed: 0 };
+    const results = { emailSent: 0, smsSent: 0, failed: 0 };
 
     for (const appointment of appointments) {
       try {
         // Get patient profile
         const { data: patientProfile } = await supabase
           .from("profiles")
-          .select("first_name, last_name, email")
+          .select("first_name, last_name, email, phone")
           .eq("user_id", appointment.patient_user_id)
           .single();
 
@@ -64,33 +109,26 @@ serve(async (req: Request) => {
           .eq("user_id", appointment.clinician_user_id)
           .single();
 
-        if (!patientProfile?.email) {
-          console.log(`No email for patient ${appointment.patient_user_id}`);
-          continue;
-        }
-
         // Check patient notification preferences
         const { data: prefs } = await supabase
           .from("patient_notification_preferences")
-          .select("email_reminders")
+          .select("email_reminders, sms_reminders")
           .eq("user_id", appointment.patient_user_id)
           .single();
 
-        if (prefs && !prefs.email_reminders) {
-          console.log(`Patient ${appointment.patient_user_id} has email reminders disabled`);
-          continue;
-        }
+        const appointmentTime = appointment.appointment_time.slice(0, 5);
+        const appointmentDate = new Date(appointment.appointment_date).toLocaleDateString("en-US", {
+          weekday: "long",
+          year: "numeric",
+          month: "long",
+          day: "numeric",
+        });
 
-        // Send email reminder
-        if (resendApiKey) {
-          const appointmentTime = appointment.appointment_time.slice(0, 5);
-          const appointmentDate = new Date(appointment.appointment_date).toLocaleDateString("en-US", {
-            weekday: "long",
-            year: "numeric",
-            month: "long",
-            day: "numeric",
-          });
+        let emailSent = false;
+        let smsSent = false;
 
+        // Send email reminder if enabled
+        if (resendApiKey && patientProfile?.email && (prefs?.email_reminders !== false)) {
           const emailHtml = `
             <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
               <h2 style="color: #0ea5e9;">Appointment Reminder</h2>
@@ -123,45 +161,79 @@ serve(async (req: Request) => {
             }),
           });
 
-          if (!emailResponse.ok) {
+          if (emailResponse.ok) {
+            emailSent = true;
+            results.emailSent++;
+            console.log(`Email reminder sent to ${patientProfile.email}`);
+
+            // Log email notification
+            await supabase.from("notification_history").insert({
+              user_id: appointment.patient_user_id,
+              channel: "email",
+              notification_type: "appointment_reminder",
+              title: `Appointment Reminder: ${appointment.title}`,
+              body: `Your appointment is scheduled for tomorrow at ${appointmentTime}`,
+              status: "sent",
+              metadata: { appointment_id: appointment.id },
+            });
+          } else {
             const errorText = await emailResponse.text();
             console.error(`Failed to send email reminder: ${errorText}`);
-            results.failed++;
-            continue;
           }
-
-          console.log(`Email reminder sent to ${patientProfile.email}`);
         }
 
-        // Mark reminder as sent
-        const { error: updateError } = await supabase
-          .from("appointments")
-          .update({ reminder_sent: true })
-          .eq("id", appointment.id);
+        // Send SMS reminder if enabled and phone available
+        if (twilioConfigured && patientProfile?.phone && (prefs?.sms_reminders !== false)) {
+          const smsMessage = `Pillaxia Reminder: Your appointment "${appointment.title}" is tomorrow at ${appointmentTime}${appointment.location ? ` at ${appointment.location}` : ""}${clinicianProfile ? ` with Dr. ${clinicianProfile.last_name}` : ""}. Reply STOP to opt out.`;
 
-        if (updateError) {
-          console.error(`Failed to update reminder_sent: ${updateError.message}`);
+          const smsResult = await sendSMS(
+            patientProfile.phone,
+            smsMessage,
+            twilioAccountSid!,
+            twilioAuthToken!,
+            twilioPhoneNumber!
+          );
+
+          if (smsResult.success) {
+            smsSent = true;
+            results.smsSent++;
+            console.log(`SMS reminder sent to ${patientProfile.phone}`);
+
+            // Log SMS notification
+            await supabase.from("notification_history").insert({
+              user_id: appointment.patient_user_id,
+              channel: "sms",
+              notification_type: "appointment_reminder",
+              title: `Appointment Reminder: ${appointment.title}`,
+              body: smsMessage,
+              status: "sent",
+              metadata: { appointment_id: appointment.id, twilio_sid: smsResult.sid },
+            });
+          } else {
+            console.error(`Failed to send SMS reminder: ${smsResult.error}`);
+          }
         }
 
-        // Log notification
-        await supabase.from("notification_history").insert({
-          user_id: appointment.patient_user_id,
-          channel: "email",
-          notification_type: "appointment_reminder",
-          title: `Appointment Reminder: ${appointment.title}`,
-          body: `Your appointment is scheduled for tomorrow at ${appointment.appointment_time.slice(0, 5)}`,
-          status: "sent",
-          metadata: { appointment_id: appointment.id },
-        });
+        // Mark reminder as sent if at least one channel succeeded
+        if (emailSent || smsSent) {
+          const { error: updateError } = await supabase
+            .from("appointments")
+            .update({ reminder_sent: true })
+            .eq("id", appointment.id);
 
-        results.success++;
+          if (updateError) {
+            console.error(`Failed to update reminder_sent: ${updateError.message}`);
+          }
+        } else {
+          results.failed++;
+        }
       } catch (appointmentError) {
         console.error(`Error processing appointment ${appointment.id}:`, appointmentError);
         results.failed++;
       }
     }
 
-    console.log(`Reminder processing complete. Success: ${results.success}, Failed: ${results.failed}`);
+    console.log(`Reminder processing complete. Email: ${results.emailSent}, SMS: ${results.smsSent}, Failed: ${results.failed}`);
 
     return new Response(
       JSON.stringify({
