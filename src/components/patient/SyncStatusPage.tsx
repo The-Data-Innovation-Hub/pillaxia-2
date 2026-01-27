@@ -10,7 +10,10 @@ import {
   Activity,
   Loader2,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  AlertTriangle,
+  Smartphone,
+  ArrowRight
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -23,30 +26,25 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { offlineQueue } from "@/lib/offlineQueue";
+import { offlineQueue, PendingAction } from "@/lib/offlineQueue";
 import { symptomCache, CachedSymptomEntry } from "@/lib/symptomCache";
+import { conflictManager, ConflictEntry } from "@/lib/conflictResolution";
 import { useOfflineStatus } from "@/hooks/useOfflineStatus";
 import { useOfflineSync } from "@/hooks/useOfflineSync";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { cn } from "@/lib/utils";
 import { format, formatDistanceToNow } from "date-fns";
-
-interface PendingAction {
-  id?: number;
-  type: "medication_log" | "symptom_entry" | "message";
-  url: string;
-  method: string;
-  timestamp: number;
-  body: unknown;
-}
+import { ConflictResolutionDialog } from "./ConflictResolutionDialog";
+import { toast } from "sonner";
 
 interface SyncHistoryEntry {
   id: string;
   timestamp: string;
-  type: "sync" | "error";
+  type: "sync" | "error" | "conflict_resolved";
   itemsSynced?: number;
   itemsFailed?: number;
+  conflictsDetected?: number;
   message: string;
 }
 
@@ -56,15 +54,19 @@ const MAX_HISTORY_ENTRIES = 20;
 export function SyncStatusPage() {
   const { user } = useAuth();
   const { isOnline } = useOfflineStatus();
-  const { syncPendingActions, syncInProgress, lastSyncTime } = useOfflineSync();
+  const { syncPendingActions, syncInProgress, lastSyncTime, conflictCount, updateConflictCount } = useOfflineSync();
   const { t } = useLanguage();
   
   const [pendingActions, setPendingActions] = useState<PendingAction[]>([]);
   const [pendingSymptoms, setPendingSymptoms] = useState<CachedSymptomEntry[]>([]);
+  const [conflicts, setConflicts] = useState<ConflictEntry[]>([]);
   const [syncHistory, setSyncHistory] = useState<SyncHistoryEntry[]>([]);
   const [isClearing, setIsClearing] = useState(false);
   const [showPendingDetails, setShowPendingDetails] = useState(false);
   const [showHistoryDetails, setShowHistoryDetails] = useState(true);
+  const [showConflictDetails, setShowConflictDetails] = useState(true);
+  const [selectedConflict, setSelectedConflict] = useState<ConflictEntry | null>(null);
+  const [conflictDialogOpen, setConflictDialogOpen] = useState(false);
 
   const loadData = useCallback(async () => {
     // Load pending actions from queue
@@ -76,6 +78,10 @@ export function SyncStatusPage() {
       const symptoms = await symptomCache.getPendingSymptoms(user.id);
       setPendingSymptoms(symptoms);
     }
+
+    // Load conflicts
+    const allConflicts = await conflictManager.getUnresolvedConflicts();
+    setConflicts(allConflicts);
 
     // Load sync history from localStorage
     const storedHistory = localStorage.getItem(SYNC_HISTORY_KEY);
@@ -113,19 +119,21 @@ export function SyncStatusPage() {
     
     const pendingCount = await offlineQueue.getPendingCount();
     
-    await syncPendingActions();
+    const result = await syncPendingActions();
     
-    const remainingCount = await offlineQueue.getPendingCount();
-    const synced = pendingCount - remainingCount;
-    
-    addHistoryEntry({
-      type: remainingCount > 0 ? "error" : "sync",
-      itemsSynced: synced,
-      itemsFailed: remainingCount,
-      message: remainingCount > 0 
-        ? `Synced ${synced} items, ${remainingCount} failed`
-        : `Successfully synced ${synced} items`,
-    });
+    if (result) {
+      addHistoryEntry({
+        type: result.failed > 0 ? "error" : "sync",
+        itemsSynced: result.success,
+        itemsFailed: result.failed,
+        conflictsDetected: result.conflicts,
+        message: result.conflicts > 0 
+          ? `Synced ${result.success} items, ${result.conflicts} conflict(s) need review`
+          : result.failed > 0 
+            ? `Synced ${result.success} items, ${result.failed} failed`
+            : `Successfully synced ${result.success} items`,
+      });
+    }
     
     await loadData();
   };
@@ -149,6 +157,49 @@ export function SyncStatusPage() {
   const handleClearHistory = () => {
     setSyncHistory([]);
     localStorage.removeItem(SYNC_HISTORY_KEY);
+  };
+
+  const handleResolveConflict = async (
+    conflictId: string, 
+    resolution: "keep_local" | "keep_server" | "merge"
+  ) => {
+    const conflict = conflicts.find(c => c.id === conflictId);
+    if (!conflict) return;
+
+    try {
+      if (resolution === "keep_local") {
+        // Force sync the local version
+        const success = await offlineQueue.forceSyncAction(conflict.actionId);
+        if (success) {
+          await conflictManager.removeConflict(conflictId);
+          toast.success("Conflict resolved - your version was applied");
+        } else {
+          toast.error("Failed to apply your version");
+          return;
+        }
+      } else if (resolution === "keep_server") {
+        // Discard the local action
+        await offlineQueue.discardAction(conflict.actionId);
+        await conflictManager.removeConflict(conflictId);
+        toast.success("Conflict resolved - server version kept");
+      }
+
+      addHistoryEntry({
+        type: "conflict_resolved",
+        message: `Resolved ${conflictManager.getTypeLabel(conflict.type)} conflict: ${resolution === "keep_local" ? "kept local" : "kept server"}`,
+      });
+
+      await loadData();
+      await updateConflictCount();
+    } catch (error) {
+      console.error("Failed to resolve conflict:", error);
+      toast.error("Failed to resolve conflict");
+    }
+  };
+
+  const handleClearResolvedConflicts = async () => {
+    await conflictManager.clearResolvedConflicts();
+    await loadData();
   };
 
   const getActionTypeLabel = (type: string) => {
@@ -191,6 +242,18 @@ export function SyncStatusPage() {
         </AlertDescription>
       </Alert>
 
+      {/* Conflicts Alert */}
+      {conflicts.length > 0 && (
+        <Alert variant="destructive" className="border-warning bg-warning/10">
+          <AlertTriangle className="h-4 w-4 text-warning" />
+          <AlertTitle className="text-warning">Conflicts Detected</AlertTitle>
+          <AlertDescription>
+            {conflicts.length} item(s) have conflicts that need your attention. 
+            Review and resolve them below.
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* Sync Overview Card */}
       <Card>
         <CardHeader>
@@ -220,7 +283,7 @@ export function SyncStatusPage() {
         </CardHeader>
         <CardContent className="space-y-6">
           {/* Stats Grid */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
             <div className="text-center p-4 rounded-lg bg-muted/50">
               <div className="text-3xl font-bold text-primary">{totalPending}</div>
               <div className="text-sm text-muted-foreground">Pending Items</div>
@@ -228,6 +291,18 @@ export function SyncStatusPage() {
             <div className="text-center p-4 rounded-lg bg-muted/50">
               <div className="text-3xl font-bold">{pendingSymptoms.length}</div>
               <div className="text-sm text-muted-foreground">Pending Symptoms</div>
+            </div>
+            <div className={cn(
+              "text-center p-4 rounded-lg",
+              conflicts.length > 0 ? "bg-warning/10 border border-warning/30" : "bg-muted/50"
+            )}>
+              <div className={cn(
+                "text-3xl font-bold",
+                conflicts.length > 0 && "text-warning"
+              )}>
+                {conflicts.length}
+              </div>
+              <div className="text-sm text-muted-foreground">Conflicts</div>
             </div>
             <div className="text-center p-4 rounded-lg bg-muted/50">
               <div className="text-3xl font-bold">{syncHistory.length}</div>
@@ -267,6 +342,80 @@ export function SyncStatusPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Conflicts Card */}
+      {conflicts.length > 0 && (
+        <Card className="border-warning/50">
+          <Collapsible open={showConflictDetails} onOpenChange={setShowConflictDetails}>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="h-5 w-5 text-warning" />
+                  <CardTitle>Conflicts Requiring Resolution</CardTitle>
+                  <Badge variant="destructive">{conflicts.length}</Badge>
+                </div>
+                <CollapsibleTrigger asChild>
+                  <Button variant="ghost" size="sm">
+                    {showConflictDetails ? (
+                      <ChevronUp className="h-4 w-4" />
+                    ) : (
+                      <ChevronDown className="h-4 w-4" />
+                    )}
+                  </Button>
+                </CollapsibleTrigger>
+              </div>
+              <CardDescription>
+                These items had changes on both your device and the server
+              </CardDescription>
+            </CardHeader>
+            <CollapsibleContent>
+              <CardContent className="space-y-3">
+                {conflicts.map((conflict) => (
+                  <div
+                    key={conflict.id}
+                    className="flex items-center justify-between p-4 rounded-lg border border-warning/30 bg-warning/5"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-2">
+                        <Smartphone className="h-4 w-4 text-muted-foreground" />
+                        <ArrowRight className="h-3 w-3 text-muted-foreground" />
+                        <Cloud className="h-4 w-4 text-muted-foreground" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline" className="text-xs">
+                            {conflictManager.getTypeLabel(conflict.type)}
+                          </Badge>
+                          <Badge 
+                            variant={conflict.conflictType === "delete_conflict" ? "destructive" : "secondary"}
+                            className="text-xs"
+                          >
+                            {conflict.conflictType === "update_conflict" && "Updated on server"}
+                            {conflict.conflictType === "delete_conflict" && "Deleted on server"}
+                            {conflict.conflictType === "stale_data" && "Stale data"}
+                          </Badge>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Offline change from {formatDistanceToNow(conflict.localTimestamp, { addSuffix: true })}
+                        </p>
+                      </div>
+                    </div>
+                    <Button 
+                      size="sm"
+                      onClick={() => {
+                        setSelectedConflict(conflict);
+                        setConflictDialogOpen(true);
+                      }}
+                    >
+                      Resolve
+                    </Button>
+                  </div>
+                ))}
+              </CardContent>
+            </CollapsibleContent>
+          </Collapsible>
+        </Card>
+      )}
 
       {/* Pending Items Card */}
       <Card>
@@ -395,14 +544,19 @@ export function SyncStatusPage() {
                       key={entry.id}
                       className={cn(
                         "flex items-start justify-between p-3 rounded-lg border",
-                        entry.type === "error" && "border-destructive/50 bg-destructive/5"
+                        entry.type === "error" && "border-destructive/50 bg-destructive/5",
+                        entry.type === "conflict_resolved" && "border-primary/50 bg-primary/5"
                       )}
                     >
                       <div className="flex items-start gap-3">
-                        {entry.type === "sync" ? (
+                        {entry.type === "sync" && (
                           <Check className="h-4 w-4 text-primary mt-0.5" />
-                        ) : (
+                        )}
+                        {entry.type === "error" && (
                           <AlertCircle className="h-4 w-4 text-destructive mt-0.5" />
+                        )}
+                        {entry.type === "conflict_resolved" && (
+                          <AlertTriangle className="h-4 w-4 text-primary mt-0.5" />
                         )}
                         <div>
                           <p className="text-sm font-medium">{entry.message}</p>
@@ -411,13 +565,16 @@ export function SyncStatusPage() {
                           </p>
                         </div>
                       </div>
-                      {entry.itemsSynced !== undefined && (
+                      {(entry.itemsSynced !== undefined || entry.conflictsDetected !== undefined) && (
                         <div className="text-right text-xs text-muted-foreground">
-                          {entry.itemsSynced > 0 && (
+                          {entry.itemsSynced !== undefined && entry.itemsSynced > 0 && (
                             <div className="text-primary">{entry.itemsSynced} synced</div>
                           )}
                           {entry.itemsFailed && entry.itemsFailed > 0 && (
                             <div className="text-destructive">{entry.itemsFailed} failed</div>
+                          )}
+                          {entry.conflictsDetected && entry.conflictsDetected > 0 && (
+                            <div className="text-warning">{entry.conflictsDetected} conflicts</div>
                           )}
                         </div>
                       )}
@@ -450,12 +607,24 @@ export function SyncStatusPage() {
               <span>Sync checks run every 30 seconds when online</span>
             </li>
             <li className="flex items-start gap-2">
+              <AlertTriangle className="h-4 w-4 text-warning mt-0.5 shrink-0" />
+              <span>Conflicts occur when data changes both offline and on server - review them carefully</span>
+            </li>
+            <li className="flex items-start gap-2">
               <AlertCircle className="h-4 w-4 text-warning mt-0.5 shrink-0" />
               <span>Clearing the queue will permanently delete pending items</span>
             </li>
           </ul>
         </CardContent>
       </Card>
+
+      {/* Conflict Resolution Dialog */}
+      <ConflictResolutionDialog
+        conflict={selectedConflict}
+        open={conflictDialogOpen}
+        onOpenChange={setConflictDialogOpen}
+        onResolved={handleResolveConflict}
+      />
     </div>
   );
 }

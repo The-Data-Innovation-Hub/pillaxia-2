@@ -246,5 +246,8 @@ export const yo: Translations = {
     lastSynced: "Muṣiṣẹpọ kẹhin",
     neverSynced: "Ko tii muṣiṣẹpọ rara",
     symptomQueuedForSync: "A ti fipamọ àmì àìsàn ita ayelujara - yoo muuṣiṣẹpọ nigba ti o ba wa lori ayelujara",
+    conflictDetected: "A ti rii ija - atunyẹwo nilo",
+    conflictsNeedReview: "awọn ija nilo atunyẹwo",
+    resolveConflicts: "Yanju Awọn Ija",
   },
 };

@@ -246,5 +246,8 @@ export const ig: Translations = {
     lastSynced: "Emekọrịtara ikpeazụ",
     neverSynced: "Emekọrịtaghị mbụ",
     symptomQueuedForSync: "Echekwara mgbaàmà ọrịa offline - ga-emekọrịta mgbe ọ nọ n'ịntanetị",
+    conflictDetected: "A chọpụtara esemokwu - achọrọ nyocha",
+    conflictsNeedReview: "esemokwu na-achọ nyocha",
+    resolveConflicts: "Dozie Esemokwu",
   },
 };
