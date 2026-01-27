@@ -76,13 +76,13 @@ export function ClinicianChatDialog({
 
       if (error) throw error;
 
-      // Send WhatsApp notification (fire and forget)
-      supabase.functions.invoke("send-whatsapp-notification", {
+      // Send notification via email, push, and WhatsApp (fire and forget)
+      supabase.functions.invoke("send-clinician-message-notification", {
         body: {
           recipientId: viewerRole === "patient" ? clinicianId : patientId,
           senderName: viewerRole === "patient" ? patientName : `Dr. ${clinicianName}`,
           message: text,
-          notificationType: "clinician_message",
+          senderType: viewerRole,
         },
       }).catch(console.error);
     },
