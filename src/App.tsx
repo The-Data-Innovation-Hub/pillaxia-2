@@ -41,6 +41,7 @@ import {
   SystemAnalyticsPage,
   AuditLogPage,
   SettingsPage,
+  NotificationAnalyticsPage,
 } from "@/components/admin";
 
 const queryClient = new QueryClient();
@@ -149,6 +150,7 @@ const App = () => (
               {/* Admin Routes */}
               <Route path="users" element={<UserManagementPage />} />
               <Route path="analytics" element={<SystemAnalyticsPage />} />
+              <Route path="notification-analytics" element={<NotificationAnalyticsPage />} />
               <Route path="audit-logs" element={<AuditLogPage />} />
               <Route path="admin-settings" element={<SettingsPage />} />
               {/* Patient Settings */}
