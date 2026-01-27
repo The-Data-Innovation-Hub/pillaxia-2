@@ -26,9 +26,11 @@ import {
   Calendar,
   Bell,
   MessageCircleHeart,
+  MessageCircle,
 } from "lucide-react";
 import { format, subDays } from "date-fns";
 import { SendEncouragementDialog } from "./SendEncouragementDialog";
+import ChatDialog from "./ChatDialog";
 
 interface CaregiverPermissions {
   view_medications?: boolean;
@@ -310,7 +312,11 @@ export function CaregiverDashboardPage() {
               value={patient.patient_user_id}
               className="space-y-6"
             >
-              <PatientDetailView patient={patient} caregiverName={caregiverName} />
+              <PatientDetailView 
+                patient={patient} 
+                caregiverName={caregiverName} 
+                caregiverId={user?.id || ""} 
+              />
             </TabsContent>
           );
         })}
@@ -319,8 +325,9 @@ export function CaregiverDashboardPage() {
   );
 }
 
-function PatientDetailView({ patient, caregiverName }: { patient: PatientWithData; caregiverName: string }) {
+function PatientDetailView({ patient, caregiverName, caregiverId }: { patient: PatientWithData; caregiverName: string; caregiverId: string }) {
   const [showEncouragementDialog, setShowEncouragementDialog] = useState(false);
+  const [showChatDialog, setShowChatDialog] = useState(false);
   
   const patientName = patient.patient_profile?.first_name
     ? `${patient.patient_profile.first_name} ${patient.patient_profile.last_name || ""}`
@@ -340,7 +347,16 @@ function PatientDetailView({ patient, caregiverName }: { patient: PatientWithDat
                 {patient.patient_profile?.email || "Email not available"}
               </CardDescription>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap justify-end">
+              <Button
+                variant="default"
+                size="sm"
+                onClick={() => setShowChatDialog(true)}
+                className="gap-1.5"
+              >
+                <MessageCircle className="h-4 w-4" />
+                Chat
+              </Button>
               <Button
                 variant="outline"
                 size="sm"
@@ -348,7 +364,7 @@ function PatientDetailView({ patient, caregiverName }: { patient: PatientWithDat
                 className="gap-1.5"
               >
                 <MessageCircleHeart className="h-4 w-4" />
-                Send Encouragement
+                Quick Message
               </Button>
               {patient.permissions.view_medications && (
                 <Badge variant="outline" className="text-xs">
@@ -378,6 +394,15 @@ function PatientDetailView({ patient, caregiverName }: { patient: PatientWithDat
           patientUserId={patient.patient_user_id}
           patientName={patientName}
           caregiverName={caregiverName}
+        />
+        
+        <ChatDialog
+          open={showChatDialog}
+          onOpenChange={setShowChatDialog}
+          caregiverId={caregiverId}
+          caregiverName={caregiverName}
+          patientId={patient.patient_user_id}
+          viewerRole="caregiver"
         />
       </Card>
 

@@ -91,6 +91,8 @@ export type Database = {
           is_read: boolean
           message: string
           patient_user_id: string
+          sender_type: string
+          updated_at: string | null
         }
         Insert: {
           caregiver_user_id: string
@@ -99,6 +101,8 @@ export type Database = {
           is_read?: boolean
           message: string
           patient_user_id: string
+          sender_type?: string
+          updated_at?: string | null
         }
         Update: {
           caregiver_user_id?: string
@@ -107,6 +111,8 @@ export type Database = {
           is_read?: boolean
           message?: string
           patient_user_id?: string
+          sender_type?: string
+          updated_at?: string | null
         }
         Relationships: []
       }

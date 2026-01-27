@@ -1,4 +1,5 @@
 export { PatientLayout } from "./PatientLayout";
+export { default as ChatDialog } from "./ChatDialog";
 export { PatientSidebar } from "./PatientSidebar";
 export { PatientDashboardHome } from "./PatientDashboardHome";
 export { MedicationsPage } from "./MedicationsPage";
