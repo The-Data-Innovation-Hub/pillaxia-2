@@ -82,6 +82,7 @@ export function ClinicianChatDialog({
           recipientId: viewerRole === "patient" ? clinicianId : patientId,
           senderName: viewerRole === "patient" ? patientName : `Dr. ${clinicianName}`,
           message: text,
+          notificationType: "clinician_message",
         },
       }).catch(console.error);
     },

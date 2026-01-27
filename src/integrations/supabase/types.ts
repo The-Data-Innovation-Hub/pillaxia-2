@@ -403,6 +403,7 @@ export type Database = {
       patient_notification_preferences: {
         Row: {
           created_at: string
+          email_clinician_messages: boolean
           email_encouragements: boolean
           email_missed_alerts: boolean
           email_reminders: boolean
@@ -410,14 +411,17 @@ export type Database = {
           in_app_encouragements: boolean
           in_app_missed_alerts: boolean
           in_app_reminders: boolean
+          push_clinician_messages: boolean
           quiet_hours_enabled: boolean
           quiet_hours_end: string | null
           quiet_hours_start: string | null
           updated_at: string
           user_id: string
+          whatsapp_clinician_messages: boolean
         }
         Insert: {
           created_at?: string
+          email_clinician_messages?: boolean
           email_encouragements?: boolean
           email_missed_alerts?: boolean
           email_reminders?: boolean
@@ -425,14 +429,17 @@ export type Database = {
           in_app_encouragements?: boolean
           in_app_missed_alerts?: boolean
           in_app_reminders?: boolean
+          push_clinician_messages?: boolean
           quiet_hours_enabled?: boolean
           quiet_hours_end?: string | null
           quiet_hours_start?: string | null
           updated_at?: string
           user_id: string
+          whatsapp_clinician_messages?: boolean
         }
         Update: {
           created_at?: string
+          email_clinician_messages?: boolean
           email_encouragements?: boolean
           email_missed_alerts?: boolean
           email_reminders?: boolean
@@ -440,11 +447,13 @@ export type Database = {
           in_app_encouragements?: boolean
           in_app_missed_alerts?: boolean
           in_app_reminders?: boolean
+          push_clinician_messages?: boolean
           quiet_hours_enabled?: boolean
           quiet_hours_end?: string | null
           quiet_hours_start?: string | null
           updated_at?: string
           user_id?: string
+          whatsapp_clinician_messages?: boolean
         }
         Relationships: []
       }
