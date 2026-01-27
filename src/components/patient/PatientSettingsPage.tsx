@@ -37,6 +37,7 @@ import {
   BellRing,
   Mail,
   Smartphone,
+  MessageCircle,
   Moon,
   Clock,
   AlertTriangle,
@@ -57,6 +58,7 @@ interface NotificationPreferences {
   id: string;
   user_id: string;
   email_reminders: boolean;
+  sms_reminders: boolean;
   in_app_reminders: boolean;
   email_missed_alerts: boolean;
   in_app_missed_alerts: boolean;
@@ -72,6 +74,7 @@ interface NotificationPreferences {
 
 const DEFAULT_PREFERENCES: Omit<NotificationPreferences, "id" | "user_id"> = {
   email_reminders: true,
+  sms_reminders: true,
   in_app_reminders: true,
   email_missed_alerts: true,
   in_app_missed_alerts: true,
@@ -665,6 +668,28 @@ export function PatientSettingsPage() {
               id="email_reminders"
               checked={prefs.email_reminders}
               onCheckedChange={(checked) => handleToggle("email_reminders", checked)}
+              disabled={updatePreferenceMutation.isPending}
+            />
+          </div>
+
+          <Separator />
+
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <MessageCircle className="h-4 w-4 text-muted-foreground" />
+              <div>
+                <Label htmlFor="sms_reminders" className="font-medium">
+                  SMS Reminders
+                </Label>
+                <p className="text-sm text-muted-foreground">
+                  Receive medication reminders via text message
+                </p>
+              </div>
+            </div>
+            <Switch
+              id="sms_reminders"
+              checked={prefs.sms_reminders}
+              onCheckedChange={(checked) => handleToggle("sms_reminders", checked)}
               disabled={updatePreferenceMutation.isPending}
             />
           </div>
