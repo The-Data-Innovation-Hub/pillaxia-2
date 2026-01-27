@@ -95,10 +95,40 @@ serve(async (req) => {
 
       // Send email notification
       const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
+      const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+      
       if (!RESEND_API_KEY) {
         console.error("RESEND_API_KEY not configured");
         continue;
       }
+
+      // First, create the notification record to get the ID for tracking
+      const { data: notificationRecord, error: insertError } = await supabase
+        .from("notification_history")
+        .insert({
+          user_id: med.user_id,
+          notification_type: "refill_alert",
+          channel: "email",
+          title: `Refill Alert: ${med.name}`,
+          body: `${med.refills_remaining} refills remaining`,
+          status: "pending",
+          metadata: {
+            medication_id: med.id,
+            medication_name: med.name,
+            refills_remaining: med.refills_remaining,
+            recipient_email: profile.email,
+          },
+        })
+        .select("id")
+        .single();
+
+      if (insertError || !notificationRecord) {
+        console.error(`Failed to create notification record for ${med.name}:`, insertError);
+        continue;
+      }
+
+      // Generate tracking pixel URL
+      const trackingPixelUrl = `${supabaseUrl}/functions/v1/email-tracking-pixel?id=${notificationRecord.id}&uid=${med.user_id}`;
 
       const emailResponse = await fetch("https://api.resend.com/emails", {
         method: "POST",
@@ -107,7 +137,7 @@ serve(async (req) => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          from: "Pillaxia <notifications@pillaxia.com>",
+          from: "Pillaxia <notifications@resend.dev>",
           to: [profile.email],
           subject: `Refill Alert: ${med.name} - ${med.refills_remaining} refills remaining`,
           html: `
@@ -120,32 +150,43 @@ serve(async (req) => {
               <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 20px 0;">
               <p style="color: #6b7280; font-size: 12px;">This is an automated reminder from Pillaxia to help you stay on track with your medications.</p>
             </div>
+            <img src="${trackingPixelUrl}" width="1" height="1" style="display:none;" alt="" />
           `,
         }),
       });
 
-      const emailStatus = emailResponse.ok ? "sent" : "failed";
-
-      // Log the notification
-      await supabase.from("notification_history").insert({
-        user_id: med.user_id,
-        notification_type: "refill_alert",
-        channel: "email",
-        title: `Refill Alert: ${med.name}`,
-        body: `${med.refills_remaining} refills remaining`,
-        status: emailStatus,
-        metadata: {
-          medication_id: med.id,
-          medication_name: med.name,
-          refills_remaining: med.refills_remaining,
-        },
-      });
-
       if (emailResponse.ok) {
+        const emailData = await emailResponse.json();
         sentCount++;
         console.log(`Sent refill alert for ${med.name} to ${profile.email}`);
+
+        // Update notification as sent
+        await supabase
+          .from("notification_history")
+          .update({
+            status: "sent",
+            metadata: {
+              medication_id: med.id,
+              medication_name: med.name,
+              refills_remaining: med.refills_remaining,
+              recipient_email: profile.email,
+              resend_email_id: emailData.id,
+              tracking_pixel_id: notificationRecord.id,
+            },
+          })
+          .eq("id", notificationRecord.id);
       } else {
-        console.error(`Failed to send email for ${med.name}:`, await emailResponse.text());
+        const errorText = await emailResponse.text();
+        console.error(`Failed to send email for ${med.name}:`, errorText);
+
+        // Update notification as failed
+        await supabase
+          .from("notification_history")
+          .update({
+            status: "failed",
+            error_message: errorText.slice(0, 500),
+          })
+          .eq("id", notificationRecord.id);
       }
     }
 

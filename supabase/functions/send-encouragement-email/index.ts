@@ -162,8 +162,38 @@ serve(async (req: Request): Promise<Response> => {
     }
 
     const patientName = patientProfile.first_name || "there";
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 
-    // Send the email
+    // First, create the notification history record to get the ID for tracking
+    const { data: notificationRecord, error: insertError } = await serviceClient
+      .from("notification_history")
+      .insert({
+        user_id: patient_user_id,
+        channel: "email",
+        notification_type: "encouragement_message",
+        title: `Encouragement from ${caregiver_name}`,
+        body: message.substring(0, 200),
+        status: "pending",
+        metadata: { 
+          caregiver_name, 
+          recipient_email: patientProfile.email,
+        },
+      })
+      .select("id")
+      .single();
+
+    if (insertError || !notificationRecord) {
+      console.error("Failed to create notification record:", insertError);
+      return new Response(
+        JSON.stringify({ error: "Failed to create notification record" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Generate tracking pixel URL
+    const trackingPixelUrl = `${supabaseUrl}/functions/v1/email-tracking-pixel?id=${notificationRecord.id}&uid=${patient_user_id}`;
+
+    // Send the email with tracking pixel
     const emailResponse = await resend.emails.send({
       from: "Pillaxia <noreply@resend.dev>",
       to: [patientProfile.email],
@@ -206,6 +236,8 @@ serve(async (req: Request): Promise<Response> => {
               Stay healthy, stay connected.
             </p>
           </div>
+          <!-- Email tracking pixel -->
+          <img src="${trackingPixelUrl}" width="1" height="1" style="display:none;" alt="" />
         </body>
         </html>
       `,
@@ -214,17 +246,14 @@ serve(async (req: Request): Promise<Response> => {
     if (emailResponse.error) {
       console.error("Email send error:", emailResponse.error);
       
-      // Log failed email notification
-      await serviceClient.from("notification_history").insert({
-        user_id: patient_user_id,
-        channel: "email",
-        notification_type: "encouragement_message",
-        title: `Encouragement from ${caregiver_name}`,
-        body: message.substring(0, 200),
-        status: "failed",
-        error_message: emailResponse.error.message?.slice(0, 500),
-        metadata: { caregiver_name, recipient_email: patientProfile.email },
-      });
+      // Update notification as failed
+      await serviceClient
+        .from("notification_history")
+        .update({
+          status: "failed",
+          error_message: emailResponse.error.message?.slice(0, 500),
+        })
+        .eq("id", notificationRecord.id);
       
       return new Response(
         JSON.stringify({ error: "Failed to send email", details: emailResponse.error.message }),
@@ -234,20 +263,19 @@ serve(async (req: Request): Promise<Response> => {
 
     console.log(`Encouragement email sent to ${patientProfile.email}, ID: ${emailResponse.data?.id}`);
 
-    // Log successful email notification with Resend email ID for webhook tracking
-    await serviceClient.from("notification_history").insert({
-      user_id: patient_user_id,
-      channel: "email",
-      notification_type: "encouragement_message",
-      title: `Encouragement from ${caregiver_name}`,
-      body: message.substring(0, 200),
-      status: "sent",
-      metadata: { 
-        caregiver_name, 
-        recipient_email: patientProfile.email,
-        resend_email_id: emailResponse.data?.id 
-      },
-    });
+    // Update notification as sent with Resend email ID
+    await serviceClient
+      .from("notification_history")
+      .update({
+        status: "sent",
+        metadata: { 
+          caregiver_name, 
+          recipient_email: patientProfile.email,
+          resend_email_id: emailResponse.data?.id,
+          tracking_pixel_id: notificationRecord.id,
+        },
+      })
+      .eq("id", notificationRecord.id);
 
     // Also send push notification if in_app_encouragements is enabled
     if (!patientPrefs || patientPrefs.in_app_encouragements) {

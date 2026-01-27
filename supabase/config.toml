@@ -65,3 +65,6 @@ verify_jwt = false
 
 [functions.twilio-webhook]
 verify_jwt = false
+
+[functions.email-tracking-pixel]
+verify_jwt = false
