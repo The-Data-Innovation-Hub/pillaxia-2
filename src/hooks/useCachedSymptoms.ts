@@ -60,23 +60,32 @@ export function useCachedSymptoms(): UseCachedSymptomsResult {
       if (error) throw error;
 
       const typedSymptoms = (data || []) as CachedSymptomEntry[];
-      
-      // Get any pending local symptoms
-      const pendingSymptoms = await symptomCache.getPendingSymptoms(user.id);
-      
+
+      // Cache should never block rendering network data.
+      let pendingSymptoms: CachedSymptomEntry[] = [];
+      try {
+        pendingSymptoms = await symptomCache.getPendingSymptoms(user.id);
+      } catch (cacheError) {
+        console.warn("Symptom cache unavailable (pending symptoms):", cacheError);
+      }
+
       // Merge: pending first, then synced
       const mergedSymptoms = [...pendingSymptoms, ...typedSymptoms];
-      mergedSymptoms.sort((a, b) => 
-        new Date(b.recorded_at).getTime() - new Date(a.recorded_at).getTime()
+      mergedSymptoms.sort(
+        (a, b) => new Date(b.recorded_at).getTime() - new Date(a.recorded_at).getTime()
       );
-      
+
       setSymptoms(mergedSymptoms);
       setIsFromCache(false);
       setLastUpdated(new Date());
       setHasPending(pendingSymptoms.length > 0);
 
       // Save to cache for offline access (only synced entries)
-      await symptomCache.saveSymptoms(user.id, typedSymptoms);
+      try {
+        await symptomCache.saveSymptoms(user.id, typedSymptoms);
+      } catch (cacheError) {
+        console.warn("Symptom cache unavailable (save):", cacheError);
+      }
     } catch (error) {
       console.error("Error fetching symptoms from network:", error);
     }

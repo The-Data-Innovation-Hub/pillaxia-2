@@ -2,6 +2,7 @@
 
 const DB_NAME = "pillaxia-cache";
 const DB_VERSION = 5; // Increment this when adding new stores or changing schema
+const OPEN_DB_TIMEOUT_MS = 5000;
 
 // Store names - all defined in one place
 export const STORES = {
@@ -28,15 +29,57 @@ class CacheManager {
 
     this.dbPromise = new Promise((resolve, reject) => {
       const request = indexedDB.open(DB_NAME, DB_VERSION);
+      let settled = false;
+
+      const timeoutId = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        this.isUpgrading = false;
+        this.dbPromise = null;
+        reject(new Error(`IndexedDB open timed out after ${OPEN_DB_TIMEOUT_MS}ms`));
+      }, OPEN_DB_TIMEOUT_MS);
+
+      const safeResolve = (db: IDBDatabase) => {
+        if (settled) {
+          // If we already rejected (e.g. timeout), immediately close to avoid leaks.
+          try {
+            db.close();
+          } catch {
+            // ignore
+          }
+          return;
+        }
+        settled = true;
+        clearTimeout(timeoutId);
+
+        // If another tab triggers a version change, close and force re-open next time.
+        db.onversionchange = () => {
+          try {
+            db.close();
+          } finally {
+            this.dbPromise = null;
+          }
+        };
+
+        this.isUpgrading = false;
+        resolve(db);
+      };
+
+      const safeReject = (err: unknown) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeoutId);
+        this.isUpgrading = false;
+        this.dbPromise = null;
+        reject(err);
+      };
 
       request.onerror = () => {
-        this.dbPromise = null;
-        reject(request.error);
+        safeReject(request.error);
       };
 
       request.onsuccess = () => {
-        this.isUpgrading = false;
-        resolve(request.result);
+        safeResolve(request.result);
       };
 
       request.onupgradeneeded = (event) => {
@@ -47,6 +90,7 @@ class CacheManager {
 
       request.onblocked = () => {
         console.warn("IndexedDB upgrade blocked - close other tabs");
+        safeReject(new Error("IndexedDB upgrade blocked (another connection is holding the database open)"));
       };
     });
 
