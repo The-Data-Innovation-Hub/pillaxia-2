@@ -6,8 +6,9 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Bell, Mail, Smartphone, MessageCircle, RefreshCw, CheckCircle, XCircle, Clock, Send } from "lucide-react";
+import { Bell, Mail, Smartphone, MessageCircle, RefreshCw, CheckCircle, XCircle, Clock, Send, RotateCcw } from "lucide-react";
 import { format } from "date-fns";
+import { toast } from "@/hooks/use-toast";
 
 interface NotificationRecord {
   id: string;
@@ -46,6 +47,7 @@ export function NotificationHistoryPage() {
   const [notifications, setNotifications] = useState<NotificationRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [channelFilter, setChannelFilter] = useState<string>("all");
+  const [retryingIds, setRetryingIds] = useState<Set<string>>(new Set());
 
   const fetchNotifications = async () => {
     if (!user) return;
@@ -70,6 +72,47 @@ export function NotificationHistoryPage() {
       setNotifications((data as NotificationRecord[]) || []);
     }
     setIsLoading(false);
+  };
+
+  const handleRetry = async (notificationId: string) => {
+    setRetryingIds(prev => new Set(prev).add(notificationId));
+
+    try {
+      const { data, error } = await supabase.functions.invoke("retry-notification", {
+        body: { notification_id: notificationId },
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      if (data?.success) {
+        toast({
+          title: "Notification Retried",
+          description: "The notification was successfully resent.",
+        });
+        fetchNotifications();
+      } else {
+        toast({
+          title: "Retry Failed",
+          description: data?.error || "Failed to retry the notification.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error("Error retrying notification:", error);
+      toast({
+        title: "Retry Failed",
+        description: "An error occurred while retrying the notification.",
+        variant: "destructive",
+      });
+    } finally {
+      setRetryingIds(prev => {
+        const next = new Set(prev);
+        next.delete(notificationId);
+        return next;
+      });
+    }
   };
 
   useEffect(() => {
@@ -142,6 +185,7 @@ export function NotificationHistoryPage() {
                   const ChannelIcon = channelIcons[notification.channel];
                   const statusInfo = statusConfig[notification.status];
                   const StatusIcon = statusInfo.icon;
+                  const isRetrying = retryingIds.has(notification.id);
 
                   return (
                     <Card key={notification.id}>
@@ -170,6 +214,18 @@ export function NotificationHistoryPage() {
                                 <StatusIcon className="mr-1 h-3 w-3" />
                                 {statusInfo.label}
                               </Badge>
+                              {notification.status === "failed" && notification.channel !== "in_app" && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleRetry(notification.id)}
+                                  disabled={isRetrying}
+                                  className="h-7 px-2"
+                                >
+                                  <RotateCcw className={`h-3 w-3 mr-1 ${isRetrying ? "animate-spin" : ""}`} />
+                                  {isRetrying ? "Retrying..." : "Retry"}
+                                </Button>
+                              )}
                             </div>
                           </div>
                           <div className="mt-2 flex items-center gap-3 text-xs text-muted-foreground">
