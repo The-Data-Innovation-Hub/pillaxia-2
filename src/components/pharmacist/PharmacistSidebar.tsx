@@ -1,4 +1,4 @@
-import { LayoutDashboard, FileText, Package, RefreshCw, LogOut, Bell, HelpCircle, Shield, Settings, MapPin } from "lucide-react";
+import { LayoutDashboard, FileText, Package, RefreshCw, LogOut, Bell, HelpCircle, Shield, Settings, MapPin, AlertTriangle, ArrowRightLeft } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -23,6 +23,8 @@ const menuItems = [
   { title: "Inventory", url: "/dashboard/inventory", icon: Package },
   { title: "Availability", url: "/dashboard/availability", icon: MapPin },
   { title: "Controlled Drugs", url: "/dashboard/controlled-drugs", icon: Shield },
+  { title: "Drug Recalls", url: "/dashboard/recalls", icon: AlertTriangle },
+  { title: "Drug Transfers", url: "/dashboard/transfers", icon: ArrowRightLeft },
   { title: "Refill Requests", url: "/dashboard/refills", icon: RefreshCw },
   { title: "Notifications", url: "/dashboard/notifications", icon: Bell },
   { title: "Settings", url: "/dashboard/settings", icon: Settings },

@@ -101,3 +101,6 @@ verify_jwt = false
 
 [functions.send-availability-alert]
 verify_jwt = false
+
+[functions.send-drug-recall-alert]
+verify_jwt = false
