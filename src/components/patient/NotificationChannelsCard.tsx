@@ -130,15 +130,17 @@ export function NotificationChannelsCard() {
             {enabledCount} active
           </Badge>
         </div>
-        <Button 
-          variant="ghost" 
-          size="sm" 
-          className="h-8 text-xs"
-          onClick={() => navigate("/dashboard/settings")}
-        >
-          <Settings className="h-3.5 w-3.5 mr-1" />
-          Manage
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className="h-8 text-xs"
+            onClick={() => navigate("/dashboard/settings")}
+          >
+            <Settings className="h-3.5 w-3.5 mr-1" />
+            Manage
+          </Button>
+        </div>
       </CardHeader>
       <CardContent>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">

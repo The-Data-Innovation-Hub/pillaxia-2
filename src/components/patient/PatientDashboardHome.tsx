@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { Pill, Calendar, ClipboardList, TrendingUp, Plus, Bot, CloudOff, RefreshCw } from "lucide-react";
+import { Pill, Calendar, ClipboardList, TrendingUp, Plus, Bot, CloudOff, RefreshCw, Settings } from "lucide-react";
 import { format } from "date-fns";
 import { useNavigate } from "react-router-dom";
 import { CaregiverInvitationsReceived } from "./CaregiverInvitationsReceived";
@@ -12,8 +12,10 @@ import { PatientMessagesCard } from "./PatientMessagesCard";
 import { ClinicianMessagesCard } from "./ClinicianMessagesCard";
 import { OfflineSyncIndicator } from "./OfflineSyncIndicator";
 import { NotificationChannelsCard } from "./NotificationChannelsCard";
+import { NotificationSetupWizard } from "./NotificationSetupWizard";
 import { useCachedTodaysSchedule } from "@/hooks/useCachedTodaysSchedule";
 import { useOfflineStatus } from "@/hooks/useOfflineStatus";
+import { useQuery } from "@tanstack/react-query";
 
 interface DashboardStats {
   totalMedications: number;
@@ -28,6 +30,7 @@ export function PatientDashboardHome() {
   const navigate = useNavigate();
   const { isOnline } = useOfflineStatus();
   const { logs: cachedLogs, isFromCache, refresh: refreshSchedule } = useCachedTodaysSchedule();
+  const [showSetupWizard, setShowSetupWizard] = useState(false);
   const [stats, setStats] = useState<DashboardStats>({
     totalMedications: 0,
     todaysDoses: 0,
@@ -36,6 +39,25 @@ export function PatientDashboardHome() {
     recentSymptoms: 0,
   });
   const [loading, setLoading] = useState(true);
+
+  // Check if user has notification preferences set up
+  const { data: hasPreferences, isLoading: checkingPrefs } = useQuery({
+    queryKey: ["check-notification-preferences", user?.id],
+    queryFn: async () => {
+      if (!user) return true; // Assume set up if no user
+      const { data, error } = await supabase
+        .from("patient_notification_preferences")
+        .select("id")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (error) {
+        console.error("Error checking preferences:", error);
+        return true; // Assume set up on error
+      }
+      return !!data;
+    },
+    enabled: !!user,
+  });
 
   // Update stats when cached logs change
   useEffect(() => {
@@ -121,6 +143,34 @@ export function PatientDashboardHome() {
 
   return (
     <div className="space-y-6">
+      {/* Notification Setup Wizard */}
+      <NotificationSetupWizard
+        open={showSetupWizard}
+        onOpenChange={setShowSetupWizard}
+      />
+
+      {/* Setup Prompt for New Users */}
+      {!checkingPrefs && !hasPreferences && (
+        <Card className="border-primary/30 bg-primary/5">
+          <CardContent className="flex items-center justify-between py-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-primary/20 rounded-full flex items-center justify-center">
+                <Settings className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <h3 className="font-semibold">Set up your notifications</h3>
+                <p className="text-sm text-muted-foreground">
+                  Configure how you'd like to receive medication reminders
+                </p>
+              </div>
+            </div>
+            <Button onClick={() => setShowSetupWizard(true)}>
+              Get Started
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Sync Status Indicator */}
       <OfflineSyncIndicator onSyncComplete={handleSyncComplete} />
 
