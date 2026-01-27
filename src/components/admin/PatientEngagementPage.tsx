@@ -35,6 +35,7 @@ import {
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { EngagementTrendsChart } from "./analytics/EngagementTrendsChart";
+import { PatientDetailDrawer } from "./PatientDetailDrawer";
 
 interface EngagementScore {
   id: string;
@@ -56,6 +57,14 @@ interface EngagementScore {
 export function PatientEngagementPage() {
   const [riskFilter, setRiskFilter] = useState<string>("all");
   const [isCalculating, setIsCalculating] = useState(false);
+  const [selectedPatient, setSelectedPatient] = useState<{
+    user_id: string;
+    first_name: string | null;
+    last_name: string | null;
+    email: string | null;
+    currentScore: EngagementScore;
+  } | null>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   const { data: scores, isLoading, refetch } = useQuery({
     queryKey: ["patient-engagement-scores", riskFilter],
@@ -298,7 +307,20 @@ export function PatientEngagementPage() {
               </TableHeader>
               <TableBody>
                 {scores?.map((score) => (
-                  <TableRow key={score.id}>
+                  <TableRow 
+                    key={score.id}
+                    className="cursor-pointer hover:bg-muted/50 transition-colors"
+                    onClick={() => {
+                      setSelectedPatient({
+                        user_id: score.user_id,
+                        first_name: score.profiles?.first_name || null,
+                        last_name: score.profiles?.last_name || null,
+                        email: score.profiles?.email || null,
+                        currentScore: score,
+                      });
+                      setDrawerOpen(true);
+                    }}
+                  >
                     <TableCell>
                       <div>
                         <p className="font-medium">
@@ -362,6 +384,13 @@ export function PatientEngagementPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Patient Detail Drawer */}
+      <PatientDetailDrawer
+        patient={selectedPatient}
+        open={drawerOpen}
+        onOpenChange={setDrawerOpen}
+      />
     </div>
   );
 }
