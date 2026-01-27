@@ -55,6 +55,7 @@ interface MedicationDose {
 interface PatientPreferences {
   email_reminders: boolean;
   sms_reminders: boolean;
+  whatsapp_reminders: boolean;
   in_app_reminders: boolean;
   quiet_hours_enabled: boolean;
   quiet_hours_start: string | null;
@@ -162,7 +163,7 @@ Deno.serve(async (req: Request) => {
     // Fetch patient notification preferences for all users
     const { data: allPreferences, error: prefsError } = await supabase
       .from("patient_notification_preferences")
-      .select("user_id, email_reminders, sms_reminders, in_app_reminders, quiet_hours_enabled, quiet_hours_start, quiet_hours_end")
+      .select("user_id, email_reminders, sms_reminders, whatsapp_reminders, in_app_reminders, quiet_hours_enabled, quiet_hours_start, quiet_hours_end")
       .in("user_id", userIds);
 
     if (prefsError) {
@@ -181,6 +182,7 @@ Deno.serve(async (req: Request) => {
 
     const emailResults: { userId: string; email: string; success: boolean; result?: unknown; error?: string; skipped?: string }[] = [];
     const smsResults: { userId: string; success: boolean; error?: string; skipped?: string }[] = [];
+    const whatsappResults: { userId: string; success: boolean; error?: string; skipped?: string }[] = [];
 
     for (const [userId, userDoses] of dosesByUser) {
       // Check patient notification preferences
@@ -381,6 +383,40 @@ Deno.serve(async (req: Request) => {
         } else {
           smsResults.push({ userId, success: true, skipped: "sms_reminders_disabled" });
         }
+
+        // Send WhatsApp notification if whatsapp_reminders is enabled
+        if (!prefs || prefs.whatsapp_reminders) {
+          try {
+            const whatsappMessage = `Time to take ${medNames}. ${userDoses.length} dose${userDoses.length > 1 ? "s" : ""} scheduled now.`;
+            
+            const { data: waData, error: waError } = await supabase.functions.invoke("send-whatsapp-notification", {
+              body: {
+                recipientId: userId,
+                senderName: "Pillaxia",
+                message: whatsappMessage,
+                notificationType: "medication_reminder",
+              },
+            });
+
+            if (waError) {
+              console.error(`WhatsApp error for user ${userId}:`, waError);
+              whatsappResults.push({ userId, success: false, error: String(waError) });
+            } else if (waData?.reason === "no_phone" || waData?.reason === "not_configured" || waData?.reason === "user_disabled") {
+              console.log(`WhatsApp skipped for user ${userId}: ${waData.reason}`);
+              whatsappResults.push({ userId, success: true, skipped: waData.reason });
+            } else if (waData?.success) {
+              console.log(`WhatsApp reminder sent to user ${userId} via ${waData.provider}`);
+              whatsappResults.push({ userId, success: true });
+            } else {
+              whatsappResults.push({ userId, success: false, error: waData?.message || "unknown" });
+            }
+          } catch (waErr) {
+            console.error(`WhatsApp exception for user ${userId}:`, waErr);
+            whatsappResults.push({ userId, success: false, error: String(waErr) });
+          }
+        } else {
+          whatsappResults.push({ userId, success: true, skipped: "whatsapp_reminders_disabled" });
+        }
       } catch (emailError) {
         console.error(`Failed to send email to ${profile.email}:`, emailError);
         emailResults.push({ userId, email: profile.email, success: false, error: String(emailError) });
@@ -403,15 +439,19 @@ Deno.serve(async (req: Request) => {
     const skippedCount = emailResults.filter((r) => r.skipped).length;
     const smsSuccessCount = smsResults.filter((r) => r.success && !r.skipped).length;
     const smsSkippedCount = smsResults.filter((r) => r.skipped).length;
+    const waSuccessCount = whatsappResults.filter((r) => r.success && !r.skipped).length;
+    const waSkippedCount = whatsappResults.filter((r) => r.skipped).length;
     
     console.log(`Sent ${successCount}/${emailResults.length} reminder emails, ${skippedCount} skipped`);
     console.log(`Sent ${smsSuccessCount}/${smsResults.length} reminder SMS, ${smsSkippedCount} skipped`);
+    console.log(`Sent ${waSuccessCount}/${whatsappResults.length} WhatsApp messages, ${waSkippedCount} skipped`);
 
     return new Response(
       JSON.stringify({
-        message: `Processed ${doses.length} doses, sent ${successCount} emails, ${smsSuccessCount} SMS`,
+        message: `Processed ${doses.length} doses, sent ${successCount} emails, ${smsSuccessCount} SMS, ${waSuccessCount} WhatsApp`,
         emailResults,
         smsResults,
+        whatsappResults,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
