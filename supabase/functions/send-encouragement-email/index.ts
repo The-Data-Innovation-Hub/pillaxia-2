@@ -213,6 +213,19 @@ serve(async (req: Request): Promise<Response> => {
 
     if (emailError) {
       console.error("Email send error:", emailError);
+      
+      // Log failed email notification
+      await serviceClient.from("notification_history").insert({
+        user_id: patient_user_id,
+        channel: "email",
+        notification_type: "encouragement_message",
+        title: `Encouragement from ${caregiver_name}`,
+        body: message.substring(0, 200),
+        status: "failed",
+        error_message: emailError.message?.slice(0, 500),
+        metadata: { caregiver_name, recipient_email: patientProfile.email },
+      });
+      
       return new Response(
         JSON.stringify({ error: "Failed to send email", details: emailError.message }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -220,6 +233,17 @@ serve(async (req: Request): Promise<Response> => {
     }
 
     console.log(`Encouragement email sent to ${patientProfile.email}`);
+
+    // Log successful email notification
+    await serviceClient.from("notification_history").insert({
+      user_id: patient_user_id,
+      channel: "email",
+      notification_type: "encouragement_message",
+      title: `Encouragement from ${caregiver_name}`,
+      body: message.substring(0, 200),
+      status: "sent",
+      metadata: { caregiver_name, recipient_email: patientProfile.email },
+    });
 
     // Also send push notification if in_app_encouragements is enabled
     if (!patientPrefs || patientPrefs.in_app_encouragements) {
