@@ -180,8 +180,32 @@ serve(async (req) => {
 
       // Send email if configured
       const resendApiKey = Deno.env.get("RESEND_API_KEY");
+      const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+      
       if (resendApiKey && caregiver.email) {
         try {
+          // First, create the notification record to get the ID for tracking
+          const { data: notificationRecord, error: insertError } = await supabase
+            .from("notification_history")
+            .insert({
+              user_id: caregiver.user_id,
+              channel: "email",
+              notification_type: "missed_dose_alert",
+              title: "Missed Dose Alert: " + patientName,
+              body: patientName + " missed " + medicationName + " at " + formattedTime,
+              status: "pending",
+              metadata: { patient_name: patientName, medication_name: medicationName, recipient_email: caregiver.email },
+            })
+            .select("id")
+            .single();
+
+          if (insertError || !notificationRecord) {
+            throw new Error("Failed to create notification record: " + insertError?.message);
+          }
+
+          // Generate tracking pixel URL
+          const trackingPixelUrl = `${supabaseUrl}/functions/v1/email-tracking-pixel?id=${notificationRecord.id}&uid=${caregiver.user_id}`;
+
           const emailHtml = '<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">' +
             '<h2 style="color: #dc2626;">Missed Dose Alert</h2>' +
             '<p>Hi ' + caregiverName + ',</p>' +
@@ -192,7 +216,8 @@ serve(async (req) => {
             '</div>' +
             '<p>You may want to check in with them to ensure they are okay.</p>' +
             '<p style="color: #666; font-size: 14px; margin-top: 24px;">— The Pillaxia Care Team</p>' +
-            '</div>';
+            '</div>' +
+            '<img src="' + trackingPixelUrl + '" width="1" height="1" style="display:none;" alt="" />';
 
           const response = await fetch("https://api.resend.com/emails", {
             method: "POST",
@@ -217,36 +242,23 @@ serve(async (req) => {
           notificationResults.email++;
           console.log("Email sent to caregiver " + caregiver.user_id + ", ID: " + emailData.id);
 
-          // Log successful email notification with Resend email ID for webhook tracking
-          await supabase.from("notification_history").insert({
-            user_id: caregiver.user_id,
-            channel: "email",
-            notification_type: "missed_dose_alert",
-            title: "Missed Dose Alert: " + patientName,
-            body: patientName + " missed " + medicationName + " at " + formattedTime,
-            status: "sent",
-            metadata: { 
-              patient_name: patientName, 
-              medication_name: medicationName, 
-              recipient_email: caregiver.email,
-              resend_email_id: emailData.id 
-            },
-          });
+          // Update notification as sent with Resend email ID
+          await supabase
+            .from("notification_history")
+            .update({
+              status: "sent",
+              metadata: { 
+                patient_name: patientName, 
+                medication_name: medicationName, 
+                recipient_email: caregiver.email,
+                resend_email_id: emailData.id,
+                tracking_pixel_id: notificationRecord.id,
+              },
+            })
+            .eq("id", notificationRecord.id);
         } catch (emailError) {
           console.error("Failed to send email to " + caregiver.email + ":", emailError);
           notificationResults.failed++;
-
-          // Log failed email notification
-          await supabase.from("notification_history").insert({
-            user_id: caregiver.user_id,
-            channel: "email",
-            notification_type: "missed_dose_alert",
-            title: "Missed Dose Alert: " + patientName,
-            body: patientName + " missed " + medicationName + " at " + formattedTime,
-            status: "failed",
-            error_message: String(emailError).slice(0, 500),
-            metadata: { patient_name: patientName, medication_name: medicationName, recipient_email: caregiver.email },
-          });
         }
       }
 
