@@ -27,6 +27,7 @@ type PrescriptionStatus = "pending" | "sent" | "ready" | "picked_up" | "complete
 
 interface Prescription {
   id: string;
+  user_id: string;
   name: string;
   dosage: string;
   dosage_unit: string;
@@ -95,16 +96,37 @@ export function PrescriptionsPage() {
   });
 
   const updateStatusMutation = useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: PrescriptionStatus }) => {
+    mutationFn: async ({ id, status, patientUserId, medicationName, pharmacy }: { 
+      id: string; 
+      status: PrescriptionStatus;
+      patientUserId: string;
+      medicationName: string;
+      pharmacy?: string;
+    }) => {
       const { error } = await supabase
         .from("medications")
         .update({ prescription_status: status })
         .eq("id", id);
       if (error) throw error;
+
+      // Send notification to patient
+      try {
+        await supabase.functions.invoke("send-prescription-status-notification", {
+          body: {
+            patient_user_id: patientUserId,
+            medication_name: medicationName,
+            new_status: status,
+            pharmacy: pharmacy,
+          },
+        });
+      } catch (notifError) {
+        console.error("Failed to send notification:", notifError);
+        // Don't throw - status update succeeded, notification is secondary
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["all-prescriptions"] });
-      toast.success("Prescription status updated");
+      toast.success("Prescription status updated & patient notified");
     },
     onError: () => {
       toast.error("Failed to update status");
@@ -270,7 +292,13 @@ export function PrescriptionsPage() {
                         <Select
                           value={rx.prescription_status}
                           onValueChange={(value) =>
-                            updateStatusMutation.mutate({ id: rx.id, status: value as PrescriptionStatus })
+                            updateStatusMutation.mutate({ 
+                              id: rx.id, 
+                              status: value as PrescriptionStatus,
+                              patientUserId: rx.user_id,
+                              medicationName: rx.name,
+                              pharmacy: rx.pharmacy || undefined,
+                            })
                           }
                         >
                           <SelectTrigger className="w-32 h-8">
