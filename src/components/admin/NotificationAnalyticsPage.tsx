@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -8,6 +8,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import {
   Select,
   SelectContent,
@@ -25,6 +34,12 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   Bell,
   Mail,
   MessageSquare,
@@ -36,6 +51,9 @@ import {
   TestTube,
   Loader2,
   User,
+  RotateCcw,
+  AlertTriangle,
+  Timer,
 } from "lucide-react";
 import {
   BarChart,
@@ -43,7 +61,7 @@ import {
   XAxis,
   YAxis,
   CartesianGrid,
-  Tooltip,
+  Tooltip as RechartsTooltip,
   ResponsiveContainer,
   PieChart,
   Pie,
@@ -80,7 +98,9 @@ export function NotificationAnalyticsPage() {
   const [isTestDialogOpen, setIsTestDialogOpen] = useState(false);
   const [testEmail, setTestEmail] = useState("");
   const [isSendingTest, setIsSendingTest] = useState(false);
+  const [retryingIds, setRetryingIds] = useState<Set<string>>(new Set());
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const days = timeRange === "7d" ? 7 : timeRange === "14d" ? 14 : 30;
   const startDate = startOfDay(subDays(new Date(), days - 1));
 
@@ -211,6 +231,63 @@ export function NotificationAnalyticsPage() {
       };
     },
   });
+
+  // Fetch failed notifications for the retry table
+  const { data: failedNotifications, isLoading: isLoadingFailed } = useQuery({
+    queryKey: ["failed-notifications"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("notification_history")
+        .select("id, channel, notification_type, title, body, error_message, created_at, retry_count, max_retries, next_retry_at, last_retry_at, user_id")
+        .eq("status", "failed")
+        .order("created_at", { ascending: false })
+        .limit(50);
+
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const handleRetry = async (notificationId: string) => {
+    setRetryingIds(prev => new Set(prev).add(notificationId));
+
+    try {
+      const { data, error } = await supabase.functions.invoke("retry-notification", {
+        body: { notification_id: notificationId },
+      });
+
+      if (error) throw error;
+
+      if (data?.success) {
+        toast({
+          title: "Notification Retried",
+          description: "The notification was successfully resent.",
+        });
+        // Refresh both queries
+        queryClient.invalidateQueries({ queryKey: ["failed-notifications"] });
+        queryClient.invalidateQueries({ queryKey: ["notification-analytics"] });
+      } else {
+        toast({
+          title: "Retry Failed",
+          description: data?.error || "Failed to retry the notification.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error("Error retrying notification:", error);
+      toast({
+        title: "Retry Failed",
+        description: "An error occurred while retrying the notification.",
+        variant: "destructive",
+      });
+    } finally {
+      setRetryingIds(prev => {
+        const next = new Set(prev);
+        next.delete(notificationId);
+        return next;
+      });
+    }
+  };
 
   const overviewCards = [
     {
@@ -431,7 +508,7 @@ export function NotificationAnalyticsPage() {
                   tickFormatter={(v) => format(new Date(v), "MMM d")}
                 />
                 <YAxis />
-                <Tooltip 
+                <RechartsTooltip 
                   labelFormatter={(v) => format(new Date(v), "MMM d, yyyy")}
                 />
                 <Legend />
@@ -548,7 +625,7 @@ export function NotificationAnalyticsPage() {
                       />
                     ))}
                   </Pie>
-                  <Tooltip />
+                  <RechartsTooltip />
                 </PieChart>
               </ResponsiveContainer>
             ) : (
@@ -579,7 +656,7 @@ export function NotificationAnalyticsPage() {
                   width={150}
                   tick={{ fontSize: 12 }}
                 />
-                <Tooltip />
+                <RechartsTooltip />
                 <Bar 
                   dataKey="count" 
                   fill="hsl(var(--primary))" 
@@ -590,6 +667,146 @@ export function NotificationAnalyticsPage() {
           ) : (
             <div className="h-48 flex items-center justify-center text-muted-foreground">
               No notification data in this period
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Failed Notifications with Retry */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <AlertTriangle className="h-5 w-5 text-destructive" />
+            Failed Notifications
+          </CardTitle>
+          <CardDescription>
+            View and retry failed notifications. Click "Retry Now" to immediately attempt redelivery.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {isLoadingFailed ? (
+            <Skeleton className="h-48 w-full" />
+          ) : failedNotifications && failedNotifications.length > 0 ? (
+            <ScrollArea className="h-[400px]">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Channel</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead>Title</TableHead>
+                    <TableHead>Error</TableHead>
+                    <TableHead>Retry Status</TableHead>
+                    <TableHead>Created</TableHead>
+                    <TableHead className="text-right">Action</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {failedNotifications.map((notification) => {
+                    const ChannelIcon = CHANNEL_ICONS[notification.channel] || Bell;
+                    const isRetrying = retryingIds.has(notification.id);
+                    const isPermanentlyFailed = notification.retry_count >= notification.max_retries && !notification.next_retry_at;
+
+                    return (
+                      <TableRow key={notification.id}>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <ChannelIcon 
+                              className="h-4 w-4" 
+                              style={{ color: CHANNEL_COLORS[notification.channel] }}
+                            />
+                            <span className="capitalize text-sm">{notification.channel}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="text-xs capitalize">
+                            {notification.notification_type.replace(/_/g, " ")}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="max-w-[200px]">
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="truncate block text-sm">{notification.title}</span>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p className="max-w-[300px]">{notification.title}</p>
+                                {notification.body && (
+                                  <p className="text-muted-foreground mt-1">{notification.body}</p>
+                                )}
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        </TableCell>
+                        <TableCell className="max-w-[200px]">
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="truncate block text-sm text-destructive">
+                                  {notification.error_message?.slice(0, 50) || "Unknown error"}
+                                  {notification.error_message && notification.error_message.length > 50 ? "..." : ""}
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p className="max-w-[400px] break-words">{notification.error_message}</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-1">
+                            {notification.retry_count > 0 && (
+                              <Badge variant="secondary" className="text-xs">
+                                <RotateCcw className="h-3 w-3 mr-1" />
+                                {notification.retry_count}/{notification.max_retries}
+                              </Badge>
+                            )}
+                            {notification.next_retry_at && (
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Badge variant="outline" className="text-xs text-primary">
+                                      <Timer className="h-3 w-3 mr-1" />
+                                      {format(new Date(notification.next_retry_at), "h:mm a")}
+                                    </Badge>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    Next auto-retry: {format(new Date(notification.next_retry_at), "MMM d, h:mm a")}
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            )}
+                            {isPermanentlyFailed && (
+                              <Badge variant="destructive" className="text-xs">
+                                Exhausted
+                              </Badge>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {format(new Date(notification.created_at), "MMM d, h:mm a")}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleRetry(notification.id)}
+                            disabled={isRetrying}
+                          >
+                            <RotateCcw className={`h-3 w-3 mr-1 ${isRetrying ? "animate-spin" : ""}`} />
+                            {isRetrying ? "Retrying..." : "Retry Now"}
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </ScrollArea>
+          ) : (
+            <div className="h-32 flex flex-col items-center justify-center text-muted-foreground">
+              <CheckCircle className="h-8 w-8 mb-2 text-green-500" />
+              <p>No failed notifications</p>
+              <p className="text-sm">All notifications delivered successfully</p>
             </div>
           )}
         </CardContent>
