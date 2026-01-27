@@ -168,6 +168,30 @@ class SymptomCache {
     return symptoms.filter(s => s._pending);
   }
 
+  async clearPendingSymptoms(): Promise<void> {
+    const db = await this.openDB();
+    
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction([SYMPTOMS_STORE], "readwrite");
+      const store = transaction.objectStore(SYMPTOMS_STORE);
+      const request = store.openCursor();
+
+      transaction.onerror = () => reject(transaction.error);
+      transaction.oncomplete = () => resolve();
+
+      request.onsuccess = () => {
+        const cursor = request.result;
+        if (cursor) {
+          const entry = cursor.value as CachedSymptomEntry;
+          if (entry._pending) {
+            store.delete(cursor.primaryKey);
+          }
+          cursor.continue();
+        }
+      };
+    });
+  }
+
   async getCacheTimestamp(userId: string): Promise<number | null> {
     const db = await this.openDB();
     
