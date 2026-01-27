@@ -1,9 +1,13 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { useToast } from "@/hooks/use-toast";
 import {
   Select,
   SelectContent,
@@ -11,6 +15,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import {
   Bell,
   Mail,
@@ -20,6 +33,8 @@ import {
   XCircle,
   TrendingUp,
   Clock,
+  TestTube,
+  Loader2,
 } from "lucide-react";
 import {
   BarChart,
@@ -61,7 +76,10 @@ type TimeRange = "7d" | "14d" | "30d";
 
 export function NotificationAnalyticsPage() {
   const [timeRange, setTimeRange] = useState<TimeRange>("7d");
-
+  const [isTestDialogOpen, setIsTestDialogOpen] = useState(false);
+  const [testEmail, setTestEmail] = useState("");
+  const [isSendingTest, setIsSendingTest] = useState(false);
+  const { toast } = useToast();
   const days = timeRange === "7d" ? 7 : timeRange === "14d" ? 14 : 30;
   const startDate = startOfDay(subDays(new Date(), days - 1));
   const endDate = endOfDay(new Date());
@@ -207,6 +225,48 @@ export function NotificationAnalyticsPage() {
     },
   ];
 
+  const sendTestEmail = async () => {
+    if (!testEmail.trim()) {
+      toast({
+        title: "Email required",
+        description: "Please enter an email address to send the test to.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsSendingTest(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("send-encouragement-email", {
+        body: {
+          to: testEmail.trim(),
+          subject: "🧪 Pillaxia Webhook Test",
+          patientName: "Test User",
+          caregiverName: "Admin",
+          message: "This is a test email to verify that the Resend webhook integration is working correctly. If you receive this email and see status updates in your notification history, the integration is configured properly!",
+        },
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Test email sent!",
+        description: `Email sent to ${testEmail}. Check the notification history to see webhook status updates.`,
+      });
+      setIsTestDialogOpen(false);
+      setTestEmail("");
+    } catch (error) {
+      console.error("Failed to send test email:", error);
+      toast({
+        title: "Failed to send test",
+        description: error instanceof Error ? error.message : "An error occurred",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSendingTest(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -216,16 +276,66 @@ export function NotificationAnalyticsPage() {
             Delivery statistics across all channels
           </p>
         </div>
-        <Select value={timeRange} onValueChange={(v) => setTimeRange(v as TimeRange)}>
-          <SelectTrigger className="w-[140px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="7d">Last 7 days</SelectItem>
-            <SelectItem value="14d">Last 14 days</SelectItem>
-            <SelectItem value="30d">Last 30 days</SelectItem>
-          </SelectContent>
-        </Select>
+        <div className="flex items-center gap-3">
+          <Dialog open={isTestDialogOpen} onOpenChange={setIsTestDialogOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" size="sm">
+                <TestTube className="h-4 w-4 mr-2" />
+                Test Webhook
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Test Email Webhook</DialogTitle>
+                <DialogDescription>
+                  Send a test email to verify the Resend webhook integration. After sending, check the notification history to see real-time status updates (sent → delivered).
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label htmlFor="test-email">Recipient Email</Label>
+                  <Input
+                    id="test-email"
+                    type="email"
+                    placeholder="test@example.com"
+                    value={testEmail}
+                    onChange={(e) => setTestEmail(e.target.value)}
+                  />
+                </div>
+                <div className="rounded-lg bg-muted p-3 text-sm text-muted-foreground">
+                  <p className="font-medium mb-1">What this tests:</p>
+                  <ul className="list-disc list-inside space-y-1">
+                    <li>Email delivery via Resend API</li>
+                    <li>Webhook signature verification</li>
+                    <li>Status updates (sent → delivered/bounced)</li>
+                  </ul>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={() => setIsTestDialogOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button onClick={sendTestEmail} disabled={isSendingTest}>
+                  {isSendingTest && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                  Send Test Email
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+          <Select value={timeRange} onValueChange={(v) => setTimeRange(v as TimeRange)}>
+            <SelectTrigger className="w-[140px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="7d">Last 7 days</SelectItem>
+              <SelectItem value="14d">Last 14 days</SelectItem>
+              <SelectItem value="30d">Last 30 days</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       {/* Overview Stats */}
