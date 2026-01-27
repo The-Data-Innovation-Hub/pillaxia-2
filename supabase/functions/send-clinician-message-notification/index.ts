@@ -179,17 +179,19 @@ serve(async (req: Request): Promise<Response> => {
 
     // 2. Send Push Notification if enabled
     if (pushEnabled) {
+      const pushTitle = senderType === "clinician" 
+        ? `🩺 Message from ${senderName}`
+        : `💬 Message from ${senderName}`;
+      const pushBody = message.substring(0, 150) + (message.length > 150 ? "..." : "");
+
+      // Send web push notification
       try {
-        const pushTitle = senderType === "clinician" 
-          ? `🩺 Message from ${senderName}`
-          : `💬 Message from ${senderName}`;
-        
         const { data: pushData, error: pushError } = await supabase.functions.invoke("send-push-notification", {
           body: {
             user_ids: [recipientId],
             payload: {
               title: pushTitle,
-              body: message.substring(0, 150) + (message.length > 150 ? "..." : ""),
+              body: pushBody,
               tag: `clinician-msg-${recipientId}`,
               data: { url: "/dashboard" },
             },
@@ -197,17 +199,36 @@ serve(async (req: Request): Promise<Response> => {
         });
 
         if (pushError) {
-          console.error("Push notification error:", pushError);
+          console.error("Web push notification error:", pushError);
           deliveryStatus.push = { sent: false, at: now, error: pushError.message };
         } else if (pushData?.sent === 0) {
           deliveryStatus.push = { sent: false, at: now, error: "No active push subscription" };
         } else {
-          console.log(`Push sent to ${pushData?.sent} device(s)`);
+          console.log(`Web push sent to ${pushData?.sent} device(s)`);
           deliveryStatus.push = { sent: true, at: now };
         }
       } catch (pushErr: any) {
-        console.error("Push error:", pushErr);
+        console.error("Web push error:", pushErr);
         deliveryStatus.push = { sent: false, at: now, error: pushErr.message };
+      }
+
+      // Send native iOS push notification
+      try {
+        await supabase.functions.invoke("send-native-push", {
+          body: {
+            user_ids: [recipientId],
+            payload: {
+              title: pushTitle,
+              body: pushBody,
+              badge: 1,
+              sound: "default",
+              data: { url: "/dashboard" },
+            },
+          },
+        });
+        console.log("Native iOS push sent for clinician message");
+      } catch (nativePushErr: any) {
+        console.error("Native iOS push error:", nativePushErr);
       }
     } else {
       deliveryStatus.push = { sent: false, at: now, error: "Disabled by user" };
