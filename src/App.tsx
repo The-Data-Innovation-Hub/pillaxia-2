@@ -21,6 +21,7 @@ import {
   CaregiverNotificationHistoryPage,
   PatientSettingsPage,
   NotificationHistoryPage,
+  SyncStatusPage,
 } from "@/components/patient";
 import {
   ClinicianLayout,
@@ -159,6 +160,7 @@ const App = () => (
                 <Route path="admin-settings" element={<SettingsPage />} />
                 {/* Patient Settings */}
                 <Route path="settings" element={<PatientSettingsPage />} />
+                <Route path="sync-status" element={<SyncStatusPage />} />
               </Route>
               
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

@@ -19,3 +19,4 @@ export { PatientMessagesCard } from "./PatientMessagesCard";
 export { ClinicianMessagesCard } from "./ClinicianMessagesCard";
 export { PatientSettingsPage } from "./PatientSettingsPage";
 export { NotificationHistoryPage } from "./NotificationHistoryPage";
+export { SyncStatusPage } from "./SyncStatusPage";
