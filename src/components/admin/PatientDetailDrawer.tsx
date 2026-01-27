@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -13,6 +14,7 @@ import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import { Button } from "@/components/ui/button";
 import {
   Activity,
   Pill,
@@ -26,7 +28,9 @@ import {
   AlertTriangle,
   CheckCircle2,
   Target,
+  Heart,
 } from "lucide-react";
+import { ClinicianEncouragementDialog } from "./ClinicianEncouragementDialog";
 import {
   LineChart,
   Line,
@@ -73,6 +77,8 @@ interface HistoricalScore {
 }
 
 export function PatientDetailDrawer({ patient, open, onOpenChange }: PatientDetailDrawerProps) {
+  const [encouragementOpen, setEncouragementOpen] = useState(false);
+
   // Fetch historical scores for this patient
   const { data: history, isLoading: historyLoading } = useQuery({
     queryKey: ["patient-engagement-history", patient?.user_id],
@@ -211,15 +217,27 @@ export function PatientDetailDrawer({ patient, open, onOpenChange }: PatientDeta
   const insights = getInsights();
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full sm:max-w-xl overflow-hidden">
-        <SheetHeader className="pb-4">
-          <div className="flex items-center gap-3">
-            <SheetTitle className="text-xl">{patientName}</SheetTitle>
-            {getRiskBadge(currentScore.risk_level)}
-          </div>
-          <SheetDescription>{patient.email}</SheetDescription>
-        </SheetHeader>
+    <>
+      <Sheet open={open} onOpenChange={onOpenChange}>
+        <SheetContent className="w-full sm:max-w-xl overflow-hidden">
+          <SheetHeader className="pb-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <SheetTitle className="text-xl">{patientName}</SheetTitle>
+                {getRiskBadge(currentScore.risk_level)}
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-2"
+                onClick={() => setEncouragementOpen(true)}
+              >
+                <Heart className="h-4 w-4" />
+                Send Encouragement
+              </Button>
+            </div>
+            <SheetDescription>{patient.email}</SheetDescription>
+          </SheetHeader>
 
         <ScrollArea className="h-[calc(100vh-120px)] pr-4">
           <div className="space-y-6">
@@ -436,7 +454,15 @@ export function PatientDetailDrawer({ patient, open, onOpenChange }: PatientDeta
             </Card>
           </div>
         </ScrollArea>
-      </SheetContent>
-    </Sheet>
+        </SheetContent>
+      </Sheet>
+
+      <ClinicianEncouragementDialog
+        open={encouragementOpen}
+        onOpenChange={setEncouragementOpen}
+        patientUserId={patient.user_id}
+        patientName={patientName}
+      />
+    </>
   );
 }
