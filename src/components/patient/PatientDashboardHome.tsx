@@ -9,6 +9,8 @@ import { format } from "date-fns";
 import { useNavigate } from "react-router-dom";
 import { CaregiverInvitationsReceived } from "./CaregiverInvitationsReceived";
 import { PatientMessagesCard } from "./PatientMessagesCard";
+import { ClinicianMessagesCard } from "./ClinicianMessagesCard";
+
 interface DashboardStats {
   totalMedications: number;
   todaysDoses: number;
@@ -97,8 +99,12 @@ export function PatientDashboardHome() {
       {/* Caregiver Invitations (if any) */}
       <CaregiverInvitationsReceived />
 
-      {/* Encouragement Messages from Caregivers */}
+      {/* Messages from Caregivers */}
       <PatientMessagesCard />
+
+      {/* Messages from Clinicians */}
+      <ClinicianMessagesCard />
+
       {/* Welcome Section */}
       <div className="flex items-center justify-between">
         <div>

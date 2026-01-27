@@ -116,6 +116,39 @@ export type Database = {
         }
         Relationships: []
       }
+      clinician_messages: {
+        Row: {
+          clinician_user_id: string
+          created_at: string
+          id: string
+          is_read: boolean
+          message: string
+          patient_user_id: string
+          sender_type: string
+          updated_at: string | null
+        }
+        Insert: {
+          clinician_user_id: string
+          created_at?: string
+          id?: string
+          is_read?: boolean
+          message: string
+          patient_user_id: string
+          sender_type?: string
+          updated_at?: string | null
+        }
+        Update: {
+          clinician_user_id?: string
+          created_at?: string
+          id?: string
+          is_read?: boolean
+          message?: string
+          patient_user_id?: string
+          sender_type?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       clinician_patient_assignments: {
         Row: {
           assigned_at: string
