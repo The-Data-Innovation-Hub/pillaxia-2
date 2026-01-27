@@ -1,11 +1,12 @@
-// Force module refresh - v5
+// Force module refresh - v6
 import { useState, useMemo } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Plus, Trash2, CloudOff, RefreshCw, Clock } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Loader2, Plus, Trash2, CloudOff, RefreshCw, Clock, TrendingUp, Activity, List } from "lucide-react";
 import { format } from "date-fns";
 import { SymptomEntryDialog } from "./SymptomEntryDialog";
 import { SymptomTrendsChart } from "./SymptomTrendsChart";
@@ -29,6 +30,7 @@ export function SymptomsPage() {
   const { symptoms, loading, isFromCache, refresh, hasPending } = useCachedSymptoms();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [filters, setFilters] = useState<SymptomFilters>(DEFAULT_FILTERS);
+  const [activeTab, setActiveTab] = useState<string>("entries");
 
   // Apply filters to symptoms
   const filteredSymptoms = useMemo(
@@ -114,15 +116,7 @@ export function SymptomsPage() {
         />
       )}
 
-      {/* Trends Chart - only show when we have filtered symptoms */}
-      {filteredSymptoms.length > 0 && <SymptomTrendsChart symptoms={filteredSymptoms} />}
-
-      {/* Correlation Insights */}
-      {filteredSymptoms.length > 0 && <SymptomCorrelations symptoms={filteredSymptoms} />}
-
-      {/* Time of Day Analysis */}
-      {filteredSymptoms.length > 0 && <SymptomTimeAnalysis symptoms={filteredSymptoms} />}
-
+      {/* Main Content with Tabs */}
       {filteredSymptoms.length === 0 && symptoms.length > 0 ? (
         <Card>
           <CardContent className="py-12 text-center">
@@ -151,79 +145,140 @@ export function SymptomsPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-3">
-          <h2 className="text-lg font-semibold">
-            {filters.dateFrom || filters.dateTo || filters.symptomType || filters.medicationId || filters.severityRange[0] !== 1 || filters.severityRange[1] !== 10
-              ? `Filtered Entries (${filteredSymptoms.length})`
-              : "Recent Entries"}
-          </h2>
-          {filteredSymptoms.map((symptom) => (
-            <Card 
-              key={symptom.id} 
-              className={cn(
-                "hover:shadow-md transition-shadow",
-                symptom._pending && "border-dashed border-warning/50 bg-warning/5"
-              )}
-            >
-              <CardContent className="p-4">
-                <div className="flex items-start justify-between">
-                  <div className="flex gap-4">
-                    {/* Severity indicator */}
-                    <div className="flex flex-col items-center">
-                      <div
-                        className={cn(
-                          "h-10 w-10 rounded-full flex items-center justify-center text-white font-bold",
-                          getSeverityColor(symptom.severity)
-                        )}
-                      >
-                        {symptom.severity}
-                      </div>
-                      <span className="text-xs text-muted-foreground mt-1">
-                        /10
-                      </span>
-                    </div>
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <TabsList className="grid w-full grid-cols-4 mb-4">
+            <TabsTrigger value="entries" className="flex items-center gap-2">
+              <List className="h-4 w-4" />
+              <span className="hidden sm:inline">Entries</span>
+            </TabsTrigger>
+            <TabsTrigger value="trends" className="flex items-center gap-2">
+              <TrendingUp className="h-4 w-4" />
+              <span className="hidden sm:inline">Trends</span>
+            </TabsTrigger>
+            <TabsTrigger value="correlations" className="flex items-center gap-2">
+              <Activity className="h-4 w-4" />
+              <span className="hidden sm:inline">Correlations</span>
+            </TabsTrigger>
+            <TabsTrigger value="time" className="flex items-center gap-2">
+              <Clock className="h-4 w-4" />
+              <span className="hidden sm:inline">Time</span>
+            </TabsTrigger>
+          </TabsList>
 
-                    {/* Details */}
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <h3 className="font-medium">{symptom.symptom_type}</h3>
-                        {symptom._pending && (
-                          <Badge variant="outline" className="text-xs border-warning text-warning gap-1">
-                            <Clock className="h-3 w-3" />
-                            Pending sync
-                          </Badge>
-                        )}
-                        {symptom.medications && (
-                          <Badge variant="outline" className="text-xs">
-                            {symptom.medications.name}
-                          </Badge>
-                        )}
+          {/* Entries Tab */}
+          <TabsContent value="entries" className="mt-0 space-y-3">
+            <h2 className="text-lg font-semibold">
+              {filters.dateFrom || filters.dateTo || filters.symptomType || filters.medicationId || filters.severityRange[0] !== 1 || filters.severityRange[1] !== 10
+                ? `Filtered Entries (${filteredSymptoms.length})`
+                : `Recent Entries (${filteredSymptoms.length})`}
+            </h2>
+            {filteredSymptoms.map((symptom) => (
+              <Card 
+                key={symptom.id} 
+                className={cn(
+                  "hover:shadow-md transition-shadow",
+                  symptom._pending && "border-dashed border-warning/50 bg-warning/5"
+                )}
+              >
+                <CardContent className="p-4">
+                  <div className="flex items-start justify-between">
+                    <div className="flex gap-4">
+                      {/* Severity indicator */}
+                      <div className="flex flex-col items-center">
+                        <div
+                          className={cn(
+                            "h-10 w-10 rounded-full flex items-center justify-center text-white font-bold",
+                            getSeverityColor(symptom.severity)
+                          )}
+                        >
+                          {symptom.severity}
+                        </div>
+                        <span className="text-xs text-muted-foreground mt-1">
+                          /10
+                        </span>
                       </div>
-                      {symptom.description && (
-                        <p className="text-sm text-muted-foreground mb-2">
-                          {symptom.description}
+
+                      {/* Details */}
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <h3 className="font-medium">{symptom.symptom_type}</h3>
+                          {symptom._pending && (
+                            <Badge variant="outline" className="text-xs border-warning text-warning gap-1">
+                              <Clock className="h-3 w-3" />
+                              Pending sync
+                            </Badge>
+                          )}
+                          {symptom.medications && (
+                            <Badge variant="outline" className="text-xs">
+                              {symptom.medications.name}
+                            </Badge>
+                          )}
+                        </div>
+                        {symptom.description && (
+                          <p className="text-sm text-muted-foreground mb-2">
+                            {symptom.description}
+                          </p>
+                        )}
+                        <p className="text-xs text-muted-foreground">
+                          {format(new Date(symptom.recorded_at), "MMM d, yyyy 'at' h:mm a")}
                         </p>
-                      )}
-                      <p className="text-xs text-muted-foreground">
-                        {format(new Date(symptom.recorded_at), "MMM d, yyyy 'at' h:mm a")}
-                      </p>
+                      </div>
                     </div>
-                  </div>
 
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="text-muted-foreground hover:text-destructive"
-                    onClick={() => handleDelete(symptom.id)}
-                    disabled={symptom._pending}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="text-muted-foreground hover:text-destructive"
+                      onClick={() => handleDelete(symptom.id)}
+                      disabled={symptom._pending}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </TabsContent>
+
+          {/* Trends Tab */}
+          <TabsContent value="trends" className="mt-0">
+            <SymptomTrendsChart symptoms={filteredSymptoms} />
+          </TabsContent>
+
+          {/* Correlations Tab */}
+          <TabsContent value="correlations" className="mt-0">
+            {filteredSymptoms.length >= 3 ? (
+              <SymptomCorrelations symptoms={filteredSymptoms} />
+            ) : (
+              <Card>
+                <CardContent className="py-12 text-center">
+                  <div className="text-4xl mb-4">📊</div>
+                  <h3 className="text-lg font-medium mb-2">Not enough data</h3>
+                  <p className="text-muted-foreground">
+                    Log at least 3 symptoms to see correlation insights
+                  </p>
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+
+          {/* Time Analysis Tab */}
+          <TabsContent value="time" className="mt-0">
+            {filteredSymptoms.length >= 3 ? (
+              <SymptomTimeAnalysis symptoms={filteredSymptoms} />
+            ) : (
+              <Card>
+                <CardContent className="py-12 text-center">
+                  <div className="text-4xl mb-4">⏰</div>
+                  <h3 className="text-lg font-medium mb-2">Not enough data</h3>
+                  <p className="text-muted-foreground">
+                    Log at least 3 symptoms to see time-of-day analysis
+                  </p>
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+        </Tabs>
       )}
 
       <SymptomEntryDialog
