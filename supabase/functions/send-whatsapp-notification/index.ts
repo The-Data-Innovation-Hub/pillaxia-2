@@ -10,6 +10,7 @@ interface NotificationRequest {
   recipientId: string;
   senderName: string;
   message: string;
+  notificationType?: "encouragement" | "clinician_message";
 }
 
 serve(async (req: Request): Promise<Response> => {
@@ -19,7 +20,7 @@ serve(async (req: Request): Promise<Response> => {
   }
 
   try {
-    const { recipientId, senderName, message }: NotificationRequest = await req.json();
+    const { recipientId, senderName, message, notificationType = "encouragement" }: NotificationRequest = await req.json();
 
     if (!recipientId || !senderName || !message) {
       throw new Error("Missing required fields");
@@ -30,30 +31,59 @@ serve(async (req: Request): Promise<Response> => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Check if encouragement messages are enabled (WhatsApp is used for encouragement messages)
-    const { data: settingData, error: settingError } = await supabase
-      .from("notification_settings")
-      .select("is_enabled")
-      .eq("setting_key", "encouragement_messages")
-      .maybeSingle();
+    // Check patient notification preferences for WhatsApp
+    if (notificationType === "clinician_message") {
+      const { data: prefData, error: prefError } = await supabase
+        .from("patient_notification_preferences")
+        .select("whatsapp_clinician_messages")
+        .eq("user_id", recipientId)
+        .maybeSingle();
 
-    if (settingError) {
-      console.error("Error checking notification settings:", settingError);
-    }
+      if (prefError) {
+        console.error("Error checking patient preferences:", prefError);
+      }
 
-    if (settingData && !settingData.is_enabled) {
-      console.log("Encouragement messages are disabled, skipping WhatsApp notification...");
-      return new Response(
-        JSON.stringify({ 
-          success: false, 
-          reason: "disabled",
-          message: "Encouragement messages are disabled in settings" 
-        }),
-        { 
-          status: 200, 
-          headers: { "Content-Type": "application/json", ...corsHeaders } 
-        }
-      );
+      // If preferences exist and WhatsApp is disabled for clinician messages, skip
+      if (prefData && prefData.whatsapp_clinician_messages === false) {
+        console.log("Patient has disabled WhatsApp notifications for clinician messages, skipping...");
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            reason: "user_disabled",
+            message: "Patient has disabled WhatsApp notifications for clinician messages" 
+          }),
+          { 
+            status: 200, 
+            headers: { "Content-Type": "application/json", ...corsHeaders } 
+          }
+        );
+      }
+    } else {
+      // Check if encouragement messages are enabled (global admin setting)
+      const { data: settingData, error: settingError } = await supabase
+        .from("notification_settings")
+        .select("is_enabled")
+        .eq("setting_key", "encouragement_messages")
+        .maybeSingle();
+
+      if (settingError) {
+        console.error("Error checking notification settings:", settingError);
+      }
+
+      if (settingData && !settingData.is_enabled) {
+        console.log("Encouragement messages are disabled, skipping WhatsApp notification...");
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            reason: "disabled",
+            message: "Encouragement messages are disabled in settings" 
+          }),
+          { 
+            status: 200, 
+            headers: { "Content-Type": "application/json", ...corsHeaders } 
+          }
+        );
+      }
     }
 
     // Get recipient profile to check for phone number
@@ -130,10 +160,11 @@ serve(async (req: Request): Promise<Response> => {
       console.error("WhatsApp API error:", errorData);
       
       // Log failed WhatsApp notification
+      const notifType = notificationType === "clinician_message" ? "clinician_message" : "encouragement_message";
       await supabase.from("notification_history").insert({
         user_id: recipientId,
         channel: "whatsapp",
-        notification_type: "encouragement_message",
+        notification_type: notifType,
         title: `Message from ${senderName}`,
         body: message.substring(0, 200),
         status: "failed",
@@ -148,10 +179,11 @@ serve(async (req: Request): Promise<Response> => {
     console.log("WhatsApp notification sent successfully:", result);
 
     // Log successful WhatsApp notification
+    const notifType = notificationType === "clinician_message" ? "clinician_message" : "encouragement_message";
     await supabase.from("notification_history").insert({
       user_id: recipientId,
       channel: "whatsapp",
-      notification_type: "encouragement_message",
+      notification_type: notifType,
       title: `Message from ${senderName}`,
       body: message.substring(0, 200),
       status: "sent",

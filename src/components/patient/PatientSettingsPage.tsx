@@ -32,6 +32,8 @@ import {
   Pill,
   Loader2,
   Send,
+  Stethoscope,
+  MessageSquare,
 } from "lucide-react";
 
 interface NotificationPreferences {
@@ -43,6 +45,9 @@ interface NotificationPreferences {
   in_app_missed_alerts: boolean;
   email_encouragements: boolean;
   in_app_encouragements: boolean;
+  email_clinician_messages: boolean;
+  push_clinician_messages: boolean;
+  whatsapp_clinician_messages: boolean;
   quiet_hours_enabled: boolean;
   quiet_hours_start: string;
   quiet_hours_end: string;
@@ -55,6 +60,9 @@ const DEFAULT_PREFERENCES: Omit<NotificationPreferences, "id" | "user_id"> = {
   in_app_missed_alerts: true,
   email_encouragements: true,
   in_app_encouragements: true,
+  email_clinician_messages: true,
+  push_clinician_messages: true,
+  whatsapp_clinician_messages: true,
   quiet_hours_enabled: false,
   quiet_hours_start: "22:00",
   quiet_hours_end: "07:00",
@@ -523,6 +531,84 @@ export function PatientSettingsPage() {
               id="in_app_encouragements"
               checked={prefs.in_app_encouragements}
               onCheckedChange={(checked) => handleToggle("in_app_encouragements", checked)}
+              disabled={updatePreferenceMutation.isPending}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Clinician Messages */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Stethoscope className="h-5 w-5 text-primary" />
+            Clinician Messages
+          </CardTitle>
+          <CardDescription>
+            Choose how you receive messages from your healthcare providers
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Mail className="h-4 w-4 text-muted-foreground" />
+              <div>
+                <Label htmlFor="email_clinician_messages" className="font-medium">
+                  Email Notifications
+                </Label>
+                <p className="text-sm text-muted-foreground">
+                  Receive an email when your clinician sends a message
+                </p>
+              </div>
+            </div>
+            <Switch
+              id="email_clinician_messages"
+              checked={prefs.email_clinician_messages}
+              onCheckedChange={(checked) => handleToggle("email_clinician_messages", checked)}
+              disabled={updatePreferenceMutation.isPending}
+            />
+          </div>
+
+          <Separator />
+
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Bell className="h-4 w-4 text-muted-foreground" />
+              <div>
+                <Label htmlFor="push_clinician_messages" className="font-medium">
+                  Push Notifications
+                </Label>
+                <p className="text-sm text-muted-foreground">
+                  Get push alerts for new clinician messages
+                </p>
+              </div>
+            </div>
+            <Switch
+              id="push_clinician_messages"
+              checked={prefs.push_clinician_messages}
+              onCheckedChange={(checked) => handleToggle("push_clinician_messages", checked)}
+              disabled={updatePreferenceMutation.isPending}
+            />
+          </div>
+
+          <Separator />
+
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <MessageSquare className="h-4 w-4 text-muted-foreground" />
+              <div>
+                <Label htmlFor="whatsapp_clinician_messages" className="font-medium">
+                  WhatsApp Notifications
+                </Label>
+                <p className="text-sm text-muted-foreground">
+                  Receive WhatsApp messages for clinician communications
+                </p>
+              </div>
+            </div>
+            <Switch
+              id="whatsapp_clinician_messages"
+              checked={prefs.whatsapp_clinician_messages}
+              onCheckedChange={(checked) => handleToggle("whatsapp_clinician_messages", checked)}
               disabled={updatePreferenceMutation.isPending}
             />
           </div>
