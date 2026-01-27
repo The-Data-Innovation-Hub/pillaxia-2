@@ -54,6 +54,7 @@ interface MedicationDose {
 
 interface PatientPreferences {
   email_reminders: boolean;
+  sms_reminders: boolean;
   in_app_reminders: boolean;
   quiet_hours_enabled: boolean;
   quiet_hours_start: string | null;
@@ -161,7 +162,7 @@ Deno.serve(async (req: Request) => {
     // Fetch patient notification preferences for all users
     const { data: allPreferences, error: prefsError } = await supabase
       .from("patient_notification_preferences")
-      .select("user_id, email_reminders, in_app_reminders, quiet_hours_enabled, quiet_hours_start, quiet_hours_end")
+      .select("user_id, email_reminders, sms_reminders, in_app_reminders, quiet_hours_enabled, quiet_hours_start, quiet_hours_end")
       .in("user_id", userIds);
 
     if (prefsError) {
@@ -327,14 +328,14 @@ Deno.serve(async (req: Request) => {
           },
         });
 
-        // Also send push notification if in_app_reminders is enabled
-        if (!prefs || prefs.in_app_reminders) {
-          const medNames = userDoses.map((dose) => {
-            const medsData = dose.medications;
-            const med = Array.isArray(medsData) ? medsData[0] : medsData;
-            return med?.name || "medication";
-          }).join(", ");
+        const medNames = userDoses.map((dose) => {
+          const medsData = dose.medications;
+          const med = Array.isArray(medsData) ? medsData[0] : medsData;
+          return med?.name || "medication";
+        }).join(", ");
 
+        // Send push notification if in_app_reminders is enabled
+        if (!prefs || prefs.in_app_reminders) {
           await supabase.functions.invoke("send-push-notification", {
             body: {
               user_ids: [userId],
@@ -346,6 +347,22 @@ Deno.serve(async (req: Request) => {
               },
             },
           });
+        }
+
+        // Send SMS notification if sms_reminders is enabled
+        if (!prefs || prefs.sms_reminders) {
+          const smsMessage = `Pillaxia Reminder: Time to take ${medNames}. ${userDoses.length} dose${userDoses.length > 1 ? "s" : ""} scheduled now.`;
+          
+          await supabase.functions.invoke("send-sms-notification", {
+            body: {
+              user_id: userId,
+              message: smsMessage,
+              notification_type: "medication_reminder",
+              metadata: { dose_count: userDoses.length },
+            },
+          });
+          
+          console.log(`SMS reminder sent to user ${userId}`);
         }
       } catch (emailError) {
         console.error(`Failed to send email to ${profile.email}:`, emailError);
