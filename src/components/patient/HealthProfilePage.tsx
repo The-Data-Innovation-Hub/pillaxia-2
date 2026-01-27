@@ -67,6 +67,61 @@ export function HealthProfilePage() {
   const [editingPhone, setEditingPhone] = useState(false);
   const [savingPhone, setSavingPhone] = useState(false);
   const [tempPhone, setTempPhone] = useState("");
+  const [phoneError, setPhoneError] = useState<string | null>(null);
+
+  // Phone validation and formatting
+  const validateAndFormatPhone = (phone: string): { isValid: boolean; formatted: string; error: string | null } => {
+    if (!phone || phone.trim() === "") {
+      return { isValid: true, formatted: "", error: null }; // Empty is allowed
+    }
+
+    // Remove all non-digit characters except the leading +
+    let cleaned = phone.trim();
+    const hasPlus = cleaned.startsWith("+");
+    cleaned = cleaned.replace(/[^\d]/g, "");
+
+    // Check minimum length (country code + number)
+    if (cleaned.length < 10) {
+      return { isValid: false, formatted: phone, error: "Phone number too short. Include country code (e.g., +234)" };
+    }
+
+    if (cleaned.length > 15) {
+      return { isValid: false, formatted: phone, error: "Phone number too long" };
+    }
+
+    // Format with + prefix
+    const formatted = hasPlus || cleaned.length >= 11 ? `+${cleaned}` : phone;
+
+    // Validate known country codes
+    const validPrefixes = [
+      "234", // Nigeria
+      "1",   // USA/Canada
+      "44",  // UK
+      "233", // Ghana
+      "254", // Kenya
+      "27",  // South Africa
+      "91",  // India
+    ];
+
+    const hasValidPrefix = validPrefixes.some(prefix => cleaned.startsWith(prefix));
+    
+    if (!hasValidPrefix && cleaned.length >= 10) {
+      // Allow unknown prefixes but warn
+      return { isValid: true, formatted, error: null };
+    }
+
+    return { isValid: true, formatted, error: null };
+  };
+
+  const handlePhoneChange = (value: string) => {
+    setTempPhone(value);
+    if (value.trim()) {
+      const { error } = validateAndFormatPhone(value);
+      setPhoneError(error);
+    } else {
+      setPhoneError(null);
+    }
+  };
 
   const [conditionDialogOpen, setConditionDialogOpen] = useState(false);
   const [allergyDialogOpen, setAllergyDialogOpen] = useState(false);
@@ -110,20 +165,30 @@ export function HealthProfilePage() {
 
   const handleSavePhone = async () => {
     if (!user) return;
+    
+    // Validate before saving
+    const { isValid, formatted, error } = validateAndFormatPhone(tempPhone);
+    if (!isValid) {
+      setPhoneError(error);
+      return;
+    }
+
     setSavingPhone(true);
     try {
-      const { error } = await supabase
+      const { error: dbError } = await supabase
         .from("profiles")
-        .update({ phone: tempPhone || null })
+        .update({ phone: formatted || null })
         .eq("user_id", user.id);
 
-      if (error) throw error;
+      if (dbError) throw dbError;
       
-      setPhoneNumber(tempPhone);
+      setPhoneNumber(formatted);
+      setTempPhone(formatted);
       setEditingPhone(false);
+      setPhoneError(null);
       toast.success("Phone number saved for SMS notifications");
-    } catch (error) {
-      console.error("Error saving phone:", error);
+    } catch (err) {
+      console.error("Error saving phone:", err);
       toast.error("Failed to save phone number");
     } finally {
       setSavingPhone(false);
@@ -181,35 +246,41 @@ export function HealthProfilePage() {
         </CardHeader>
         <CardContent>
           {editingPhone ? (
-            <div className="flex items-center gap-2">
-              <Input
-                type="tel"
-                placeholder="+234 800 123 4567"
-                value={tempPhone}
-                onChange={(e) => setTempPhone(e.target.value)}
-                className="max-w-xs"
-              />
-              <Button 
-                size="sm" 
-                onClick={handleSavePhone} 
-                disabled={savingPhone}
-              >
-                {savingPhone ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Check className="h-4 w-4" />
-                )}
-              </Button>
-              <Button 
-                size="sm" 
-                variant="ghost" 
-                onClick={() => {
-                  setEditingPhone(false);
-                  setTempPhone(phoneNumber);
-                }}
-              >
-                <X className="h-4 w-4" />
-              </Button>
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Input
+                  type="tel"
+                  placeholder="+234 800 123 4567"
+                  value={tempPhone}
+                  onChange={(e) => handlePhoneChange(e.target.value)}
+                  className={`max-w-xs ${phoneError ? "border-destructive" : ""}`}
+                />
+                <Button 
+                  size="sm" 
+                  onClick={handleSavePhone} 
+                  disabled={savingPhone || !!phoneError}
+                >
+                  {savingPhone ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Check className="h-4 w-4" />
+                  )}
+                </Button>
+                <Button 
+                  size="sm" 
+                  variant="ghost" 
+                  onClick={() => {
+                    setEditingPhone(false);
+                    setTempPhone(phoneNumber);
+                    setPhoneError(null);
+                  }}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+              {phoneError && (
+                <p className="text-sm text-destructive">{phoneError}</p>
+              )}
             </div>
           ) : (
             <div className="flex items-center justify-between">
@@ -227,6 +298,7 @@ export function HealthProfilePage() {
                 onClick={() => {
                   setTempPhone(phoneNumber);
                   setEditingPhone(true);
+                  setPhoneError(null);
                 }}
               >
                 <Edit className="h-4 w-4 mr-2" />
