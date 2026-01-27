@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import { scheduleCache } from "@/lib/scheduleCache";
+import { scheduleCache } from "@/lib/cache";
 import { useOfflineStatus } from "./useOfflineStatus";
 import { startOfDay, endOfDay } from "date-fns";
 

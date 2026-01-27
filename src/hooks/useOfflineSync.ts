@@ -1,7 +1,7 @@
 import { useEffect, useRef, useCallback, useState } from "react";
 import { useOfflineStatus } from "./useOfflineStatus";
 import { offlineQueue, SyncResult } from "@/lib/offlineQueue";
-import { symptomCache } from "@/lib/symptomCache";
+import { symptomCache } from "@/lib/cache";
 import { conflictManager } from "@/lib/conflictResolution";
 import { toast } from "sonner";
 import { useLanguage } from "@/i18n/LanguageContext";
