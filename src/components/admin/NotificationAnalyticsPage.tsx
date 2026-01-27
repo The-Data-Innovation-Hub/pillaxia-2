@@ -237,14 +237,8 @@ export function NotificationAnalyticsPage() {
 
     setIsSendingTest(true);
     try {
-      const { data, error } = await supabase.functions.invoke("send-encouragement-email", {
-        body: {
-          to: testEmail.trim(),
-          subject: "🧪 Pillaxia Webhook Test",
-          patientName: "Test User",
-          caregiverName: "Admin",
-          message: "This is a test email to verify that the Resend webhook integration is working correctly. If you receive this email and see status updates in your notification history, the integration is configured properly!",
-        },
+      const { data, error } = await supabase.functions.invoke("test-email-webhook", {
+        body: { to: testEmail.trim() },
       });
 
       if (error) throw error;
