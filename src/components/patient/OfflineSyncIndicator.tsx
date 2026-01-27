@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Cloud, CloudOff, RefreshCw, Check, Clock } from "lucide-react";
+import { Cloud, CloudOff, RefreshCw, Check, Clock, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { offlineQueue } from "@/lib/offlineQueue";
@@ -7,7 +7,7 @@ import { useOfflineStatus } from "@/hooks/useOfflineStatus";
 import { useOfflineSync } from "@/hooks/useOfflineSync";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { cn } from "@/lib/utils";
-import { format, formatDistanceToNow } from "date-fns";
+import { formatDistanceToNow } from "date-fns";
 
 interface OfflineSyncIndicatorProps {
   onSyncComplete?: () => void;
@@ -21,13 +21,8 @@ export function OfflineSyncIndicator({
   compact = false 
 }: OfflineSyncIndicatorProps) {
   const [pendingCount, setPendingCount] = useState(0);
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [lastSyncTime, setLastSyncTime] = useState<Date | null>(() => {
-    const stored = localStorage.getItem("pillaxia_last_sync");
-    return stored ? new Date(stored) : null;
-  });
   const { isOnline } = useOfflineStatus();
-  const { syncPendingActions } = useOfflineSync(onSyncComplete);
+  const { syncPendingActions, syncInProgress, lastSyncTime } = useOfflineSync(onSyncComplete);
   const { t } = useLanguage();
 
   useEffect(() => {
@@ -42,29 +37,11 @@ export function OfflineSyncIndicator({
   }, []);
 
   const handleManualSync = async () => {
-    if (!isOnline || isSyncing) return;
-    setIsSyncing(true);
+    if (!isOnline || syncInProgress) return;
     await syncPendingActions();
     const count = await offlineQueue.getPendingCount();
     setPendingCount(count);
-    
-    // Update last sync time
-    const now = new Date();
-    setLastSyncTime(now);
-    localStorage.setItem("pillaxia_last_sync", now.toISOString());
-    
-    setIsSyncing(false);
-    onSyncComplete?.();
   };
-
-  // Update last sync time when sync completes automatically
-  useEffect(() => {
-    if (isOnline && pendingCount === 0 && !lastSyncTime) {
-      const now = new Date();
-      setLastSyncTime(now);
-      localStorage.setItem("pillaxia_last_sync", now.toISOString());
-    }
-  }, [isOnline, pendingCount, lastSyncTime]);
 
   const formatLastSync = () => {
     if (!lastSyncTime) return t.offline.neverSynced || "Never synced";
@@ -75,12 +52,19 @@ export function OfflineSyncIndicator({
     return (
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
         {isOnline ? (
-          <Cloud className="h-3 w-3 text-primary" />
+          syncInProgress ? (
+            <Loader2 className="h-3 w-3 animate-spin text-primary" />
+          ) : (
+            <Cloud className="h-3 w-3 text-primary" />
+          )
         ) : (
           <CloudOff className="h-3 w-3 text-warning" />
         )}
         {pendingCount > 0 && (
           <span className="text-warning">{pendingCount} {t.offline.pending}</span>
+        )}
+        {syncInProgress && (
+          <span className="text-primary">{t.offline.syncing}</span>
         )}
       </div>
     );
@@ -91,12 +75,21 @@ export function OfflineSyncIndicator({
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           {isOnline ? (
-            <Cloud className="h-5 w-5 text-primary" />
+            syncInProgress ? (
+              <Loader2 className="h-5 w-5 animate-spin text-primary" />
+            ) : (
+              <Cloud className="h-5 w-5 text-primary" />
+            )
           ) : (
             <CloudOff className="h-5 w-5 text-warning" />
           )}
           <span className="font-medium">
-            {isOnline ? (t.offline.online || "Online") : (t.offline.offlineMode || "Offline Mode")}
+            {syncInProgress 
+              ? (t.offline.syncing || "Syncing...")
+              : isOnline 
+                ? (t.offline.online || "Online") 
+                : (t.offline.offlineMode || "Offline Mode")
+            }
           </span>
         </div>
         
@@ -105,10 +98,10 @@ export function OfflineSyncIndicator({
             size="sm"
             variant="outline"
             onClick={handleManualSync}
-            disabled={isSyncing}
+            disabled={syncInProgress}
             className="h-8"
           >
-            <RefreshCw className={cn("h-4 w-4 mr-1", isSyncing && "animate-spin")} />
+            <RefreshCw className={cn("h-4 w-4 mr-1", syncInProgress && "animate-spin")} />
             {t.offline.syncNow}
           </Button>
         )}
