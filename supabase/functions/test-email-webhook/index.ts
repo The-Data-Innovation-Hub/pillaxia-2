@@ -128,7 +128,11 @@ serve(async (req: Request): Promise<Response> => {
     if (emailResponse.error) {
       console.error("Email send error:", emailResponse.error);
       
-      // Log failed email
+      // Extract detailed error info from Resend
+      const errorMessage = emailResponse.error.message || "Unknown email error";
+      const errorName = emailResponse.error.name || "ResendError";
+      
+      // Log failed email with detailed error
       await serviceClient.from("notification_history").insert({
         user_id: userId,
         channel: "email",
@@ -136,13 +140,23 @@ serve(async (req: Request): Promise<Response> => {
         title: "Webhook Test Email",
         body: `Test email to ${to}`,
         status: "failed",
-        error_message: emailResponse.error.message?.slice(0, 500),
-        metadata: { recipient_email: to, test: true },
+        error_message: `${errorName}: ${errorMessage}`.slice(0, 500),
+        metadata: { 
+          recipient_email: to, 
+          test: true,
+          error_type: errorName,
+          error_details: errorMessage
+        },
       });
       
+      // Return detailed error for UI display (200 status so data is accessible)
       return new Response(
-        JSON.stringify({ error: "Failed to send email", details: emailResponse.error.message }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({ 
+          error: "Failed to send email", 
+          details: errorMessage,
+          error_type: errorName
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 

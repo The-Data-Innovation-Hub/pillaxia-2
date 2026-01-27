@@ -241,7 +241,29 @@ export function NotificationAnalyticsPage() {
         body: { to: testEmail.trim() },
       });
 
-      if (error) throw error;
+      // Handle edge function errors (network/invocation issues)
+      if (error) {
+        throw new Error(error.message || "Failed to connect to email service");
+      }
+
+      // Handle application-level errors returned by the function
+      if (data?.error) {
+        const errorDetails = data.details || data.error;
+        let userMessage = errorDetails;
+        
+        // Provide helpful context for common Resend errors
+        if (errorDetails?.includes("domain")) {
+          userMessage = `Domain verification issue: ${errorDetails}. Please verify your domain at resend.com/domains.`;
+        } else if (errorDetails?.includes("from")) {
+          userMessage = `Invalid sender address: ${errorDetails}. The 'from' address must use a verified domain.`;
+        } else if (errorDetails?.includes("rate") || errorDetails?.includes("limit")) {
+          userMessage = `Rate limit exceeded: ${errorDetails}. Please wait before sending more emails.`;
+        } else if (errorDetails?.includes("API key") || errorDetails?.includes("api_key")) {
+          userMessage = `API key issue: ${errorDetails}. Please check your Resend API key configuration.`;
+        }
+        
+        throw new Error(userMessage);
+      }
 
       toast({
         title: "Test email sent!",
@@ -252,8 +274,8 @@ export function NotificationAnalyticsPage() {
     } catch (error) {
       console.error("Failed to send test email:", error);
       toast({
-        title: "Failed to send test",
-        description: error instanceof Error ? error.message : "An error occurred",
+        title: "Failed to send test email",
+        description: error instanceof Error ? error.message : "An unexpected error occurred. Please try again.",
         variant: "destructive",
       });
     } finally {
