@@ -2,6 +2,8 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { format } from "date-fns";
+import { CalendarIcon } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
@@ -30,6 +32,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { cn } from "@/lib/utils";
 
 const formSchema = z.object({
   name: z.string().min(1, "Drug name is required").max(200),
@@ -39,6 +48,8 @@ const formSchema = z.object({
   strength: z.string().min(1, "Strength is required"),
   manufacturer: z.string().max(200).optional(),
   ndc_number: z.string().max(50).optional(),
+  lot_number: z.string().max(50).optional(),
+  expiry_date: z.date().optional(),
   current_stock: z.coerce.number().min(0, "Stock cannot be negative"),
   minimum_stock: z.coerce.number().min(0, "Minimum stock cannot be negative"),
   unit_of_measure: z.string().min(1, "Unit is required"),
@@ -71,6 +82,8 @@ export function AddControlledDrugDialog({
       strength: "",
       manufacturer: "",
       ndc_number: "",
+      lot_number: "",
+      expiry_date: undefined,
       current_stock: 0,
       minimum_stock: 10,
       unit_of_measure: "units",
@@ -91,6 +104,8 @@ export function AddControlledDrugDialog({
         strength: values.strength,
         manufacturer: values.manufacturer || null,
         ndc_number: values.ndc_number || null,
+        lot_number: values.lot_number || null,
+        expiry_date: values.expiry_date ? format(values.expiry_date, "yyyy-MM-dd") : null,
         current_stock: values.current_stock,
         minimum_stock: values.minimum_stock,
         unit_of_measure: values.unit_of_measure,
@@ -225,6 +240,61 @@ export function AddControlledDrugDialog({
                     <FormControl>
                       <Input placeholder="e.g., 12345-6789-01" {...field} />
                     </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="lot_number"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Lot Number</FormLabel>
+                    <FormControl>
+                      <Input placeholder="e.g., LOT-2025-001" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="expiry_date"
+                render={({ field }) => (
+                  <FormItem className="flex flex-col">
+                    <FormLabel>Expiry Date</FormLabel>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <FormControl>
+                          <Button
+                            variant="outline"
+                            className={cn(
+                              "w-full pl-3 text-left font-normal",
+                              !field.value && "text-muted-foreground"
+                            )}
+                          >
+                            {field.value ? (
+                              format(field.value, "PPP")
+                            ) : (
+                              <span>Pick expiry date</span>
+                            )}
+                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                          </Button>
+                        </FormControl>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={field.value}
+                          onSelect={field.onChange}
+                          disabled={(date) => date < new Date()}
+                          initialFocus
+                          className="pointer-events-auto"
+                        />
+                      </PopoverContent>
+                    </Popover>
                     <FormMessage />
                   </FormItem>
                 )}
