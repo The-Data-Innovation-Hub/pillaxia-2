@@ -40,6 +40,7 @@ import {
   PrescriptionsPage,
   InventoryPage,
   RefillRequestsPage,
+  ControlledDrugRegisterPage,
 } from "@/components/pharmacist";
 import {
   AdminLayout,
@@ -162,6 +163,7 @@ const App = () => (
                 {/* Pharmacist Routes */}
                 <Route path="prescriptions" element={<PrescriptionsPage />} />
                 <Route path="inventory" element={<InventoryPage />} />
+                <Route path="controlled-drugs" element={<ControlledDrugRegisterPage />} />
                 <Route path="refills" element={<RefillRequestsPage />} />
                 {/* Admin Routes */}
                 <Route path="users" element={<UserManagementPage />} />
