@@ -24,6 +24,7 @@ import {
   Users,
   Heart,
   History,
+  Bell,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -33,6 +34,7 @@ const baseMenuItems = [
   { title: "Today's Schedule", url: "/dashboard/schedule", icon: Calendar },
   { title: "Symptom Diary", url: "/dashboard/symptoms", icon: ClipboardList },
   { title: "Caregivers", url: "/dashboard/caregivers", icon: Users },
+  { title: "Notifications", url: "/dashboard/notifications", icon: Bell },
   { title: "Ask Angela", url: "/dashboard/angela", icon: Bot },
 ];
 
