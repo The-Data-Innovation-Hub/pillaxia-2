@@ -44,3 +44,9 @@ verify_jwt = false
 
 [functions.send-clinician-message-notification]
 verify_jwt = false
+
+[functions.extract-medication-ocr]
+verify_jwt = false
+
+[functions.check-refill-alerts]
+verify_jwt = false

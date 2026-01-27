@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Plus, Loader2, CloudOff, RefreshCw } from "lucide-react";
+import { Plus, Loader2, CloudOff, RefreshCw, Camera } from "lucide-react";
 import { MedicationCard } from "./MedicationCard";
 import { AddMedicationDialog } from "./AddMedicationDialog";
+import { PhotoMedicationImport } from "./PhotoMedicationImport";
 import { toast } from "sonner";
 import { useCachedMedications } from "@/hooks/useCachedMedications";
 import { useOfflineStatus } from "@/hooks/useOfflineStatus";
@@ -22,6 +23,7 @@ export function MedicationsPage() {
   const { medications, loading, isFromCache, refetch } = useCachedMedications();
   const { isOffline } = useOfflineStatus();
   const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [photoImportOpen, setPhotoImportOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
   const handleDelete = async () => {
@@ -76,10 +78,16 @@ export function MedicationsPage() {
             </div>
           )}
         </div>
-        <Button onClick={() => setAddDialogOpen(true)} disabled={isOffline}>
-          <Plus className="h-4 w-4 mr-2" />
-          Add Medication
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setPhotoImportOpen(true)} disabled={isOffline}>
+            <Camera className="h-4 w-4 mr-2" />
+            Scan Rx
+          </Button>
+          <Button onClick={() => setAddDialogOpen(true)} disabled={isOffline}>
+            <Plus className="h-4 w-4 mr-2" />
+            Add Medication
+          </Button>
+        </div>
       </div>
 
       {medications.length === 0 ? (
@@ -114,6 +122,13 @@ export function MedicationsPage() {
       <AddMedicationDialog
         open={addDialogOpen}
         onOpenChange={setAddDialogOpen}
+        onSuccess={refetch}
+        existingMedications={medications.map(m => m.name)}
+      />
+
+      <PhotoMedicationImport
+        open={photoImportOpen}
+        onOpenChange={setPhotoImportOpen}
         onSuccess={refetch}
       />
 

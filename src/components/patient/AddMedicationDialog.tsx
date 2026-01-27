@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -21,11 +21,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Loader2, Plus, X } from "lucide-react";
+import { useDrugInteractions } from "@/hooks/useDrugInteractions";
+import { DrugInteractionWarning } from "./DrugInteractionWarning";
 
 interface AddMedicationDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
+  existingMedications?: string[];
 }
 
 interface Schedule {
@@ -45,7 +48,7 @@ const MEDICATION_FORMS = [
 
 const DOSAGE_UNITS = ["mg", "g", "ml", "mcg", "IU", "units"];
 
-export function AddMedicationDialog({ open, onOpenChange, onSuccess }: AddMedicationDialogProps) {
+export function AddMedicationDialog({ open, onOpenChange, onSuccess, existingMedications = [] }: AddMedicationDialogProps) {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [name, setName] = useState("");
@@ -54,6 +57,19 @@ export function AddMedicationDialog({ open, onOpenChange, onSuccess }: AddMedica
   const [form, setForm] = useState("tablet");
   const [instructions, setInstructions] = useState("");
   const [schedules, setSchedules] = useState<Schedule[]>([{ time: "08:00", quantity: 1 }]);
+  const { interactions, checkInteractions, clearInteractions } = useDrugInteractions();
+
+  // Check for drug interactions when medication name changes
+  useEffect(() => {
+    if (name.length >= 3 && existingMedications.length > 0) {
+      const timeoutId = setTimeout(() => {
+        checkInteractions(name, existingMedications);
+      }, 500);
+      return () => clearTimeout(timeoutId);
+    } else {
+      clearInteractions();
+    }
+  }, [name, existingMedications, checkInteractions, clearInteractions]);
 
   const addSchedule = () => {
     setSchedules([...schedules, { time: "12:00", quantity: 1 }]);
@@ -76,6 +92,7 @@ export function AddMedicationDialog({ open, onOpenChange, onSuccess }: AddMedica
     setForm("tablet");
     setInstructions("");
     setSchedules([{ time: "08:00", quantity: 1 }]);
+    clearInteractions();
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -149,6 +166,10 @@ export function AddMedicationDialog({ open, onOpenChange, onSuccess }: AddMedica
               required
             />
           </div>
+
+          {interactions.length > 0 && (
+            <DrugInteractionWarning interactions={interactions} />
+          )}
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">

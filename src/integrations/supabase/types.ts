@@ -176,6 +176,36 @@ export type Database = {
         }
         Relationships: []
       }
+      drug_interactions: {
+        Row: {
+          created_at: string
+          description: string
+          drug_a: string
+          drug_b: string
+          id: string
+          recommendation: string | null
+          severity: string
+        }
+        Insert: {
+          created_at?: string
+          description: string
+          drug_a: string
+          drug_b: string
+          id?: string
+          recommendation?: string | null
+          severity: string
+        }
+        Update: {
+          created_at?: string
+          description?: string
+          drug_a?: string
+          drug_b?: string
+          id?: string
+          recommendation?: string | null
+          severity?: string
+        }
+        Relationships: []
+      }
       medication_logs: {
         Row: {
           created_at: string
@@ -424,6 +454,108 @@ export type Database = {
           setting_key?: string
           updated_at?: string
           updated_by?: string | null
+        }
+        Relationships: []
+      }
+      patient_allergies: {
+        Row: {
+          allergen: string
+          created_at: string
+          id: string
+          is_drug_allergy: boolean
+          reaction_description: string | null
+          reaction_type: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          allergen: string
+          created_at?: string
+          id?: string
+          is_drug_allergy?: boolean
+          reaction_description?: string | null
+          reaction_type?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          allergen?: string
+          created_at?: string
+          id?: string
+          is_drug_allergy?: boolean
+          reaction_description?: string | null
+          reaction_type?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      patient_chronic_conditions: {
+        Row: {
+          condition_name: string
+          created_at: string
+          diagnosed_date: string | null
+          id: string
+          is_active: boolean
+          notes: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          condition_name: string
+          created_at?: string
+          diagnosed_date?: string | null
+          id?: string
+          is_active?: boolean
+          notes?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          condition_name?: string
+          created_at?: string
+          diagnosed_date?: string | null
+          id?: string
+          is_active?: boolean
+          notes?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      patient_emergency_contacts: {
+        Row: {
+          created_at: string
+          email: string | null
+          id: string
+          is_primary: boolean
+          name: string
+          phone: string
+          relationship: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          id?: string
+          is_primary?: boolean
+          name: string
+          phone: string
+          relationship: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          id?: string
+          is_primary?: boolean
+          name?: string
+          phone?: string
+          relationship?: string
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }
