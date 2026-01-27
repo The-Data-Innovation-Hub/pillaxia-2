@@ -1,62 +1,31 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Plus, Trash2 } from "lucide-react";
+import { Loader2, Plus, Trash2, CloudOff, RefreshCw, Clock } from "lucide-react";
 import { format } from "date-fns";
 import { SymptomEntryDialog } from "./SymptomEntryDialog";
+import { OfflineSyncIndicator } from "./OfflineSyncIndicator";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-
-interface SymptomEntry {
-  id: string;
-  symptom_type: string;
-  severity: number;
-  description: string | null;
-  recorded_at: string;
-  medications: {
-    name: string;
-  } | null;
-}
+import { useCachedSymptoms } from "@/hooks/useCachedSymptoms";
+import { useOfflineStatus } from "@/hooks/useOfflineStatus";
 
 export function SymptomsPage() {
   const { user } = useAuth();
-  const [symptoms, setSymptoms] = useState<SymptomEntry[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { isOnline } = useOfflineStatus();
+  const { symptoms, loading, isFromCache, refresh, hasPending } = useCachedSymptoms();
   const [dialogOpen, setDialogOpen] = useState(false);
 
-  useEffect(() => {
-    if (user) {
-      fetchSymptoms();
-    }
-  }, [user]);
-
-  const fetchSymptoms = async () => {
-    if (!user) return;
-
-    try {
-      const { data, error } = await supabase
-        .from("symptom_entries")
-        .select(`
-          *,
-          medications (name)
-        `)
-        .eq("user_id", user.id)
-        .order("recorded_at", { ascending: false })
-        .limit(50);
-
-      if (error) throw error;
-      setSymptoms(data || []);
-    } catch (error) {
-      console.error("Error fetching symptoms:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleDelete = async (id: string) => {
+    // Don't allow deleting pending entries that haven't synced
+    if (id.startsWith("pending-")) {
+      toast.error("Cannot delete entries that haven't synced yet");
+      return;
+    }
+
     try {
       const { error } = await supabase
         .from("symptom_entries")
@@ -65,7 +34,7 @@ export function SymptomsPage() {
 
       if (error) throw error;
       toast.success("Entry deleted");
-      fetchSymptoms();
+      refresh();
     } catch (error) {
       console.error("Error deleting symptom:", error);
       toast.error("Failed to delete");
@@ -92,15 +61,31 @@ export function SymptomsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Symptom Diary</h1>
+          <h1 className="text-2xl font-bold flex items-center gap-2">
+            Symptom Diary
+            {isFromCache && !isOnline && (
+              <CloudOff className="h-5 w-5 text-warning" />
+            )}
+          </h1>
           <p className="text-muted-foreground">
             Track your symptoms to identify patterns and side effects
+            {hasPending && (
+              <span className="text-warning ml-2">• {symptoms.filter(s => s._pending).length} pending sync</span>
+            )}
           </p>
         </div>
-        <Button onClick={() => setDialogOpen(true)}>
-          <Plus className="h-4 w-4 mr-2" />
-          Log Symptom
-        </Button>
+        <div className="flex items-center gap-2">
+          <OfflineSyncIndicator onSyncComplete={refresh} />
+          {isFromCache && !isOnline && (
+            <Button variant="outline" size="icon" onClick={refresh} disabled={!isOnline}>
+              <RefreshCw className="h-4 w-4" />
+            </Button>
+          )}
+          <Button onClick={() => setDialogOpen(true)}>
+            <Plus className="h-4 w-4 mr-2" />
+            Log Symptom
+          </Button>
+        </div>
       </div>
 
       {symptoms.length === 0 ? (
@@ -120,7 +105,13 @@ export function SymptomsPage() {
       ) : (
         <div className="space-y-3">
           {symptoms.map((symptom) => (
-            <Card key={symptom.id} className="hover:shadow-md transition-shadow">
+            <Card 
+              key={symptom.id} 
+              className={cn(
+                "hover:shadow-md transition-shadow",
+                symptom._pending && "border-dashed border-warning/50 bg-warning/5"
+              )}
+            >
               <CardContent className="p-4">
                 <div className="flex items-start justify-between">
                   <div className="flex gap-4">
@@ -143,6 +134,12 @@ export function SymptomsPage() {
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
                         <h3 className="font-medium">{symptom.symptom_type}</h3>
+                        {symptom._pending && (
+                          <Badge variant="outline" className="text-xs border-warning text-warning gap-1">
+                            <Clock className="h-3 w-3" />
+                            Pending sync
+                          </Badge>
+                        )}
                         {symptom.medications && (
                           <Badge variant="outline" className="text-xs">
                             {symptom.medications.name}
@@ -165,6 +162,7 @@ export function SymptomsPage() {
                     size="icon"
                     className="text-muted-foreground hover:text-destructive"
                     onClick={() => handleDelete(symptom.id)}
+                    disabled={symptom._pending}
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>
@@ -178,7 +176,7 @@ export function SymptomsPage() {
       <SymptomEntryDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
-        onSuccess={fetchSymptoms}
+        onSuccess={refresh}
       />
     </div>
   );

@@ -10,6 +10,7 @@ import { useOfflineStatus } from "@/hooks/useOfflineStatus";
 import { PushDebugPanel } from "@/components/patient/PushDebugPanel";
 import { medicationCache } from "@/lib/medicationCache";
 import { scheduleCache } from "@/lib/scheduleCache";
+import { symptomCache } from "@/lib/symptomCache";
 import {
   Card,
   CardContent,
@@ -98,6 +99,7 @@ export function PatientSettingsPage() {
     success: boolean;
     medicationsCount: number;
     scheduleCount: number;
+    symptomsCount: number;
   } | null>(null);
   const [lastPushTest, setLastPushTest] = useState<
     { at: string; ok: boolean; summary: string } | null
@@ -117,6 +119,7 @@ export function PatientSettingsPage() {
     setSyncing(true);
     let medicationsCount = 0;
     let scheduleCount = 0;
+    let symptomsCount = 0;
 
     try {
       // Sync medications
@@ -164,21 +167,41 @@ export function PatientSettingsPage() {
         scheduleCount = logs.length;
       }
 
+      // Sync symptoms
+      const { data: symptoms, error: symptomError } = await supabase
+        .from("symptom_entries")
+        .select(`
+          *,
+          medications (name)
+        `)
+        .eq("user_id", user.id)
+        .order("recorded_at", { ascending: false })
+        .limit(50);
+
+      if (symptomError) throw symptomError;
+
+      if (symptoms) {
+        await symptomCache.saveSymptoms(user.id, symptoms as any);
+        symptomsCount = symptoms.length;
+      }
+
       setLastSyncResult({
         at: new Date(),
         success: true,
         medicationsCount,
         scheduleCount,
+        symptomsCount,
       });
 
       toast({
         title: "Sync complete",
-        description: `Updated ${medicationsCount} medications and ${scheduleCount} scheduled doses.`,
+        description: `Updated ${medicationsCount} medications, ${scheduleCount} scheduled doses, and ${symptomsCount} symptoms.`,
       });
 
       // Invalidate queries to refresh UI
       queryClient.invalidateQueries({ queryKey: ["medications"] });
       queryClient.invalidateQueries({ queryKey: ["medication-logs"] });
+      queryClient.invalidateQueries({ queryKey: ["symptoms"] });
 
     } catch (error) {
       console.error("Sync failed:", error);
@@ -187,6 +210,7 @@ export function PatientSettingsPage() {
         success: false,
         medicationsCount: 0,
         scheduleCount: 0,
+        symptomsCount: 0,
       });
       toast({
         title: "Sync failed",
@@ -487,7 +511,7 @@ export function PatientSettingsPage() {
                   </p>
                   <p className="text-muted-foreground">
                     {lastSyncResult.success
-                      ? `${lastSyncResult.medicationsCount} medications, ${lastSyncResult.scheduleCount} scheduled doses`
+                      ? `${lastSyncResult.medicationsCount} medications, ${lastSyncResult.scheduleCount} doses, ${lastSyncResult.symptomsCount} symptoms`
                       : "Please try again"
                     }
                     {" • "}
