@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import {
   Card,
@@ -10,10 +10,10 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Switch } from "@/components/ui/switch";
 import {
   Settings,
   MessageCircle,
@@ -23,19 +23,47 @@ import {
   XCircle,
   ExternalLink,
   Loader2,
-  Save,
   Info,
+  Bell,
+  AlertTriangle,
+  Heart,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface IntegrationStatus {
   whatsapp: boolean;
   resend: boolean;
 }
 
+interface NotificationSetting {
+  id: string;
+  setting_key: string;
+  is_enabled: boolean;
+  description: string | null;
+  updated_at: string;
+}
+
+const NOTIFICATION_CONFIG = {
+  medication_reminders: {
+    title: "Medication Reminders",
+    icon: Bell,
+  },
+  missed_dose_alerts: {
+    title: "Missed Dose Alerts",
+    icon: AlertTriangle,
+  },
+  encouragement_messages: {
+    title: "Encouragement Messages",
+    icon: Heart,
+  },
+};
+
 export function SettingsPage() {
   const [testingWhatsApp, setTestingWhatsApp] = useState(false);
   const [testingEmail, setTestingEmail] = useState(false);
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   // Check integration status by calling a test endpoint
   const { data: integrationStatus, isLoading, refetch } = useQuery({
@@ -66,6 +94,39 @@ export function SettingsPage() {
       }
 
       return { whatsapp: whatsappConfigured, resend: resendConfigured };
+    },
+  });
+
+  // Fetch notification settings
+  const { data: notificationSettings, isLoading: loadingSettings } = useQuery({
+    queryKey: ["notification-settings"],
+    queryFn: async (): Promise<NotificationSetting[]> => {
+      const { data, error } = await supabase
+        .from("notification_settings")
+        .select("*")
+        .order("setting_key");
+      
+      if (error) throw error;
+      return data as NotificationSetting[];
+    },
+  });
+
+  // Update notification setting mutation
+  const updateSettingMutation = useMutation({
+    mutationFn: async ({ settingKey, isEnabled }: { settingKey: string; isEnabled: boolean }) => {
+      const { error } = await supabase
+        .from("notification_settings")
+        .update({ is_enabled: isEnabled, updated_by: user?.id })
+        .eq("setting_key", settingKey);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["notification-settings"] });
+      toast.success("Setting updated successfully");
+    },
+    onError: (error: Error) => {
+      toast.error("Failed to update setting", { description: error.message });
     },
   });
 
@@ -300,37 +361,52 @@ export function SettingsPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="space-y-4">
-                <div className="flex items-center justify-between p-4 border rounded-lg">
-                  <div>
-                    <p className="font-medium">Medication Reminders</p>
-                    <p className="text-sm text-muted-foreground">
-                      Send reminders before scheduled medication times
-                    </p>
-                  </div>
-                  <Badge variant="default">Active</Badge>
+              {loadingSettings ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                 </div>
-
-                <div className="flex items-center justify-between p-4 border rounded-lg">
-                  <div>
-                    <p className="font-medium">Missed Dose Alerts</p>
-                    <p className="text-sm text-muted-foreground">
-                      Alert caregivers when patients miss doses
-                    </p>
-                  </div>
-                  <Badge variant="default">Active</Badge>
+              ) : (
+                <div className="space-y-4">
+                  {notificationSettings?.map((setting) => {
+                    const config = NOTIFICATION_CONFIG[setting.setting_key as keyof typeof NOTIFICATION_CONFIG];
+                    const Icon = config?.icon || Bell;
+                    
+                    return (
+                      <div 
+                        key={setting.id} 
+                        className="flex items-center justify-between p-4 border rounded-lg"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className={`p-2 rounded-lg ${setting.is_enabled ? 'bg-primary/10' : 'bg-muted'}`}>
+                            <Icon className={`h-4 w-4 ${setting.is_enabled ? 'text-primary' : 'text-muted-foreground'}`} />
+                          </div>
+                          <div>
+                            <p className="font-medium">{config?.title || setting.setting_key}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {setting.description}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <Badge variant={setting.is_enabled ? "default" : "secondary"}>
+                            {setting.is_enabled ? "Active" : "Disabled"}
+                          </Badge>
+                          <Switch
+                            checked={setting.is_enabled}
+                            onCheckedChange={(checked) => 
+                              updateSettingMutation.mutate({ 
+                                settingKey: setting.setting_key, 
+                                isEnabled: checked 
+                              })
+                            }
+                            disabled={updateSettingMutation.isPending}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
-
-                <div className="flex items-center justify-between p-4 border rounded-lg">
-                  <div>
-                    <p className="font-medium">Encouragement Messages</p>
-                    <p className="text-sm text-muted-foreground">
-                      Email and WhatsApp notifications for caregiver messages
-                    </p>
-                  </div>
-                  <Badge variant="default">Active</Badge>
-                </div>
-              </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
