@@ -1,4 +1,4 @@
-import { Users, Pill, Activity, LayoutDashboard, LogOut, Heart, History, Bell, RefreshCw, FileText } from "lucide-react";
+import { Users, Pill, Activity, LayoutDashboard, LogOut, Heart, History, Bell, RefreshCw, FileText, CalendarDays } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/i18n/LanguageContext";
@@ -32,6 +32,7 @@ export function ClinicianSidebar() {
     { title: "Patient Roster", url: "/dashboard/patients", icon: Users },
     { title: "Medication Review", url: "/dashboard/medications", icon: Pill },
     { title: "Adherence Monitor", url: "/dashboard/adherence", icon: Activity },
+    { title: "Appointments", url: "/dashboard/appointments", icon: CalendarDays },
     { title: "SOAP Notes", url: "/dashboard/soap-notes", icon: FileText },
     { title: t.notifications.title, url: "/dashboard/notifications", icon: Bell },
   ];

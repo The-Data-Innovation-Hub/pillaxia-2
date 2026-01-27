@@ -32,6 +32,7 @@ import {
   MedicationReviewPage,
   AdherenceMonitorPage,
   SOAPNotesPage,
+  AppointmentsPage,
 } from "@/components/clinician";
 import {
   PharmacistLayout,
@@ -156,6 +157,7 @@ const App = () => (
                 <Route path="patients" element={<PatientRosterPage />} />
                 <Route path="adherence" element={<AdherenceMonitorPage />} />
                 <Route path="soap-notes" element={<SOAPNotesPage />} />
+                <Route path="appointments" element={<AppointmentsPage />} />
                 {/* Pharmacist Routes */}
                 <Route path="prescriptions" element={<PrescriptionsPage />} />
                 <Route path="inventory" element={<InventoryPage />} />

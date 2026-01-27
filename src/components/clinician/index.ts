@@ -8,3 +8,5 @@ export { ClinicianChatDialog } from "./ClinicianChatDialog";
 export { SOAPNotesPage } from "./SOAPNotesPage";
 export { RedFlagAlertsCard } from "./RedFlagAlertsCard";
 export { PolypharmacyWarningsCard } from "./PolypharmacyWarningsCard";
+export { AppointmentsPage } from "./AppointmentsPage";
+export { CreateAppointmentDialog } from "./CreateAppointmentDialog";
