@@ -2,7 +2,7 @@ import { createContext, useContext, useState, useEffect, ReactNode, useCallback 
 import { en, yo, ig, ha, type Translations } from "./translations";
 import { supabase } from "@/integrations/supabase/client";
 
-// Force fresh module - v2
+// Force fresh module - v3
 
 export type LanguageCode = "en" | "yo" | "ig" | "ha";
 

@@ -1,3 +1,4 @@
+// Force module refresh - v2
 import { useEffect, useState } from "react";
 import { WifiOff, Wifi, Signal } from "lucide-react";
 import { useOfflineStatus } from "@/hooks/useOfflineStatus";
