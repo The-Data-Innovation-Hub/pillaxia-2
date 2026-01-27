@@ -213,9 +213,32 @@ serve(async (req) => {
           }
           notificationResults.email++;
           console.log("Email sent to caregiver " + caregiver.user_id);
+
+          // Log successful email notification
+          await supabase.from("notification_history").insert({
+            user_id: caregiver.user_id,
+            channel: "email",
+            notification_type: "missed_dose_alert",
+            title: "Missed Dose Alert: " + patientName,
+            body: patientName + " missed " + medicationName + " at " + formattedTime,
+            status: "sent",
+            metadata: { patient_name: patientName, medication_name: medicationName, recipient_email: caregiver.email },
+          });
         } catch (emailError) {
           console.error("Failed to send email to " + caregiver.email + ":", emailError);
           notificationResults.failed++;
+
+          // Log failed email notification
+          await supabase.from("notification_history").insert({
+            user_id: caregiver.user_id,
+            channel: "email",
+            notification_type: "missed_dose_alert",
+            title: "Missed Dose Alert: " + patientName,
+            body: patientName + " missed " + medicationName + " at " + formattedTime,
+            status: "failed",
+            error_message: String(emailError).slice(0, 500),
+            metadata: { patient_name: patientName, medication_name: medicationName, recipient_email: caregiver.email },
+          });
         }
       }
 
@@ -250,14 +273,49 @@ serve(async (req) => {
           if (response.ok) {
             notificationResults.whatsapp++;
             console.log("WhatsApp sent to caregiver " + caregiver.user_id);
+
+            // Log successful WhatsApp notification
+            await supabase.from("notification_history").insert({
+              user_id: caregiver.user_id,
+              channel: "whatsapp",
+              notification_type: "missed_dose_alert",
+              title: "Missed Dose Alert: " + patientName,
+              body: patientName + " missed " + medicationName + " at " + formattedTime,
+              status: "sent",
+              metadata: { patient_name: patientName, medication_name: medicationName, recipient_phone: caregiver.phone },
+            });
           } else {
             const errorData = await response.text();
             console.error("WhatsApp API error for " + caregiver.phone + ":", errorData);
             notificationResults.failed++;
+
+            // Log failed WhatsApp notification
+            await supabase.from("notification_history").insert({
+              user_id: caregiver.user_id,
+              channel: "whatsapp",
+              notification_type: "missed_dose_alert",
+              title: "Missed Dose Alert: " + patientName,
+              body: patientName + " missed " + medicationName + " at " + formattedTime,
+              status: "failed",
+              error_message: errorData.slice(0, 500),
+              metadata: { patient_name: patientName, medication_name: medicationName, recipient_phone: caregiver.phone },
+            });
           }
         } catch (whatsappError) {
           console.error("Failed to send WhatsApp to " + caregiver.phone + ":", whatsappError);
           notificationResults.failed++;
+
+          // Log failed WhatsApp notification
+          await supabase.from("notification_history").insert({
+            user_id: caregiver.user_id,
+            channel: "whatsapp",
+            notification_type: "missed_dose_alert",
+            title: "Missed Dose Alert: " + patientName,
+            body: patientName + " missed " + medicationName + " at " + formattedTime,
+            status: "failed",
+            error_message: String(whatsappError).slice(0, 500),
+            metadata: { patient_name: patientName, medication_name: medicationName, recipient_phone: caregiver.phone },
+          });
         }
       }
     }

@@ -128,11 +128,35 @@ serve(async (req: Request): Promise<Response> => {
     if (!whatsappResponse.ok) {
       const errorData = await whatsappResponse.json();
       console.error("WhatsApp API error:", errorData);
+      
+      // Log failed WhatsApp notification
+      await supabase.from("notification_history").insert({
+        user_id: recipientId,
+        channel: "whatsapp",
+        notification_type: "encouragement_message",
+        title: `Message from ${senderName}`,
+        body: message.substring(0, 200),
+        status: "failed",
+        error_message: JSON.stringify(errorData).slice(0, 500),
+        metadata: { sender_name: senderName },
+      });
+      
       throw new Error(`WhatsApp API error: ${JSON.stringify(errorData)}`);
     }
 
     const result = await whatsappResponse.json();
     console.log("WhatsApp notification sent successfully:", result);
+
+    // Log successful WhatsApp notification
+    await supabase.from("notification_history").insert({
+      user_id: recipientId,
+      channel: "whatsapp",
+      notification_type: "encouragement_message",
+      title: `Message from ${senderName}`,
+      body: message.substring(0, 200),
+      status: "sent",
+      metadata: { sender_name: senderName, message_id: result.messages?.[0]?.id },
+    });
 
     return new Response(
       JSON.stringify({ 

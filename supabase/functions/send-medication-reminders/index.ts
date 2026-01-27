@@ -311,6 +311,17 @@ Deno.serve(async (req: Request) => {
         console.log(`Email sent to ${profile.email}:`, emailResult);
         emailResults.push({ userId, email: profile.email, success: true, result: emailResult });
 
+        // Log successful email notification
+        await supabase.from("notification_history").insert({
+          user_id: userId,
+          channel: "email",
+          notification_type: "medication_reminder",
+          title: `Medication Reminder: ${userDoses.length} dose${userDoses.length > 1 ? "s" : ""}`,
+          body: `Upcoming medication${userDoses.length > 1 ? "s" : ""} to take soon`,
+          status: "sent",
+          metadata: { recipient_email: profile.email, dose_count: userDoses.length },
+        });
+
         // Also send push notification if in_app_reminders is enabled
         if (!prefs || prefs.in_app_reminders) {
           const medNames = userDoses.map((dose) => {
@@ -334,6 +345,18 @@ Deno.serve(async (req: Request) => {
       } catch (emailError) {
         console.error(`Failed to send email to ${profile.email}:`, emailError);
         emailResults.push({ userId, email: profile.email, success: false, error: String(emailError) });
+
+        // Log failed email notification
+        await supabase.from("notification_history").insert({
+          user_id: userId,
+          channel: "email",
+          notification_type: "medication_reminder",
+          title: `Medication Reminder: ${userDoses.length} dose${userDoses.length > 1 ? "s" : ""}`,
+          body: `Upcoming medication${userDoses.length > 1 ? "s" : ""} to take soon`,
+          status: "failed",
+          error_message: String(emailError).slice(0, 500),
+          metadata: { recipient_email: profile.email, dose_count: userDoses.length },
+        });
       }
     }
 
