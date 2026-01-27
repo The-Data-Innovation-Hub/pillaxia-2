@@ -81,6 +81,9 @@ export function PharmacistSidebar() {
             <p className="text-sm font-medium truncate">
               {profile?.first_name} {profile?.last_name}
             </p>
+            {profile?.organization && (
+              <p className="text-xs text-muted-foreground truncate">{profile.organization}</p>
+            )}
             <p className="text-xs text-muted-foreground">Pharmacist</p>
           </div>
         </div>
