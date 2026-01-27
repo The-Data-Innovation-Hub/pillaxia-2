@@ -1,6 +1,6 @@
 // Offline Queue for pending actions when network is unavailable
 
-import { conflictManager, ConflictEntry } from "./conflictResolution";
+import { conflictManager, ConflictEntry, AutoResolutionResult } from "./conflictResolution";
 
 export interface PendingAction {
   id?: number;
@@ -19,6 +19,7 @@ export interface SyncResult {
   failed: number;
   conflicts: number;
   conflictIds: string[];
+  autoResolved: number;
 }
 
 const DB_NAME = "pillaxia-offline";
@@ -176,6 +177,7 @@ class OfflineQueue {
     let success = 0;
     let failed = 0;
     let conflicts = 0;
+    let autoResolved = 0;
     const conflictIds: string[] = [];
 
     for (const action of actions) {
@@ -185,8 +187,8 @@ class OfflineQueue {
           const conflictCheck = await this.checkServerState(action);
           
           if (conflictCheck.hasConflict && conflictCheck.conflictType) {
-            // Create a conflict entry
-            const conflictId = await conflictManager.addConflict({
+            // Try to add conflict - if null is returned, it was auto-resolved
+            const conflictData = {
               type: action.type as "medication_log" | "symptom_entry",
               localData: action.body as Record<string, unknown>,
               serverData: conflictCheck.serverData,
@@ -195,11 +197,45 @@ class OfflineQueue {
               serverTimestamp: conflictCheck.serverData?.updated_at as string || 
                               conflictCheck.serverData?.created_at as string,
               actionId: action.id!,
-            });
+            };
+
+            // Check for auto-resolution first
+            const autoResolution = conflictManager.checkAutoResolution(conflictData);
             
-            conflicts++;
-            conflictIds.push(conflictId);
-            console.log("[OfflineQueue] Conflict detected for action:", action.id, conflictCheck.conflictType);
+            if (autoResolution.canAutoResolve && autoResolution.resolvedData) {
+              // Auto-resolve: sync with the resolved data
+              console.log("[OfflineQueue] Auto-resolving conflict:", autoResolution.reason);
+              
+              const dataToSync = autoResolution.resolution === "keep_local" 
+                ? action.body 
+                : autoResolution.resolvedData;
+              
+              const response = await fetch(action.url, {
+                method: action.method,
+                headers: action.headers,
+                body: JSON.stringify(dataToSync),
+              });
+
+              if (response.ok) {
+                await this.removeAction(action.id!);
+                success++;
+                autoResolved++;
+                console.log("[OfflineQueue] Auto-resolved and synced:", action.id, autoResolution.resolution);
+              } else {
+                console.error("[OfflineQueue] Auto-resolved sync failed:", action.id, response.status);
+                failed++;
+              }
+              continue;
+            }
+
+            // Cannot auto-resolve, create conflict for manual resolution
+            const conflictId = await conflictManager.addConflict(conflictData);
+            
+            if (conflictId) {
+              conflicts++;
+              conflictIds.push(conflictId);
+              console.log("[OfflineQueue] Conflict detected for action:", action.id, conflictCheck.conflictType);
+            }
             continue; // Skip this action, needs user resolution
           }
         }
@@ -225,7 +261,7 @@ class OfflineQueue {
       }
     }
 
-    return { success, failed, conflicts, conflictIds };
+    return { success, failed, conflicts, conflictIds, autoResolved };
   }
 
   // Force sync a specific action (after conflict resolution)

@@ -262,5 +262,8 @@ export const yo: Translations = {
     combinedSource: "Àdàpọ̀",
     noConflict: "kò sí ìja",
     mergeApplied: "A ti lo àwọn àyípadà ní àṣeyọrí",
+    autoResolved: "Yanjuara",
+    autoResolvedCount: "ìja ti a yanjuara láìfọwọ́yí",
+    autoResolutionEnabled: "Awọn ìja tí ó rọrùn ni a máa ń yanjuara láìfọwọ́yí",
   },
 };

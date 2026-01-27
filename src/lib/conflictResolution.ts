@@ -68,7 +68,16 @@ class ConflictResolutionManager {
     return this.dbPromise;
   }
 
-  async addConflict(conflict: Omit<ConflictEntry, "id" | "createdAt" | "resolved">): Promise<string> {
+  async addConflict(conflict: Omit<ConflictEntry, "id" | "createdAt" | "resolved">): Promise<string | null> {
+    // First, check if this conflict can be auto-resolved
+    const autoResolution = this.checkAutoResolution(conflict);
+    if (autoResolution.canAutoResolve) {
+      console.log("[ConflictManager] Auto-resolving conflict:", autoResolution.reason);
+      // Return null to indicate no manual resolution needed
+      // The caller should use the auto-resolved data
+      return null;
+    }
+
     const db = await this.openDB();
     
     return new Promise((resolve, reject) => {
@@ -93,6 +102,200 @@ class ConflictResolutionManager {
         resolve(id);
       };
     });
+  }
+
+  // Check if a conflict can be automatically resolved without user intervention
+  checkAutoResolution(conflict: Omit<ConflictEntry, "id" | "createdAt" | "resolved">): AutoResolutionResult {
+    // Cannot auto-resolve delete conflicts - user must decide
+    if (conflict.conflictType === "delete_conflict" || !conflict.serverData) {
+      return { canAutoResolve: false, reason: "Delete conflicts require manual resolution" };
+    }
+
+    const localData = conflict.localData;
+    const serverData = conflict.serverData;
+
+    // Get relevant fields (exclude meta fields)
+    const excludeFields = ["id", "user_id", "created_at", "updated_at", "_pending", "_localId", "_timestamp"];
+    const localFields = Object.entries(localData).filter(([key]) => !excludeFields.includes(key));
+    const serverFields = Object.entries(serverData).filter(([key]) => !excludeFields.includes(key));
+
+    // Find differing fields
+    const differingFields: DifferingField[] = [];
+    
+    for (const [key, localValue] of localFields) {
+      const serverValue = serverData[key];
+      if (JSON.stringify(localValue) !== JSON.stringify(serverValue)) {
+        differingFields.push({
+          field: key,
+          localValue,
+          serverValue,
+          strategy: this.getMergeStrategy(key),
+        });
+      }
+    }
+
+    // Check for server-only fields
+    for (const [key, serverValue] of serverFields) {
+      if (!(key in localData) && !excludeFields.includes(key)) {
+        differingFields.push({
+          field: key,
+          localValue: undefined,
+          serverValue,
+          strategy: this.getMergeStrategy(key),
+        });
+      }
+    }
+
+    // Case 1: No actual differences - auto-resolve with server data
+    if (differingFields.length === 0) {
+      return {
+        canAutoResolve: true,
+        reason: "No meaningful differences between local and server data",
+        resolution: "keep_server",
+        resolvedData: serverData,
+      };
+    }
+
+    // Case 2: Only one field differs and it has a clear strategy winner
+    if (differingFields.length === 1) {
+      const diff = differingFields[0];
+      
+      // Server authority fields - always use server
+      if (diff.strategy === "server") {
+        return {
+          canAutoResolve: true,
+          reason: `Single field '${diff.field}' differs and server has authority`,
+          resolution: "keep_server",
+          resolvedData: serverData,
+        };
+      }
+      
+      // Local preferred fields - always use local
+      if (diff.strategy === "local") {
+        return {
+          canAutoResolve: true,
+          reason: `Single field '${diff.field}' differs and local is preferred`,
+          resolution: "keep_local",
+          resolvedData: localData,
+        };
+      }
+
+      // Latest wins - check timestamps
+      if (diff.strategy === "latest") {
+        const serverTime = serverData.updated_at 
+          ? new Date(serverData.updated_at as string).getTime()
+          : serverData.created_at 
+            ? new Date(serverData.created_at as string).getTime() 
+            : 0;
+        
+        const timeDiff = Math.abs(conflict.localTimestamp - serverTime);
+        
+        // Only auto-resolve if there's a clear winner (>5 seconds apart)
+        if (timeDiff > 5000) {
+          if (conflict.localTimestamp > serverTime) {
+            return {
+              canAutoResolve: true,
+              reason: `Single field '${diff.field}' differs and local is newer by ${Math.round(timeDiff / 1000)}s`,
+              resolution: "keep_local",
+              resolvedData: localData,
+            };
+          } else {
+            return {
+              canAutoResolve: true,
+              reason: `Single field '${diff.field}' differs and server is newer by ${Math.round(timeDiff / 1000)}s`,
+              resolution: "keep_server",
+              resolvedData: serverData,
+            };
+          }
+        }
+      }
+    }
+
+    // Case 3: Multiple fields differ but all have the same clear winner
+    if (differingFields.length > 1) {
+      const allServerAuthority = differingFields.every(d => d.strategy === "server");
+      if (allServerAuthority) {
+        return {
+          canAutoResolve: true,
+          reason: `All ${differingFields.length} differing fields have server authority`,
+          resolution: "keep_server",
+          resolvedData: serverData,
+        };
+      }
+
+      const allLocalPreferred = differingFields.every(d => d.strategy === "local");
+      if (allLocalPreferred) {
+        return {
+          canAutoResolve: true,
+          reason: `All ${differingFields.length} differing fields prefer local`,
+          resolution: "keep_local",
+          resolvedData: localData,
+        };
+      }
+
+      // Check if all "latest" strategy fields agree on the same winner
+      const latestFields = differingFields.filter(d => d.strategy === "latest");
+      if (latestFields.length === differingFields.length) {
+        const serverTime = serverData.updated_at 
+          ? new Date(serverData.updated_at as string).getTime()
+          : serverData.created_at 
+            ? new Date(serverData.created_at as string).getTime() 
+            : 0;
+        
+        const timeDiff = Math.abs(conflict.localTimestamp - serverTime);
+        
+        // Clear time difference for all fields
+        if (timeDiff > 5000) {
+          if (conflict.localTimestamp > serverTime) {
+            return {
+              canAutoResolve: true,
+              reason: `All ${differingFields.length} differing fields use 'latest' strategy and local is newer`,
+              resolution: "keep_local",
+              resolvedData: localData,
+            };
+          } else {
+            return {
+              canAutoResolve: true,
+              reason: `All ${differingFields.length} differing fields use 'latest' strategy and server is newer`,
+              resolution: "keep_server",
+              resolvedData: serverData,
+            };
+          }
+        }
+      }
+    }
+
+    // Case 4: Check if auto-merge produces a clean result (no actual conflicts)
+    if (this.canMerge({ ...conflict, id: "", createdAt: "", resolved: false })) {
+      const mergePreview = this.mergeData(localData, serverData, conflict.localTimestamp);
+      
+      // If all decisions are unambiguous (no "merged" source needed for text combining)
+      const hasAmbiguousMerge = mergePreview.fieldDecisions.some(
+        d => d.source === "merged" || 
+             (d.localValue !== d.serverValue && d.localValue !== undefined && d.serverValue !== undefined)
+      );
+      
+      if (!hasAmbiguousMerge) {
+        return {
+          canAutoResolve: true,
+          reason: "Merge produces unambiguous result",
+          resolution: "merge",
+          resolvedData: mergePreview.mergedData,
+        };
+      }
+    }
+
+    // Cannot auto-resolve
+    return {
+      canAutoResolve: false,
+      reason: `${differingFields.length} fields differ with mixed strategies`,
+      differingFields,
+    };
+  }
+
+  // Get auto-resolution result for a conflict (useful for external callers)
+  getAutoResolution(conflict: ConflictEntry): AutoResolutionResult {
+    return this.checkAutoResolution(conflict);
   }
 
   // Send push notification when a conflict is detected
@@ -497,6 +700,22 @@ export interface MergeResult {
   mergedData: Record<string, unknown>;
   fieldDecisions: FieldMergeDecision[];
   hasChanges: boolean;
+}
+
+// Auto-resolution types
+export interface DifferingField {
+  field: string;
+  localValue: unknown;
+  serverValue: unknown;
+  strategy: MergeStrategy;
+}
+
+export interface AutoResolutionResult {
+  canAutoResolve: boolean;
+  reason: string;
+  resolution?: "keep_local" | "keep_server" | "merge";
+  resolvedData?: Record<string, unknown>;
+  differingFields?: DifferingField[];
 }
 
 export const conflictManager = new ConflictResolutionManager();
