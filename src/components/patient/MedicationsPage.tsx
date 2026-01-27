@@ -1,11 +1,12 @@
-import { useState, useEffect } from "react";
-import { useAuth } from "@/contexts/AuthContext";
+import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Plus, Loader2 } from "lucide-react";
+import { Plus, Loader2, CloudOff, RefreshCw } from "lucide-react";
 import { MedicationCard } from "./MedicationCard";
 import { AddMedicationDialog } from "./AddMedicationDialog";
 import { toast } from "sonner";
+import { useCachedMedications } from "@/hooks/useCachedMedications";
+import { useOfflineStatus } from "@/hooks/useOfflineStatus";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -17,58 +18,11 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-interface Medication {
-  id: string;
-  name: string;
-  dosage: string;
-  dosage_unit: string;
-  form: string;
-  instructions: string | null;
-  is_active: boolean;
-  medication_schedules: Array<{
-    time_of_day: string;
-    quantity: number;
-  }>;
-}
-
 export function MedicationsPage() {
-  const { user } = useAuth();
-  const [medications, setMedications] = useState<Medication[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { medications, loading, isFromCache, refetch } = useCachedMedications();
+  const { isOffline } = useOfflineStatus();
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (user) {
-      fetchMedications();
-    }
-  }, [user]);
-
-  const fetchMedications = async () => {
-    if (!user) return;
-
-    try {
-      const { data, error } = await supabase
-        .from("medications")
-        .select(`
-          *,
-          medication_schedules (
-            time_of_day,
-            quantity
-          )
-        `)
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-      setMedications(data || []);
-    } catch (error) {
-      console.error("Error fetching medications:", error);
-      toast.error("Failed to load medications");
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleDelete = async () => {
     if (!deleteId) return;
@@ -81,7 +35,7 @@ export function MedicationsPage() {
 
       if (error) throw error;
       toast.success("Medication deleted");
-      fetchMedications();
+      refetch();
     } catch (error) {
       console.error("Error deleting medication:", error);
       toast.error("Failed to delete medication");
@@ -106,8 +60,23 @@ export function MedicationsPage() {
           <p className="text-muted-foreground">
             Manage your medication list and schedules
           </p>
+          {isFromCache && (
+            <div className="flex items-center gap-1.5 text-xs text-warning mt-1">
+              <CloudOff className="h-3 w-3" />
+              <span>Showing cached data</span>
+              {!isOffline && (
+                <button 
+                  onClick={refetch}
+                  className="inline-flex items-center gap-1 text-primary hover:underline ml-1"
+                >
+                  <RefreshCw className="h-3 w-3" />
+                  Refresh
+                </button>
+              )}
+            </div>
+          )}
         </div>
-        <Button onClick={() => setAddDialogOpen(true)}>
+        <Button onClick={() => setAddDialogOpen(true)} disabled={isOffline}>
           <Plus className="h-4 w-4 mr-2" />
           Add Medication
         </Button>
@@ -145,7 +114,7 @@ export function MedicationsPage() {
       <AddMedicationDialog
         open={addDialogOpen}
         onOpenChange={setAddDialogOpen}
-        onSuccess={fetchMedications}
+        onSuccess={refetch}
       />
 
       <AlertDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
