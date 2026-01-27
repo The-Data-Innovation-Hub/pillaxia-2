@@ -25,6 +25,7 @@ interface DeliveryStatusMap {
   email?: DeliveryStatus;
   push?: DeliveryStatus;
   whatsapp?: DeliveryStatus;
+  sms?: DeliveryStatus;
 }
 
 serve(async (req: Request): Promise<Response> => {
@@ -52,7 +53,7 @@ serve(async (req: Request): Promise<Response> => {
         .maybeSingle(),
       supabase
         .from("patient_notification_preferences")
-        .select("email_clinician_messages, push_clinician_messages, whatsapp_clinician_messages")
+        .select("email_clinician_messages, push_clinician_messages, whatsapp_clinician_messages, sms_reminders")
         .eq("user_id", recipientId)
         .maybeSingle(),
     ]);
@@ -69,6 +70,7 @@ serve(async (req: Request): Promise<Response> => {
     const emailEnabled = prefs?.email_clinician_messages ?? true;
     const pushEnabled = prefs?.push_clinician_messages ?? true;
     const whatsappEnabled = prefs?.whatsapp_clinician_messages ?? true;
+    const smsEnabled = prefs?.sms_reminders ?? true; // Use sms_reminders as general SMS toggle
 
     const recipientName = profile?.first_name || "there";
     const deliveryStatus: DeliveryStatusMap = {};
@@ -238,6 +240,42 @@ serve(async (req: Request): Promise<Response> => {
       }
     } else {
       deliveryStatus.whatsapp = { sent: false, at: now, error: whatsappEnabled ? "No phone number" : "Disabled by user" };
+    }
+
+    // 4. Send SMS if enabled and phone exists
+    if (smsEnabled && profile?.phone) {
+      try {
+        const smsMessage = senderType === "clinician"
+          ? `New message from your healthcare provider ${senderName}: "${message.substring(0, 100)}${message.length > 100 ? "..." : ""}" — Pillaxia`
+          : `New message from your patient ${senderName}: "${message.substring(0, 100)}${message.length > 100 ? "..." : ""}" — Pillaxia`;
+
+        const { data: smsData, error: smsError } = await supabase.functions.invoke("send-sms-notification", {
+          body: {
+            user_id: recipientId,
+            phone_number: profile.phone,
+            message: smsMessage,
+            notification_type: "clinician_message",
+            metadata: { sender_name: senderName, sender_type: senderType, message_id: messageId },
+          },
+        });
+
+        if (smsError) {
+          console.error("SMS error:", smsError);
+          deliveryStatus.sms = { sent: false, at: now, error: smsError.message };
+        } else if (smsData?.skipped) {
+          deliveryStatus.sms = { sent: false, at: now, error: smsData.error || "SMS not configured" };
+        } else if (smsData?.error) {
+          deliveryStatus.sms = { sent: false, at: now, error: smsData.error };
+        } else {
+          console.log("SMS sent successfully:", smsData?.sid);
+          deliveryStatus.sms = { sent: true, at: now };
+        }
+      } catch (smsErr: any) {
+        console.error("SMS exception:", smsErr);
+        deliveryStatus.sms = { sent: false, at: now, error: smsErr.message };
+      }
+    } else {
+      deliveryStatus.sms = { sent: false, at: now, error: smsEnabled ? "No phone number" : "Disabled by user" };
     }
 
     // Update the message with delivery status if messageId provided
