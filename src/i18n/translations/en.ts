@@ -243,6 +243,7 @@ export const en = {
     changesWaiting: "changes waiting to sync",
     lastSynced: "Last synced",
     neverSynced: "Never synced",
+    symptomQueuedForSync: "Symptom saved offline - will sync when online",
   },
 };
 

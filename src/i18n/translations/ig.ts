@@ -245,5 +245,6 @@ export const ig: Translations = {
     changesWaiting: "mgbanwe na-echere imekọrịta",
     lastSynced: "Emekọrịtara ikpeazụ",
     neverSynced: "Emekọrịtaghị mbụ",
+    symptomQueuedForSync: "Echekwara mgbaàmà ọrịa offline - ga-emekọrịta mgbe ọ nọ n'ịntanetị",
   },
 };

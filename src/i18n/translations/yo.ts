@@ -245,5 +245,6 @@ export const yo: Translations = {
     changesWaiting: "awọn ayipada ti nduro lati muṣiṣẹpọ",
     lastSynced: "Muṣiṣẹpọ kẹhin",
     neverSynced: "Ko tii muṣiṣẹpọ rara",
+    symptomQueuedForSync: "A ti fipamọ àmì àìsàn ita ayelujara - yoo muuṣiṣẹpọ nigba ti o ba wa lori ayelujara",
   },
 };
