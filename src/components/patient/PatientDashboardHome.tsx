@@ -16,6 +16,7 @@ import { NotificationSetupWizard } from "./NotificationSetupWizard";
 import { OnboardingFlow } from "./OnboardingFlow";
 import { EngagementScoreCard } from "./EngagementScoreCard";
 import { AppointmentsCard } from "./AppointmentsCard";
+import { PrescriptionStatusCard } from "./PrescriptionStatusCard";
 import { useCachedTodaysSchedule } from "@/hooks/useCachedTodaysSchedule";
 import { useOfflineStatus } from "@/hooks/useOfflineStatus";
 import { useQuery } from "@tanstack/react-query";
@@ -281,6 +282,9 @@ export function PatientDashboardHome() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Prescription Status */}
+      <PrescriptionStatusCard />
 
       {/* Appointments and Engagement */}
       <div className="grid gap-6 lg:grid-cols-2">
