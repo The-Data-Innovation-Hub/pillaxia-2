@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/hooks/use-toast";
+import { usePushNotifications } from "@/hooks/usePushNotifications";
 import {
   Card,
   CardContent,
@@ -13,10 +14,13 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Bell,
+  BellRing,
   Mail,
   Smartphone,
   Moon,
@@ -24,6 +28,7 @@ import {
   AlertTriangle,
   Heart,
   Pill,
+  Loader2,
 } from "lucide-react";
 
 interface NotificationPreferences {
@@ -55,6 +60,7 @@ const DEFAULT_PREFERENCES: Omit<NotificationPreferences, "id" | "user_id"> = {
 export function PatientSettingsPage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const pushNotifications = usePushNotifications();
 
   const { data: preferences, isLoading } = useQuery({
     queryKey: ["patient-notification-preferences", user?.id],
@@ -160,6 +166,67 @@ export function PatientSettingsPage() {
           Manage how you receive notifications and reminders
         </p>
       </div>
+
+      {/* Push Notifications */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <BellRing className="h-5 w-5 text-primary" />
+            Push Notifications
+          </CardTitle>
+          <CardDescription>
+            Receive notifications even when the app isn't open
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {!pushNotifications.isSupported ? (
+            <Alert>
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>
+                Push notifications are not supported in this browser. Try using Chrome, Firefox, or Edge.
+              </AlertDescription>
+            </Alert>
+          ) : pushNotifications.permission === "denied" ? (
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>
+                Push notifications are blocked. Please enable them in your browser settings.
+              </AlertDescription>
+            </Alert>
+          ) : (
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Bell className="h-4 w-4 text-muted-foreground" />
+                <div>
+                  <Label className="font-medium">
+                    Enable Push Notifications
+                  </Label>
+                  <p className="text-sm text-muted-foreground">
+                    {pushNotifications.isSubscribed
+                      ? "You'll receive push notifications for important alerts"
+                      : "Get notified even when you're not using the app"}
+                  </p>
+                </div>
+              </div>
+              {pushNotifications.isLoading ? (
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              ) : (
+                <Button
+                  variant={pushNotifications.isSubscribed ? "outline" : "default"}
+                  size="sm"
+                  onClick={() =>
+                    pushNotifications.isSubscribed
+                      ? pushNotifications.unsubscribe()
+                      : pushNotifications.subscribe()
+                  }
+                >
+                  {pushNotifications.isSubscribed ? "Disable" : "Enable"}
+                </Button>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Medication Reminders */}
       <Card>

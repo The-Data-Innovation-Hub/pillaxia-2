@@ -221,6 +221,26 @@ serve(async (req: Request): Promise<Response> => {
 
     console.log(`Encouragement email sent to ${patientProfile.email}`);
 
+    // Also send push notification if in_app_encouragements is enabled
+    if (!patientPrefs || patientPrefs.in_app_encouragements) {
+      try {
+        await serviceClient.functions.invoke("send-push-notification", {
+          body: {
+            user_ids: [patient_user_id],
+            payload: {
+              title: `💜 ${caregiver_name} sent encouragement!`,
+              body: message.length > 100 ? message.substring(0, 97) + "..." : message,
+              tag: "encouragement-message",
+              data: { url: "/dashboard" },
+            },
+          },
+        });
+        console.log("Push notification sent for encouragement");
+      } catch (pushError) {
+        console.error("Failed to send push notification:", pushError);
+      }
+    }
+
     return new Response(
       JSON.stringify({ success: true, message: "Email sent successfully" }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }

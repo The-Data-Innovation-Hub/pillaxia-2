@@ -264,6 +264,27 @@ serve(async (req) => {
 
     console.log("Notification results:", notificationResults);
 
+    // Also send push notification to all caregivers
+    if (caregiverIds.length > 0) {
+      try {
+        await supabase.functions.invoke("send-push-notification", {
+          body: {
+            user_ids: caregiverIds,
+            payload: {
+              title: "⚠️ Missed Dose Alert",
+              body: `${patientName} missed ${medicationName} at ${formattedTime}`,
+              tag: "missed-dose-alert",
+              requireInteraction: true,
+              data: { url: "/dashboard/caregiver/notifications" },
+            },
+          },
+        });
+        console.log("Push notifications sent to caregivers");
+      } catch (pushError) {
+        console.error("Failed to send push notifications:", pushError);
+      }
+    }
+
     return new Response(
       JSON.stringify({
         success: true,
