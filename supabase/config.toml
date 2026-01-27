@@ -104,3 +104,6 @@ verify_jwt = false
 
 [functions.send-drug-recall-alert]
 verify_jwt = false
+
+[functions.send-native-push]
+verify_jwt = false

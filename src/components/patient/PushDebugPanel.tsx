@@ -5,8 +5,10 @@ import { Separator } from "@/components/ui/separator";
 import { toast } from "@/hooks/use-toast";
 import { Loader2, RefreshCw } from "lucide-react";
 
+type PermissionState = "default" | "granted" | "denied" | "prompt";
+
 type DiagnosticState = {
-  permission: NotificationPermission | "default";
+  permission: PermissionState;
   hasServiceWorker: boolean;
   serviceWorkerScriptUrl?: string;
   hasBrowserSubscription: boolean;
@@ -37,7 +39,7 @@ function formatUnknownError(err: unknown): string {
 export function PushDebugPanel(props: {
   userId?: string;
   isSupported: boolean;
-  permission: NotificationPermission | "default";
+  permission: PermissionState;
   lastTestResult?: { at: string; ok: boolean; summary: string } | null;
 }) {
   const { userId, isSupported, permission, lastTestResult } = props;
