@@ -678,6 +678,7 @@ export type Database = {
           last_name: string | null
           organization: string | null
           phone: string | null
+          timezone: string | null
           updated_at: string
           user_id: string
         }
@@ -691,6 +692,7 @@ export type Database = {
           last_name?: string | null
           organization?: string | null
           phone?: string | null
+          timezone?: string | null
           updated_at?: string
           user_id: string
         }
@@ -704,6 +706,7 @@ export type Database = {
           last_name?: string | null
           organization?: string | null
           phone?: string | null
+          timezone?: string | null
           updated_at?: string
           user_id?: string
         }
