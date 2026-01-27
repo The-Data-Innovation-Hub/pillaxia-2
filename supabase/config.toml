@@ -95,3 +95,6 @@ verify_jwt = false
 
 [functions.send-prescription-status-notification]
 verify_jwt = false
+
+[functions.send-refill-request-notification]
+verify_jwt = false

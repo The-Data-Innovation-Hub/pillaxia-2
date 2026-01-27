@@ -120,12 +120,16 @@ export function RefillRequestsPage() {
     mutationFn: async ({
       requestId,
       medicationId,
+      patientUserId,
+      medicationName,
       status,
       refillsGranted,
       notes,
     }: {
       requestId: string;
       medicationId: string;
+      patientUserId: string;
+      medicationName: string;
       status: "approved" | "denied";
       refillsGranted?: number;
       notes?: string;
@@ -152,6 +156,21 @@ export function RefillRequestsPage() {
           .eq("id", medicationId);
 
         if (medError) throw medError;
+      }
+
+      // Send notification to patient
+      try {
+        await supabase.functions.invoke("send-refill-request-notification", {
+          body: {
+            patient_user_id: patientUserId,
+            medication_name: medicationName,
+            status,
+            refills_granted: refillsGranted,
+            pharmacist_notes: notes,
+          },
+        });
+      } catch (notifyError) {
+        console.error("Failed to send notification:", notifyError);
       }
     },
     onSuccess: (_, variables) => {
@@ -187,6 +206,8 @@ export function RefillRequestsPage() {
     processRefillMutation.mutate({
       requestId: selectedRequest.id,
       medicationId: selectedRequest.medication_id,
+      patientUserId: selectedRequest.patient_user_id,
+      medicationName: selectedRequest.medications?.name || "Medication",
       status: actionType === "approve" ? "approved" : "denied",
       refillsGranted: actionType === "approve" ? parseInt(refillAmount) || 3 : undefined,
       notes: pharmacistNotes.trim() || undefined,
