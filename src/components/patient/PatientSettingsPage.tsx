@@ -9,6 +9,7 @@ import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { useOfflineStatus } from "@/hooks/useOfflineStatus";
 import { PushDebugPanel } from "@/components/patient/PushDebugPanel";
 import { AutoResolutionSettingsCard } from "@/components/patient/AutoResolutionSettingsCard";
+import { TwoFactorSettingsCard } from "@/components/patient/TwoFactorSettingsCard";
 import { medicationCache, scheduleCache, symptomCache } from "@/lib/cache";
 import {
   Card,
@@ -525,6 +526,9 @@ export function PatientSettingsPage() {
 
       {/* Auto-Resolution Settings */}
       <AutoResolutionSettingsCard />
+
+      {/* Two-Factor Authentication */}
+      <TwoFactorSettingsCard />
 
       {/* Push Notifications */}
       <Card>

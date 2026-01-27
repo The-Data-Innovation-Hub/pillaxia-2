@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -8,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { z } from "zod";
-import { Loader2, User, Stethoscope, Pill, Shield, Home } from "lucide-react";
+import { Loader2, User, Stethoscope, Pill, Shield, Home, ShieldCheck } from "lucide-react";
 
 type AppRole = "patient" | "clinician" | "pharmacist" | "admin";
 
@@ -37,6 +38,12 @@ const Auth = () => {
   const [lastName, setLastName] = useState("");
   const [selectedRole, setSelectedRole] = useState<AppRole>("patient");
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  // MFA state
+  const [showMfaChallenge, setShowMfaChallenge] = useState(false);
+  const [mfaFactorId, setMfaFactorId] = useState<string | null>(null);
+  const [mfaCode, setMfaCode] = useState("");
+  const [mfaLoading, setMfaLoading] = useState(false);
 
   // Redirect if already authenticated
   useEffect(() => {
@@ -109,6 +116,18 @@ const Auth = () => {
             toast.error(error.message);
           }
         } else {
+          // Check if MFA is required
+          const { data: factorsData } = await supabase.auth.mfa.listFactors();
+          const verifiedFactors = factorsData?.totp?.filter(f => f.status === "verified") || [];
+          
+          if (verifiedFactors.length > 0) {
+            // User has MFA enabled, need to verify
+            setMfaFactorId(verifiedFactors[0].id);
+            setShowMfaChallenge(true);
+            setLoading(false);
+            return;
+          }
+          
           toast.success("Welcome back!");
           navigate("/dashboard");
         }
@@ -130,10 +149,107 @@ const Auth = () => {
     }
   };
 
+  const handleMfaVerify = async () => {
+    if (!mfaFactorId || mfaCode.length !== 6) return;
+
+    setMfaLoading(true);
+    try {
+      const { data: challengeData, error: challengeError } = 
+        await supabase.auth.mfa.challenge({ factorId: mfaFactorId });
+
+      if (challengeError) throw challengeError;
+
+      const { error: verifyError } = await supabase.auth.mfa.verify({
+        factorId: mfaFactorId,
+        challengeId: challengeData.id,
+        code: mfaCode,
+      });
+
+      if (verifyError) throw verifyError;
+
+      toast.success("Welcome back!");
+      navigate("/dashboard");
+    } catch (error: any) {
+      console.error("MFA verification failed:", error);
+      toast.error(error.message || "Invalid verification code. Please try again.");
+      setMfaCode("");
+    } finally {
+      setMfaLoading(false);
+    }
+  };
+
+  const handleCancelMfa = () => {
+    setShowMfaChallenge(false);
+    setMfaFactorId(null);
+    setMfaCode("");
+    // Sign out the partially authenticated session
+    supabase.auth.signOut();
+  };
+
   if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  // MFA Challenge Screen
+  if (showMfaChallenge) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-pillaxia-navy-light/10 via-background to-pillaxia-purple/10 p-4">
+        <div className="w-full max-w-md">
+          <Card className="shadow-pillaxia-card border-pillaxia-cyan/20">
+            <CardHeader className="text-center">
+              <div className="mx-auto mb-4 p-3 rounded-full bg-primary/10">
+                <ShieldCheck className="h-8 w-8 text-primary" />
+              </div>
+              <CardTitle className="text-2xl">Two-Factor Authentication</CardTitle>
+              <CardDescription>
+                Enter the 6-digit code from your authenticator app
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="mfa-code">Verification Code</Label>
+                <Input
+                  id="mfa-code"
+                  placeholder="Enter 6-digit code"
+                  value={mfaCode}
+                  onChange={(e) => setMfaCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                  maxLength={6}
+                  className="text-center text-2xl tracking-[0.5em] font-mono"
+                  autoFocus
+                />
+              </div>
+
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  onClick={handleCancelMfa}
+                  className="flex-1"
+                  disabled={mfaLoading}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleMfaVerify}
+                  disabled={mfaLoading || mfaCode.length !== 6}
+                  className="flex-1"
+                >
+                  {mfaLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  ) : null}
+                  Verify
+                </Button>
+              </div>
+
+              <p className="text-xs text-center text-muted-foreground">
+                Open your authenticator app (Google Authenticator, Authy, etc.) to get your code
+              </p>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     );
   }
