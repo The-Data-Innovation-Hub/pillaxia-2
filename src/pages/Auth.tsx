@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { z } from "zod";
-import { Loader2, User, Stethoscope, Pill, Shield, Home, ShieldCheck } from "lucide-react";
+import { Loader2, User, Stethoscope, Pill, Shield, Home, ShieldCheck, Key } from "lucide-react";
 
 type AppRole = "patient" | "clinician" | "pharmacist" | "admin";
 
@@ -44,6 +44,9 @@ const Auth = () => {
   const [mfaFactorId, setMfaFactorId] = useState<string | null>(null);
   const [mfaCode, setMfaCode] = useState("");
   const [mfaLoading, setMfaLoading] = useState(false);
+  const [useRecoveryCode, setUseRecoveryCode] = useState(false);
+  const [recoveryCode, setRecoveryCode] = useState("");
+  const [remainingCodes, setRemainingCodes] = useState<number | null>(null);
 
   // Redirect if already authenticated
   useEffect(() => {
@@ -149,6 +152,15 @@ const Auth = () => {
     }
   };
 
+  // Hash a recovery code for comparison
+  const hashRecoveryCode = async (code: string): Promise<string> => {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(code.toLowerCase().replace(/[^a-z0-9]/g, ""));
+    const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+  };
+
   const handleMfaVerify = async () => {
     if (!mfaFactorId || mfaCode.length !== 6) return;
 
@@ -178,10 +190,84 @@ const Auth = () => {
     }
   };
 
+  const handleRecoveryCodeVerify = async () => {
+    const cleanCode = recoveryCode.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
+    if (cleanCode.length < 8) {
+      toast.error("Please enter a valid recovery code");
+      return;
+    }
+
+    setMfaLoading(true);
+    try {
+      // Get current user
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      if (!currentUser) throw new Error("Not authenticated");
+
+      // Hash the entered code
+      const codeHash = await hashRecoveryCode(cleanCode);
+
+      // Find matching unused recovery code
+      const { data: matchingCode, error: fetchError } = await supabase
+        .from("mfa_recovery_codes")
+        .select("id, used_at")
+        .eq("user_id", currentUser.id)
+        .eq("code_hash", codeHash)
+        .maybeSingle();
+
+      if (fetchError) throw fetchError;
+
+      if (!matchingCode) {
+        toast.error("Invalid recovery code. Please check and try again.");
+        setRecoveryCode("");
+        return;
+      }
+
+      if (matchingCode.used_at) {
+        toast.error("This recovery code has already been used.");
+        setRecoveryCode("");
+        return;
+      }
+
+      // Mark the code as used
+      const { error: updateError } = await supabase
+        .from("mfa_recovery_codes")
+        .update({ used_at: new Date().toISOString() })
+        .eq("id", matchingCode.id);
+
+      if (updateError) throw updateError;
+
+      // Count remaining unused codes
+      const { count } = await supabase
+        .from("mfa_recovery_codes")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", currentUser.id)
+        .is("used_at", null);
+
+      setRemainingCodes(count || 0);
+
+      // Show warning if running low on codes
+      if (count !== null && count <= 3) {
+        toast.warning(`You have ${count} recovery code${count === 1 ? "" : "s"} remaining. Consider generating new codes in your settings.`);
+      }
+
+      toast.success("Recovery code accepted!");
+      navigate("/dashboard");
+    } catch (error: any) {
+      console.error("Recovery code verification failed:", error);
+      toast.error(error.message || "Failed to verify recovery code. Please try again.");
+      setRecoveryCode("");
+    } finally {
+      setMfaLoading(false);
+    }
+  };
+
   const handleCancelMfa = () => {
     setShowMfaChallenge(false);
     setMfaFactorId(null);
     setMfaCode("");
+    setUseRecoveryCode(false);
+    setRecoveryCode("");
+    setRemainingCodes(null);
     // Sign out the partially authenticated session
     supabase.auth.signOut();
   };
@@ -202,26 +288,51 @@ const Auth = () => {
           <Card className="shadow-pillaxia-card border-pillaxia-cyan/20">
             <CardHeader className="text-center">
               <div className="mx-auto mb-4 p-3 rounded-full bg-primary/10">
-                <ShieldCheck className="h-8 w-8 text-primary" />
+                {useRecoveryCode ? (
+                  <Key className="h-8 w-8 text-primary" />
+                ) : (
+                  <ShieldCheck className="h-8 w-8 text-primary" />
+                )}
               </div>
-              <CardTitle className="text-2xl">Two-Factor Authentication</CardTitle>
+              <CardTitle className="text-2xl">
+                {useRecoveryCode ? "Use Recovery Code" : "Two-Factor Authentication"}
+              </CardTitle>
               <CardDescription>
-                Enter the 6-digit code from your authenticator app
+                {useRecoveryCode 
+                  ? "Enter one of your backup recovery codes" 
+                  : "Enter the 6-digit code from your authenticator app"}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="mfa-code">Verification Code</Label>
-                <Input
-                  id="mfa-code"
-                  placeholder="Enter 6-digit code"
-                  value={mfaCode}
-                  onChange={(e) => setMfaCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                  maxLength={6}
-                  className="text-center text-2xl tracking-[0.5em] font-mono"
-                  autoFocus
-                />
-              </div>
+              {useRecoveryCode ? (
+                <div className="space-y-2">
+                  <Label htmlFor="recovery-code">Recovery Code</Label>
+                  <Input
+                    id="recovery-code"
+                    placeholder="e.g., abc12-def34"
+                    value={recoveryCode}
+                    onChange={(e) => setRecoveryCode(e.target.value)}
+                    className="text-center text-lg font-mono"
+                    autoFocus
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Enter the recovery code exactly as it was provided (with or without dashes)
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <Label htmlFor="mfa-code">Verification Code</Label>
+                  <Input
+                    id="mfa-code"
+                    placeholder="Enter 6-digit code"
+                    value={mfaCode}
+                    onChange={(e) => setMfaCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                    maxLength={6}
+                    className="text-center text-2xl tracking-[0.5em] font-mono"
+                    autoFocus
+                  />
+                </div>
+              )}
 
               <div className="flex gap-2">
                 <Button
@@ -232,20 +343,67 @@ const Auth = () => {
                 >
                   Cancel
                 </Button>
-                <Button
-                  onClick={handleMfaVerify}
-                  disabled={mfaLoading || mfaCode.length !== 6}
-                  className="flex-1"
-                >
-                  {mfaLoading ? (
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  ) : null}
-                  Verify
-                </Button>
+                {useRecoveryCode ? (
+                  <Button
+                    onClick={handleRecoveryCodeVerify}
+                    disabled={mfaLoading || recoveryCode.replace(/[^a-zA-Z0-9]/g, "").length < 8}
+                    className="flex-1"
+                  >
+                    {mfaLoading ? (
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    ) : null}
+                    Verify
+                  </Button>
+                ) : (
+                  <Button
+                    onClick={handleMfaVerify}
+                    disabled={mfaLoading || mfaCode.length !== 6}
+                    className="flex-1"
+                  >
+                    {mfaLoading ? (
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    ) : null}
+                    Verify
+                  </Button>
+                )}
               </div>
 
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-card px-2 text-muted-foreground">or</span>
+                </div>
+              </div>
+
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  setUseRecoveryCode(!useRecoveryCode);
+                  setMfaCode("");
+                  setRecoveryCode("");
+                }}
+                className="w-full text-sm"
+                disabled={mfaLoading}
+              >
+                {useRecoveryCode ? (
+                  <>
+                    <ShieldCheck className="h-4 w-4 mr-2" />
+                    Use authenticator app instead
+                  </>
+                ) : (
+                  <>
+                    <Key className="h-4 w-4 mr-2" />
+                    Use a recovery code
+                  </>
+                )}
+              </Button>
+
               <p className="text-xs text-center text-muted-foreground">
-                Open your authenticator app (Google Authenticator, Authy, etc.) to get your code
+                {useRecoveryCode 
+                  ? "Recovery codes can only be used once. After using a code, it will be marked as used."
+                  : "Open your authenticator app (Google Authenticator, Authy, etc.) to get your code"}
               </p>
             </CardContent>
           </Card>
