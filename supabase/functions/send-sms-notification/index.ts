@@ -71,9 +71,20 @@ serve(async (req) => {
 
     console.log(`Sending SMS to ${formattedPhone}: ${message.substring(0, 50)}...`);
 
-    // Send via Twilio
+    // Send via Twilio with status callback
     const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${TWILIO_ACCOUNT_SID}/Messages.json`;
     const authHeader = btoa(`${TWILIO_ACCOUNT_SID}:${TWILIO_AUTH_TOKEN}`);
+    
+    // Build status callback URL
+    const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+    const statusCallbackUrl = `${supabaseUrl}/functions/v1/twilio-webhook`;
+
+    const twilioBody = new URLSearchParams({
+      To: formattedPhone,
+      From: TWILIO_PHONE_NUMBER,
+      Body: message,
+      StatusCallback: statusCallbackUrl,
+    });
 
     const twilioResponse = await fetch(twilioUrl, {
       method: "POST",
@@ -81,11 +92,7 @@ serve(async (req) => {
         "Authorization": `Basic ${authHeader}`,
         "Content-Type": "application/x-www-form-urlencoded",
       },
-      body: new URLSearchParams({
-        To: formattedPhone,
-        From: TWILIO_PHONE_NUMBER,
-        Body: message,
-      }),
+      body: twilioBody,
     });
 
     const twilioResult = await twilioResponse.json();

@@ -30,6 +30,10 @@ async function sendViaTwilio(
     // Format Twilio WhatsApp numbers
     const fromWhatsApp = `whatsapp:${twilioPhone}`;
     const toWhatsApp = `whatsapp:${phoneNumber}`;
+    
+    // Build status callback URL for delivery tracking
+    const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+    const statusCallbackUrl = `${supabaseUrl}/functions/v1/twilio-webhook`;
 
     const response = await fetch(
       `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`,
@@ -43,6 +47,7 @@ async function sendViaTwilio(
           From: fromWhatsApp,
           To: toWhatsApp,
           Body: messageBody,
+          StatusCallback: statusCallbackUrl,
         }),
       }
     );
