@@ -2,7 +2,7 @@ import { useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useOfflineStatus } from "./useOfflineStatus";
 import { offlineQueue } from "@/lib/offlineQueue";
-import { symptomCache } from "@/lib/symptomCache";
+import { symptomCache } from "@/lib/cache";
 import { toast } from "sonner";
 import { useLanguage } from "@/i18n/LanguageContext";
 

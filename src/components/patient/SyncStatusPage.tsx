@@ -28,7 +28,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { offlineQueue, PendingAction } from "@/lib/offlineQueue";
-import { symptomCache, CachedSymptomEntry } from "@/lib/symptomCache";
+import { symptomCache, type CachedSymptomEntry } from "@/lib/cache";
 import { conflictManager, ConflictEntry } from "@/lib/conflictResolution";
 import { useOfflineStatus } from "@/hooks/useOfflineStatus";
 import { useOfflineSync } from "@/hooks/useOfflineSync";

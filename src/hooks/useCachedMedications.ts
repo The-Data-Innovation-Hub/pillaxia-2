@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import { medicationCache } from "@/lib/medicationCache";
+import { medicationCache } from "@/lib/cache";
 import { useOfflineStatus } from "@/hooks/useOfflineStatus";
 import type { Tables } from "@/integrations/supabase/types";
 
