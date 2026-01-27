@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { TwoFactorSettingsCard } from "@/components/patient/TwoFactorSettingsCard";
+import { BiometricSettingsCard } from "@/components/patient/BiometricSettingsCard";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -53,6 +54,9 @@ export function SecuritySettingsTab() {
 
   return (
     <div className="space-y-6">
+      {/* Biometric Authentication */}
+      <BiometricSettingsCard />
+
       {/* Two-Factor Authentication */}
       <TwoFactorSettingsCard />
 

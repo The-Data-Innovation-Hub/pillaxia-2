@@ -37,3 +37,4 @@ export { RequestRefillDialog } from "./RequestRefillDialog";
 export { RefillRequestsCard } from "./RefillRequestsCard";
 export { NotificationCenterCard } from "./NotificationCenterCard";
 export { PharmacyPreferencesCard } from "./PharmacyPreferencesCard";
+export { BiometricSettingsCard } from "./BiometricSettingsCard";

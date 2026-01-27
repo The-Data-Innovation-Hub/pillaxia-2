@@ -9,7 +9,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { z } from "zod";
-import { Loader2, User, Stethoscope, Pill, Shield, Home, ShieldCheck, Key } from "lucide-react";
+import { Loader2, User, Stethoscope, Pill, Shield, Home, ShieldCheck, Key, Fingerprint } from "lucide-react";
+import { useBiometricAuth } from "@/hooks/useBiometricAuth";
 
 type AppRole = "patient" | "clinician" | "pharmacist" | "admin";
 
@@ -29,9 +30,11 @@ const nameSchema = z.string().min(1, "Name is required").max(100, "Name must be 
 const Auth = () => {
   const navigate = useNavigate();
   const { user, loading: authLoading, signIn, signUp } = useAuth();
+  const { isAvailable, isEnabled, biometryName, getCredentials, isLoading: biometricLoading } = useBiometricAuth();
   
   const [isLogin, setIsLogin] = useState(true);
   const [loading, setLoading] = useState(false);
+  const [biometricAuthLoading, setBiometricAuthLoading] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [firstName, setFirstName] = useState("");
@@ -54,6 +57,40 @@ const Auth = () => {
       navigate("/dashboard");
     }
   }, [user, authLoading, navigate]);
+
+  // Handle biometric login
+  const handleBiometricLogin = async () => {
+    setBiometricAuthLoading(true);
+    try {
+      const credentials = await getCredentials();
+      if (credentials) {
+        const { error } = await signIn(credentials.username, credentials.password);
+        if (error) {
+          toast.error("Biometric login failed. Please sign in with your password.");
+        } else {
+          // Check if MFA is required
+          const { data: factorsData } = await supabase.auth.mfa.listFactors();
+          const verifiedFactors = factorsData?.totp?.filter(f => f.status === "verified") || [];
+          
+          if (verifiedFactors.length > 0) {
+            setMfaFactorId(verifiedFactors[0].id);
+            setShowMfaChallenge(true);
+            return;
+          }
+          
+          toast.success("Welcome back!");
+          navigate("/dashboard");
+        }
+      } else {
+        toast.error("Biometric authentication cancelled or failed");
+      }
+    } catch (error) {
+      console.error("Biometric login error:", error);
+      toast.error("Biometric login failed");
+    } finally {
+      setBiometricAuthLoading(false);
+    }
+  };
 
   const handleDemoLogin = (demoUser: typeof DEMO_USERS[0]) => {
     setEmail(demoUser.email);
@@ -568,6 +605,35 @@ const Auth = () => {
                   <>{isLogin ? "Sign In" : "Create Account"}</>
                 )}
               </Button>
+
+              {/* Biometric Login Button */}
+              {isLogin && isAvailable && isEnabled && !biometricLoading && (
+                <>
+                  <div className="relative my-4">
+                    <div className="absolute inset-0 flex items-center">
+                      <span className="w-full border-t" />
+                    </div>
+                    <div className="relative flex justify-center text-xs uppercase">
+                      <span className="bg-card px-2 text-muted-foreground">or</span>
+                    </div>
+                  </div>
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleBiometricLogin}
+                    disabled={biometricAuthLoading}
+                    className="w-full"
+                  >
+                    {biometricAuthLoading ? (
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    ) : (
+                      <Fingerprint className="h-4 w-4 mr-2" />
+                    )}
+                    Sign in with {biometryName}
+                  </Button>
+                </>
+              )}
             </form>
 
             <div className="mt-6 text-center">
