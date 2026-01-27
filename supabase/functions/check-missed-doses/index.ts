@@ -1,0 +1,117 @@
+import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
+serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    console.log("Checking for missed doses...");
+
+    // Find pending medication logs that are past their scheduled time by more than 30 minutes
+    const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+    
+    const { data: pendingLogs, error: logsError } = await supabase
+      .from("medication_logs")
+      .select("id, user_id, medication_id, scheduled_time, medications(name)")
+      .eq("status", "pending")
+      .lt("scheduled_time", thirtyMinutesAgo);
+
+    if (logsError) {
+      console.error("Error fetching pending logs:", logsError);
+      return new Response(
+        JSON.stringify({ error: "Failed to fetch pending logs" }),
+        { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    if (!pendingLogs || pendingLogs.length === 0) {
+      console.log("No missed doses found");
+      return new Response(
+        JSON.stringify({ success: true, processed: 0, message: "No missed doses found" }),
+        { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    console.log("Found " + pendingLogs.length + " missed doses to process");
+
+    let processed = 0;
+    let failed = 0;
+
+    for (const log of pendingLogs) {
+      try {
+        // Update the log status to 'missed'
+        const { error: updateError } = await supabase
+          .from("medication_logs")
+          .update({ status: "missed" })
+          .eq("id", log.id);
+
+        if (updateError) {
+          console.error("Error updating log " + log.id + ":", updateError);
+          failed++;
+          continue;
+        }
+
+        // Get medication name from the joined data
+        const medicationData = log.medications as unknown as { name: string } | { name: string }[] | null;
+        let medicationName = "Unknown Medication";
+        if (medicationData) {
+          if (Array.isArray(medicationData) && medicationData.length > 0) {
+            medicationName = medicationData[0].name;
+          } else if (!Array.isArray(medicationData)) {
+            medicationName = medicationData.name;
+          }
+        }
+
+        // Call the send-missed-dose-alerts function
+        const { error: alertError } = await supabase.functions.invoke("send-missed-dose-alerts", {
+          body: {
+            patientUserId: log.user_id,
+            medicationName: medicationName,
+            scheduledTime: log.scheduled_time,
+          },
+        });
+
+        if (alertError) {
+          console.error("Error sending alert for log " + log.id + ":", alertError);
+          // Don't count as failed since the status was updated
+        }
+
+        processed++;
+        console.log("Processed missed dose: " + log.id);
+      } catch (err) {
+        console.error("Error processing log " + log.id + ":", err);
+        failed++;
+      }
+    }
+
+    console.log("Finished processing. Processed: " + processed + ", Failed: " + failed);
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        processed,
+        failed,
+        total: pendingLogs.length,
+      }),
+      { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
+    );
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    console.error("Error in check-missed-doses:", error);
+    return new Response(
+      JSON.stringify({ error: errorMessage }),
+      { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
+    );
+  }
+});
