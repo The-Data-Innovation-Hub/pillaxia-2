@@ -20,7 +20,7 @@ const menuItems = [
   { title: "User Management", url: "/dashboard/users", icon: Users },
   { title: "System Analytics", url: "/dashboard/analytics", icon: BarChart3 },
   { title: "Audit Logs", url: "/dashboard/audit-logs", icon: FileText },
-  { title: "Settings", url: "/dashboard/settings", icon: Settings },
+  { title: "Settings", url: "/dashboard/admin-settings", icon: Settings },
 ];
 
 export function AdminSidebar() {

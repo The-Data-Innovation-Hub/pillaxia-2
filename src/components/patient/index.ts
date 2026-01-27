@@ -16,3 +16,4 @@ export { TodayScheduleCard } from "./TodayScheduleCard";
 export { SymptomEntryDialog } from "./SymptomEntryDialog";
 export { SendEncouragementDialog } from "./SendEncouragementDialog";
 export { PatientMessagesCard } from "./PatientMessagesCard";
+export { PatientSettingsPage } from "./PatientSettingsPage";
