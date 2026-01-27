@@ -28,7 +28,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Loader2, Plus, Trash2, Edit, Heart, AlertTriangle, Phone, X } from "lucide-react";
+import { Loader2, Plus, Trash2, Edit, Heart, AlertTriangle, Phone, X, MessageCircle, Check } from "lucide-react";
 
 interface ChronicCondition {
   id: string;
@@ -61,6 +61,12 @@ export function HealthProfilePage() {
   const [conditions, setConditions] = useState<ChronicCondition[]>([]);
   const [allergies, setAllergies] = useState<Allergy[]>([]);
   const [contacts, setContacts] = useState<EmergencyContact[]>([]);
+  
+  // Phone number state for SMS notifications
+  const [phoneNumber, setPhoneNumber] = useState("");
+  const [editingPhone, setEditingPhone] = useState(false);
+  const [savingPhone, setSavingPhone] = useState(false);
+  const [tempPhone, setTempPhone] = useState("");
 
   const [conditionDialogOpen, setConditionDialogOpen] = useState(false);
   const [allergyDialogOpen, setAllergyDialogOpen] = useState(false);
@@ -80,20 +86,47 @@ export function HealthProfilePage() {
     if (!user) return;
     setLoading(true);
     try {
-      const [conditionsRes, allergiesRes, contactsRes] = await Promise.all([
+      const [conditionsRes, allergiesRes, contactsRes, profileRes] = await Promise.all([
         supabase.from("patient_chronic_conditions").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
         supabase.from("patient_allergies").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
         supabase.from("patient_emergency_contacts").select("*").eq("user_id", user.id).order("is_primary", { ascending: false }),
+        supabase.from("profiles").select("phone").eq("user_id", user.id).maybeSingle(),
       ]);
 
       if (conditionsRes.data) setConditions(conditionsRes.data);
       if (allergiesRes.data) setAllergies(allergiesRes.data);
       if (contactsRes.data) setContacts(contactsRes.data);
+      if (profileRes.data?.phone) {
+        setPhoneNumber(profileRes.data.phone);
+        setTempPhone(profileRes.data.phone);
+      }
     } catch (error) {
       console.error("Error fetching health profile:", error);
       toast.error("Failed to load health profile");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSavePhone = async () => {
+    if (!user) return;
+    setSavingPhone(true);
+    try {
+      const { error } = await supabase
+        .from("profiles")
+        .update({ phone: tempPhone || null })
+        .eq("user_id", user.id);
+
+      if (error) throw error;
+      
+      setPhoneNumber(tempPhone);
+      setEditingPhone(false);
+      toast.success("Phone number saved for SMS notifications");
+    } catch (error) {
+      console.error("Error saving phone:", error);
+      toast.error("Failed to save phone number");
+    } finally {
+      setSavingPhone(false);
     }
   };
 
@@ -134,6 +167,78 @@ export function HealthProfilePage() {
           Manage your health conditions, allergies, and emergency contacts
         </p>
       </div>
+
+      {/* Phone Number for SMS Notifications */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <MessageCircle className="h-5 w-5 text-primary" />
+            Phone Number for SMS Notifications
+          </CardTitle>
+          <CardDescription>
+            Add your phone number to receive medication reminders and alerts via text message
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {editingPhone ? (
+            <div className="flex items-center gap-2">
+              <Input
+                type="tel"
+                placeholder="+234 800 123 4567"
+                value={tempPhone}
+                onChange={(e) => setTempPhone(e.target.value)}
+                className="max-w-xs"
+              />
+              <Button 
+                size="sm" 
+                onClick={handleSavePhone} 
+                disabled={savingPhone}
+              >
+                {savingPhone ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Check className="h-4 w-4" />
+                )}
+              </Button>
+              <Button 
+                size="sm" 
+                variant="ghost" 
+                onClick={() => {
+                  setEditingPhone(false);
+                  setTempPhone(phoneNumber);
+                }}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Phone className="h-4 w-4 text-muted-foreground" />
+                {phoneNumber ? (
+                  <span className="font-medium">{phoneNumber}</span>
+                ) : (
+                  <span className="text-muted-foreground">No phone number set</span>
+                )}
+              </div>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => {
+                  setTempPhone(phoneNumber);
+                  setEditingPhone(true);
+                }}
+              >
+                <Edit className="h-4 w-4 mr-2" />
+                {phoneNumber ? "Edit" : "Add"}
+              </Button>
+            </div>
+          )}
+          <p className="text-xs text-muted-foreground mt-3">
+            Include country code (e.g., +234 for Nigeria, +1 for US)
+          </p>
+        </CardContent>
+      </Card>
 
       <Tabs defaultValue="conditions" className="space-y-4">
         <TabsList className="grid w-full grid-cols-3">
