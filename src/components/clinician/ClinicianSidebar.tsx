@@ -7,6 +7,7 @@ import { useOfflineSync } from "@/hooks/useOfflineSync";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import {
   Sidebar,
   SidebarContent,
@@ -111,6 +112,7 @@ export function ClinicianSidebar() {
             <p className="text-xs text-muted-foreground">{t.auth.roleClinician}</p>
           </div>
         </div>
+        <ThemeToggle />
         <Button
           variant="ghost"
           size="sm"
