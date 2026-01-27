@@ -35,6 +35,7 @@ import {
   Clock,
   TestTube,
   Loader2,
+  User,
 } from "lucide-react";
 import {
   BarChart,
@@ -82,6 +83,23 @@ export function NotificationAnalyticsPage() {
   const { toast } = useToast();
   const days = timeRange === "7d" ? 7 : timeRange === "14d" ? 14 : 30;
   const startDate = startOfDay(subDays(new Date(), days - 1));
+
+  // Fetch current admin's email from their profile
+  const { data: currentUserProfile } = useQuery({
+    queryKey: ["current-user-profile"],
+    queryFn: async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return null;
+      
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("email")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      
+      return profile;
+    },
+  });
   const endDate = endOfDay(new Date());
 
   const { data: analytics, isLoading } = useQuery({
@@ -310,13 +328,29 @@ export function NotificationAnalyticsPage() {
               <div className="space-y-4 py-4">
                 <div className="space-y-2">
                   <Label htmlFor="test-email">Recipient Email</Label>
-                  <Input
-                    id="test-email"
-                    type="email"
-                    placeholder="test@example.com"
-                    value={testEmail}
-                    onChange={(e) => setTestEmail(e.target.value)}
-                  />
+                  <div className="flex gap-2">
+                    <Input
+                      id="test-email"
+                      type="email"
+                      placeholder="test@example.com"
+                      value={testEmail}
+                      onChange={(e) => setTestEmail(e.target.value)}
+                      className="flex-1"
+                    />
+                    {currentUserProfile?.email && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setTestEmail(currentUserProfile.email!)}
+                        className="shrink-0"
+                        title="Use my email"
+                      >
+                        <User className="h-4 w-4 mr-1" />
+                        My Email
+                      </Button>
+                    )}
+                  </div>
                 </div>
                 <div className="rounded-lg bg-muted p-3 text-sm text-muted-foreground">
                   <p className="font-medium mb-1">What this tests:</p>
