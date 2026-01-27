@@ -84,6 +84,9 @@ export function useCachedSymptoms(): UseCachedSymptomsResult {
 
   const refresh = useCallback(async () => {
     if (!user) return;
+    
+    // Clear current state to force re-render
+    setSymptoms([]);
     setLoading(true);
     
     if (isOnline) {
