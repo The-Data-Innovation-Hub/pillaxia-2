@@ -5,6 +5,8 @@ import { Plus, Loader2, CloudOff, RefreshCw, Camera } from "lucide-react";
 import { MedicationCard } from "./MedicationCard";
 import { AddMedicationDialog } from "./AddMedicationDialog";
 import { PhotoMedicationImport } from "./PhotoMedicationImport";
+import { RequestRefillDialog } from "./RequestRefillDialog";
+import { RefillRequestsCard } from "./RefillRequestsCard";
 import { toast } from "sonner";
 import { useCachedMedications } from "@/hooks/useCachedMedications";
 import { useOfflineStatus } from "@/hooks/useOfflineStatus";
@@ -19,12 +21,23 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
+interface MedicationForRefill {
+  id: string;
+  name: string;
+  dosage: string;
+  dosage_unit: string;
+  form: string;
+  pharmacy: string | null;
+  refills_remaining: number | null;
+}
+
 export function MedicationsPage() {
   const { medications, loading, isFromCache, refetch } = useCachedMedications();
   const { isOffline } = useOfflineStatus();
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [photoImportOpen, setPhotoImportOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [refillMedication, setRefillMedication] = useState<MedicationForRefill | null>(null);
 
   const handleDelete = async () => {
     if (!deleteId) return;
@@ -90,6 +103,9 @@ export function MedicationsPage() {
         </div>
       </div>
 
+      {/* Refill Requests Summary */}
+      <RefillRequestsCard />
+
       {medications.length === 0 ? (
         <div className="text-center py-12 bg-muted/30 rounded-lg">
           <div className="text-4xl mb-4">💊</div>
@@ -114,6 +130,20 @@ export function MedicationsPage() {
               }}
               onEdit={(id) => toast.info("Edit feature coming soon")}
               onDelete={(id) => setDeleteId(id)}
+              onRequestRefill={(id) => {
+                const medication = medications.find((m) => m.id === id);
+                if (medication) {
+                  setRefillMedication({
+                    id: medication.id,
+                    name: medication.name,
+                    dosage: medication.dosage,
+                    dosage_unit: medication.dosage_unit,
+                    form: medication.form,
+                    pharmacy: medication.pharmacy,
+                    refills_remaining: medication.refills_remaining,
+                  });
+                }
+              }}
             />
           ))}
         </div>
@@ -143,12 +173,19 @@ export function MedicationsPage() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+          <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+            Delete
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+
+      <RequestRefillDialog
+        open={!!refillMedication}
+        onOpenChange={(open) => !open && setRefillMedication(null)}
+        medication={refillMedication}
+        onSuccess={refetch}
+      />
     </div>
   );
 }
