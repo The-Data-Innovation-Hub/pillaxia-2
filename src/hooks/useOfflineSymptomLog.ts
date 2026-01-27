@@ -2,6 +2,7 @@ import { useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useOfflineStatus } from "./useOfflineStatus";
 import { offlineQueue } from "@/lib/offlineQueue";
+import { symptomCache } from "@/lib/symptomCache";
 import { toast } from "sonner";
 import { useLanguage } from "@/i18n/LanguageContext";
 
@@ -42,7 +43,7 @@ export function useOfflineSymptomLog() {
           return false;
         }
       } else {
-        // Offline: Queue the action
+        // Offline: Queue the action AND add to local cache
         try {
           const session = await supabase.auth.getSession();
           const accessToken = session.data.session?.access_token;
@@ -52,6 +53,9 @@ export function useOfflineSymptomLog() {
             return false;
           }
 
+          const localId = `pending-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+          // Add to offline queue for sync later
           await offlineQueue.addAction({
             type: "symptom_entry",
             url: `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/symptom_entries`,
@@ -63,6 +67,15 @@ export function useOfflineSymptomLog() {
               Prefer: "return=minimal",
             },
             body: insertData,
+          });
+
+          // Add to local cache for immediate display
+          await symptomCache.addPendingSymptom({
+            ...insertData,
+            recorded_at: new Date().toISOString(),
+            medications: null,
+            _localId: localId,
+            _pending: true,
           });
 
           toast.info(t.offline.symptomQueuedForSync || t.offline.queuedForSync);
