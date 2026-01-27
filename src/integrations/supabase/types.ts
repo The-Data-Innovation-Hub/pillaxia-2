@@ -98,6 +98,48 @@ export type Database = {
         }
         Relationships: []
       }
+      availability_notification_history: {
+        Row: {
+          alert_id: string
+          availability_id: string
+          channels_used: Json
+          id: string
+          notified_at: string
+          patient_user_id: string
+        }
+        Insert: {
+          alert_id: string
+          availability_id: string
+          channels_used?: Json
+          id?: string
+          notified_at?: string
+          patient_user_id: string
+        }
+        Update: {
+          alert_id?: string
+          availability_id?: string
+          channels_used?: Json
+          id?: string
+          notified_at?: string
+          patient_user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "availability_notification_history_alert_id_fkey"
+            columns: ["alert_id"]
+            isOneToOne: false
+            referencedRelation: "medication_availability_alerts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "availability_notification_history_availability_id_fkey"
+            columns: ["availability_id"]
+            isOneToOne: false
+            referencedRelation: "medication_availability"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       caregiver_invitations: {
         Row: {
           caregiver_email: string
@@ -429,6 +471,101 @@ export type Database = {
           id?: string
           recommendation?: string | null
           severity?: string
+        }
+        Relationships: []
+      }
+      medication_availability: {
+        Row: {
+          created_at: string
+          dosage: string | null
+          form: string | null
+          generic_name: string | null
+          id: string
+          is_available: boolean
+          last_updated_by: string | null
+          medication_name: string
+          notes: string | null
+          pharmacy_id: string
+          price_naira: number | null
+          quantity_available: number | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          dosage?: string | null
+          form?: string | null
+          generic_name?: string | null
+          id?: string
+          is_available?: boolean
+          last_updated_by?: string | null
+          medication_name: string
+          notes?: string | null
+          pharmacy_id: string
+          price_naira?: number | null
+          quantity_available?: number | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          dosage?: string | null
+          form?: string | null
+          generic_name?: string | null
+          id?: string
+          is_available?: boolean
+          last_updated_by?: string | null
+          medication_name?: string
+          notes?: string | null
+          pharmacy_id?: string
+          price_naira?: number | null
+          quantity_available?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "medication_availability_pharmacy_id_fkey"
+            columns: ["pharmacy_id"]
+            isOneToOne: false
+            referencedRelation: "pharmacy_locations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      medication_availability_alerts: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          medication_name: string
+          notify_email: boolean
+          notify_push: boolean
+          notify_sms: boolean
+          notify_whatsapp: boolean
+          patient_user_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          medication_name: string
+          notify_email?: boolean
+          notify_push?: boolean
+          notify_sms?: boolean
+          notify_whatsapp?: boolean
+          patient_user_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          medication_name?: string
+          notify_email?: boolean
+          notify_push?: boolean
+          notify_sms?: boolean
+          notify_whatsapp?: boolean
+          patient_user_id?: string
+          updated_at?: string
         }
         Relationships: []
       }
@@ -929,6 +1066,38 @@ export type Database = {
         }
         Relationships: []
       }
+      patient_preferred_pharmacies: {
+        Row: {
+          created_at: string
+          id: string
+          is_primary: boolean
+          patient_user_id: string
+          pharmacy_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_primary?: boolean
+          patient_user_id: string
+          pharmacy_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_primary?: boolean
+          patient_user_id?: string
+          pharmacy_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "patient_preferred_pharmacies_pharmacy_id_fkey"
+            columns: ["pharmacy_id"]
+            isOneToOne: false
+            referencedRelation: "pharmacy_locations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       patient_risk_flags: {
         Row: {
           clinician_user_id: string
@@ -973,6 +1142,54 @@ export type Database = {
           resolved_at?: string | null
           resolved_by?: string | null
           severity?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      pharmacy_locations: {
+        Row: {
+          address_line1: string
+          address_line2: string | null
+          city: string
+          country: string
+          created_at: string
+          email: string | null
+          id: string
+          is_active: boolean
+          name: string
+          pharmacist_user_id: string
+          phone: string | null
+          state: string
+          updated_at: string
+        }
+        Insert: {
+          address_line1: string
+          address_line2?: string | null
+          city: string
+          country?: string
+          created_at?: string
+          email?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          pharmacist_user_id: string
+          phone?: string | null
+          state: string
+          updated_at?: string
+        }
+        Update: {
+          address_line1?: string
+          address_line2?: string | null
+          city?: string
+          country?: string
+          created_at?: string
+          email?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          pharmacist_user_id?: string
+          phone?: string | null
+          state?: string
           updated_at?: string
         }
         Relationships: []

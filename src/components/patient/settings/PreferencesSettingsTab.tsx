@@ -8,6 +8,7 @@ import { useOfflineStatus } from "@/hooks/useOfflineStatus";
 import { AutoResolutionSettingsCard } from "@/components/patient/AutoResolutionSettingsCard";
 import { TimezoneSelector } from "@/components/patient/TimezoneSelector";
 import { NotificationSchedulingCard } from "@/components/patient/NotificationSchedulingCard";
+import { PharmacyPreferencesCard } from "@/components/patient/PharmacyPreferencesCard";
 import { medicationCache, scheduleCache, symptomCache } from "@/lib/cache";
 import {
   Card,
@@ -295,6 +296,9 @@ export function PreferencesSettingsTab() {
 
       {/* Notification Scheduling */}
       <NotificationSchedulingCard />
+
+      {/* Pharmacy Preferences - Nigeria Availability Alerts */}
+      <PharmacyPreferencesCard />
     </div>
   );
 }

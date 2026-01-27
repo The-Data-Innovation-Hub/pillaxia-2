@@ -98,3 +98,6 @@ verify_jwt = false
 
 [functions.send-refill-request-notification]
 verify_jwt = false
+
+[functions.send-availability-alert]
+verify_jwt = false
