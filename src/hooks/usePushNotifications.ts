@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { Capacitor } from "@capacitor/core";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/hooks/use-toast";
@@ -31,10 +32,18 @@ export function usePushNotifications() {
     permission: "default",
   });
 
-  // Check if push notifications are supported
+  // Check if push notifications are supported (only on web, not in Capacitor native)
   const checkSupport = useCallback(() => {
+    // Skip web push entirely on native platforms - they use native push instead
+    if (Capacitor.isNativePlatform()) {
+      return false;
+    }
+    
+    // Check for web push support (these APIs don't exist in WKWebView/Android WebView)
     const isSupported =
+      typeof navigator !== "undefined" &&
       "serviceWorker" in navigator &&
+      typeof window !== "undefined" &&
       "PushManager" in window &&
       "Notification" in window;
     
@@ -52,19 +61,27 @@ export function usePushNotifications() {
       const registration = await navigator.serviceWorker.ready;
       const subscription = await registration.pushManager.getSubscription();
 
+      // Safely access Notification.permission (may not exist in all WebViews)
+      const permission = typeof Notification !== "undefined" 
+        ? Notification.permission 
+        : "default";
+
       setState({
         isSupported: true,
         isSubscribed: !!subscription,
         isLoading: false,
-        permission: Notification.permission,
+        permission,
       });
     } catch (error) {
       console.error("Error checking push subscription:", error);
+      const permission = typeof Notification !== "undefined" 
+        ? Notification.permission 
+        : "default";
       setState((prev) => ({
         ...prev,
         isSupported: true,
         isLoading: false,
-        permission: Notification.permission,
+        permission,
       }));
     }
   }, [checkSupport, user]);
@@ -220,8 +237,8 @@ export function usePushNotifications() {
     const isSupported = checkSupport();
     setState((prev) => ({ ...prev, isSupported }));
 
-    if (isSupported && user) {
-      // Register service worker
+    if (isSupported && user && typeof navigator !== "undefined" && "serviceWorker" in navigator) {
+      // Register service worker (only on web platforms with support)
       navigator.serviceWorker
         .register("/sw.js")
         .then(() => checkSubscription())
