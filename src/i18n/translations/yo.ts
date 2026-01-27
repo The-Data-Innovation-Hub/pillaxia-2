@@ -240,5 +240,10 @@ export const yo: Translations = {
     syncNow: "Muuṣiṣẹpọ Bayi",
     doseTakenOffline: "A ti gbasilẹ iwọn lilo ita ayelujara",
     doseSkippedOffline: "A fo iwọn lilo kọja (ita ayelujara)",
+    online: "Lori ayelujara",
+    offlineMode: "Ipo Aisinipo",
+    changesWaiting: "awọn ayipada ti nduro lati muṣiṣẹpọ",
+    lastSynced: "Muṣiṣẹpọ kẹhin",
+    neverSynced: "Ko tii muṣiṣẹpọ rara",
   },
 };

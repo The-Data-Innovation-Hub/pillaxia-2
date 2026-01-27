@@ -10,6 +10,7 @@ import { useNavigate } from "react-router-dom";
 import { CaregiverInvitationsReceived } from "./CaregiverInvitationsReceived";
 import { PatientMessagesCard } from "./PatientMessagesCard";
 import { ClinicianMessagesCard } from "./ClinicianMessagesCard";
+import { OfflineSyncIndicator } from "./OfflineSyncIndicator";
 
 interface DashboardStats {
   totalMedications: number;
@@ -96,6 +97,9 @@ export function PatientDashboardHome() {
 
   return (
     <div className="space-y-6">
+      {/* Sync Status Indicator */}
+      <OfflineSyncIndicator onSyncComplete={fetchStats} />
+
       {/* Caregiver Invitations (if any) */}
       <CaregiverInvitationsReceived />
 
