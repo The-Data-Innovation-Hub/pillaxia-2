@@ -17,3 +17,6 @@ verify_jwt = false
 
 [functions.send-missed-dose-alerts]
 verify_jwt = false
+
+[functions.check-missed-doses]
+verify_jwt = false
