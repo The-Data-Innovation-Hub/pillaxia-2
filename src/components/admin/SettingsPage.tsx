@@ -29,6 +29,8 @@ import {
   AlertTriangle,
   Heart,
   Clock,
+  BellRing,
+  Send,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
@@ -64,6 +66,8 @@ const NOTIFICATION_CONFIG = {
 export function SettingsPage() {
   const [testingWhatsApp, setTestingWhatsApp] = useState(false);
   const [testingEmail, setTestingEmail] = useState(false);
+  const [testingPush, setTestingPush] = useState(false);
+  const [pushTestUserId, setPushTestUserId] = useState("");
   const queryClient = useQueryClient();
   const { user } = useAuth();
 
@@ -175,6 +179,46 @@ export function SettingsPage() {
       });
     } finally {
       setTestingEmail(false);
+    }
+  };
+
+  const handleTestPush = async () => {
+    const targetUserId = pushTestUserId.trim() || user?.id;
+    if (!targetUserId) {
+      toast.error("No user ID", { description: "Please enter a user ID or log in." });
+      return;
+    }
+
+    setTestingPush(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("send-push-notification", {
+        body: {
+          user_ids: [targetUserId],
+          payload: {
+            title: "🔔 Test Push Notification",
+            body: "This is a test push notification from Pillaxia Admin!",
+            tag: "admin-test",
+            data: { url: "/dashboard" },
+          },
+        },
+      });
+
+      if (error) throw error;
+
+      if (data?.sent === 0) {
+        toast.info("No subscriptions found", {
+          description: "The user hasn't enabled push notifications yet. They need to enable it in their Settings page.",
+        });
+      } else if (data?.sent > 0) {
+        toast.success(`Push notification sent!`, {
+          description: `Successfully sent to ${data.sent} device(s).`,
+        });
+      }
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      toast.error("Test failed", { description: message });
+    } finally {
+      setTestingPush(false);
     }
   };
 
@@ -350,6 +394,75 @@ export function SettingsPage() {
                   </a>
                 </Button>
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Push Notifications */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-purple-500/10">
+                    <BellRing className="h-5 w-5 text-purple-600" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-lg">Web Push Notifications</CardTitle>
+                    <CardDescription>
+                      Send browser push notifications to users
+                    </CardDescription>
+                  </div>
+                </div>
+                <Badge variant="default" className="bg-green-600">
+                  <CheckCircle2 className="h-3 w-3 mr-1" />
+                  Configured
+                </Badge>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <Alert>
+                <Info className="h-4 w-4" />
+                <AlertTitle>How Push Notifications Work</AlertTitle>
+                <AlertDescription>
+                  Users must enable push notifications in their Settings page. Once enabled, 
+                  they will receive alerts for medication reminders, missed doses, and caregiver messages.
+                </AlertDescription>
+              </Alert>
+
+              <div className="space-y-3 rounded-lg border p-4 bg-muted/30">
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Test Push Notification</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Send a test notification to verify the push system is working.
+                    Leave user ID empty to send to yourself.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Input
+                    placeholder="User ID (optional, defaults to you)"
+                    value={pushTestUserId}
+                    onChange={(e) => setPushTestUserId(e.target.value)}
+                    className="flex-1"
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleTestPush}
+                    disabled={testingPush}
+                  >
+                    {testingPush ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <Send className="h-4 w-4 mr-2" />
+                    )}
+                    Send Test
+                  </Button>
+                </div>
+              </div>
+
+              <p className="text-xs text-muted-foreground">
+                <strong>Note:</strong> To receive test notifications, first enable push notifications 
+                by logging in as a patient and going to Settings → Push Notifications → Enable.
+              </p>
             </CardContent>
           </Card>
         </TabsContent>
