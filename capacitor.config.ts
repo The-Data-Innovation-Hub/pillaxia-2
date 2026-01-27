@@ -4,10 +4,11 @@ const config: CapacitorConfig = {
   appId: 'com.pillaxia.app',
   appName: 'Pillaxia',
   webDir: 'dist',
-  server: {
-    url: 'https://8333c041-bf59-48ac-a717-3597c3a11358.lovableproject.com?forceHideBadge=true',
-    cleartext: true
-  },
+  // Hot-reload config (uncomment for development, comment for native testing)
+  // server: {
+  //   url: 'https://8333c041-bf59-48ac-a717-3597c3a11358.lovableproject.com?forceHideBadge=true',
+  //   cleartext: true
+  // },
   plugins: {
     PushNotifications: {
       presentationOptions: ['badge', 'sound', 'alert']
