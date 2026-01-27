@@ -316,6 +316,54 @@ export type Database = {
         }
         Relationships: []
       }
+      patient_notification_preferences: {
+        Row: {
+          created_at: string
+          email_encouragements: boolean
+          email_missed_alerts: boolean
+          email_reminders: boolean
+          id: string
+          in_app_encouragements: boolean
+          in_app_missed_alerts: boolean
+          in_app_reminders: boolean
+          quiet_hours_enabled: boolean
+          quiet_hours_end: string | null
+          quiet_hours_start: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          email_encouragements?: boolean
+          email_missed_alerts?: boolean
+          email_reminders?: boolean
+          id?: string
+          in_app_encouragements?: boolean
+          in_app_missed_alerts?: boolean
+          in_app_reminders?: boolean
+          quiet_hours_enabled?: boolean
+          quiet_hours_end?: string | null
+          quiet_hours_start?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          email_encouragements?: boolean
+          email_missed_alerts?: boolean
+          email_reminders?: boolean
+          id?: string
+          in_app_encouragements?: boolean
+          in_app_missed_alerts?: boolean
+          in_app_reminders?: boolean
+          quiet_hours_enabled?: boolean
+          quiet_hours_end?: string | null
+          quiet_hours_start?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null

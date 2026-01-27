@@ -17,6 +17,7 @@ import {
   CaregiversPage,
   CaregiverDashboardPage,
   CaregiverNotificationHistoryPage,
+  PatientSettingsPage,
 } from "@/components/patient";
 import {
   ClinicianLayout,
@@ -147,7 +148,9 @@ const App = () => (
               <Route path="users" element={<UserManagementPage />} />
               <Route path="analytics" element={<SystemAnalyticsPage />} />
               <Route path="audit-logs" element={<AuditLogPage />} />
-              <Route path="settings" element={<SettingsPage />} />
+              <Route path="admin-settings" element={<SettingsPage />} />
+              {/* Patient Settings */}
+              <Route path="settings" element={<PatientSettingsPage />} />
             </Route>
             
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
