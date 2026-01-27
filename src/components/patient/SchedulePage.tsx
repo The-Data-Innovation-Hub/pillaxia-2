@@ -1,12 +1,16 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Loader2, RefreshCw, Calendar } from "lucide-react";
 import { TodayScheduleCard } from "./TodayScheduleCard";
+import { OfflineSyncIndicator } from "./OfflineSyncIndicator";
 import { format, startOfDay, endOfDay } from "date-fns";
 import { toast } from "sonner";
+import { useOfflineMedicationLog } from "@/hooks/useOfflineMedicationLog";
+import { useOfflineSync } from "@/hooks/useOfflineSync";
+import { useLanguage } from "@/i18n/LanguageContext";
 
 interface MedicationLog {
   id: string;
@@ -27,17 +31,13 @@ interface MedicationLog {
 
 export function SchedulePage() {
   const { user } = useAuth();
+  const { t } = useLanguage();
   const [logs, setLogs] = useState<MedicationLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
+  const { logMedication, isOnline } = useOfflineMedicationLog();
 
-  useEffect(() => {
-    if (user) {
-      fetchTodaysLogs();
-    }
-  }, [user]);
-
-  const fetchTodaysLogs = async () => {
+  const fetchTodaysLogs = useCallback(async () => {
     if (!user) return;
 
     try {
@@ -64,10 +64,18 @@ export function SchedulePage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user]);
+
+  // Auto-sync hook
+  useOfflineSync(fetchTodaysLogs);
+
+  useEffect(() => {
+    if (user) {
+      fetchTodaysLogs();
+    }
+  }, [user, fetchTodaysLogs]);
 
   const generateTodaysLogs = async () => {
-    if (!user) return;
 
     setGenerating(true);
     try {
@@ -144,37 +152,44 @@ export function SchedulePage() {
   };
 
   const handleTakeDose = async (logId: string) => {
-    try {
-      const { error } = await supabase
-        .from("medication_logs")
-        .update({ 
-          status: "taken", 
-          taken_at: new Date().toISOString() 
-        })
-        .eq("id", logId);
+    // Optimistic update for better UX
+    setLogs(prev => prev.map(log => 
+      log.id === logId 
+        ? { ...log, status: "taken", taken_at: new Date().toISOString() }
+        : log
+    ));
 
-      if (error) throw error;
-      toast.success("Dose marked as taken! 💊");
+    const success = await logMedication({ logId, status: "taken" });
+    
+    if (success) {
+      if (isOnline) {
+        toast.success(t.schedule.taken + "! 💊");
+      } else {
+        toast.info(t.offline.doseTakenOffline);
+      }
+    } else {
+      // Revert optimistic update on failure
       fetchTodaysLogs();
-    } catch (error) {
-      console.error("Error updating log:", error);
-      toast.error("Failed to update");
     }
   };
 
   const handleSkipDose = async (logId: string) => {
-    try {
-      const { error } = await supabase
-        .from("medication_logs")
-        .update({ status: "skipped" })
-        .eq("id", logId);
+    // Optimistic update
+    setLogs(prev => prev.map(log => 
+      log.id === logId ? { ...log, status: "skipped" } : log
+    ));
 
-      if (error) throw error;
-      toast.info("Dose skipped");
+    const success = await logMedication({ logId, status: "skipped" });
+    
+    if (success) {
+      if (isOnline) {
+        toast.info(t.schedule.skipped);
+      } else {
+        toast.info(t.offline.doseSkippedOffline);
+      }
+    } else {
+      // Revert optimistic update on failure
       fetchTodaysLogs();
-    } catch (error) {
-      console.error("Error updating log:", error);
-      toast.error("Failed to update");
     }
   };
 
@@ -193,19 +208,22 @@ export function SchedulePage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Today's Schedule</h1>
+          <h1 className="text-2xl font-bold">{t.schedule.title}</h1>
           <p className="text-muted-foreground">
             {format(new Date(), "EEEE, MMMM d, yyyy")}
           </p>
         </div>
-        <Button onClick={generateTodaysLogs} disabled={generating}>
-          {generating ? (
-            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-          ) : (
-            <RefreshCw className="h-4 w-4 mr-2" />
-          )}
-          Refresh Schedule
-        </Button>
+        <div className="flex items-center gap-4">
+          <OfflineSyncIndicator onSyncComplete={fetchTodaysLogs} />
+          <Button onClick={generateTodaysLogs} disabled={generating || !isOnline}>
+            {generating ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <RefreshCw className="h-4 w-4 mr-2" />
+            )}
+            {t.common.loading.includes("...") ? "Refresh" : "Refresh Schedule"}
+          </Button>
+        </div>
       </div>
 
       {/* Summary */}
@@ -221,8 +239,8 @@ export function SchedulePage() {
         <Card>
           <CardContent className="pt-4">
             <div className="text-center">
-              <div className="text-3xl font-bold text-amber-500">{pendingCount}</div>
-              <p className="text-sm text-muted-foreground">Pending</p>
+              <div className="text-3xl font-bold text-warning">{pendingCount}</div>
+              <p className="text-sm text-muted-foreground">{t.schedule.pending}</p>
             </div>
           </CardContent>
         </Card>
