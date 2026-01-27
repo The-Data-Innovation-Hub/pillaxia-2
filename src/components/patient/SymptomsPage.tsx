@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2, Plus, Trash2, CloudOff, RefreshCw, Clock } from "lucide-react";
 import { format } from "date-fns";
 import { SymptomEntryDialog } from "./SymptomEntryDialog";
+import { SymptomTrendsChart } from "./SymptomTrendsChart";
 import { OfflineSyncIndicator } from "./OfflineSyncIndicator";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -89,6 +90,9 @@ export function SymptomsPage() {
         </div>
       </div>
 
+      {/* Trends Chart */}
+      <SymptomTrendsChart symptoms={symptoms} />
+
       {symptoms.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center">
@@ -105,6 +109,7 @@ export function SymptomsPage() {
         </Card>
       ) : (
         <div className="space-y-3">
+          <h2 className="text-lg font-semibold">Recent Entries</h2>
           {symptoms.map((symptom) => (
             <Card 
               key={symptom.id} 
