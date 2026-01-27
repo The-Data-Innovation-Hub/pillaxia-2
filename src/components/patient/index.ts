@@ -21,3 +21,6 @@ export { ClinicianMessagesCard } from "./ClinicianMessagesCard";
 export { PatientSettingsPage } from "./PatientSettingsPage";
 export { NotificationHistoryPage } from "./NotificationHistoryPage";
 export { SyncStatusPage } from "./SyncStatusPage";
+export { HealthProfilePage } from "./HealthProfilePage";
+export { PhotoMedicationImport } from "./PhotoMedicationImport";
+export { DrugInteractionWarning } from "./DrugInteractionWarning";

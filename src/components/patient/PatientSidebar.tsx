@@ -43,6 +43,7 @@ export function PatientSidebar() {
     { title: t.medications.title, url: "/dashboard/medications", icon: Pill },
     { title: t.schedule.title, url: "/dashboard/schedule", icon: Calendar },
     { title: t.symptoms.title, url: "/dashboard/symptoms", icon: ClipboardList },
+    { title: "Health Profile", url: "/dashboard/health-profile", icon: Heart },
     { title: t.caregivers.title, url: "/dashboard/caregivers", icon: Users },
     { title: t.notifications.title, url: "/dashboard/notifications", icon: Bell },
     { title: t.angela.title, url: "/dashboard/angela", icon: Bot },
@@ -54,7 +55,7 @@ export function PatientSidebar() {
   ];
 
   const menuItems = hasCaregiverRelationships
-    ? [...baseMenuItems.slice(0, 5), ...caregiverMenuItems, baseMenuItems[5], baseMenuItems[6]]
+    ? [...baseMenuItems.slice(0, 6), ...caregiverMenuItems, baseMenuItems[6], baseMenuItems[7]]
     : baseMenuItems;
 
   return (
