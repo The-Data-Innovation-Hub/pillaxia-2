@@ -341,6 +341,7 @@ serve(async (req) => {
 
     // Also send push notification to all caregivers
     if (caregiverIds.length > 0) {
+      // Send web push notification
       try {
         await supabase.functions.invoke("send-push-notification", {
           body: {
@@ -354,9 +355,28 @@ serve(async (req) => {
             },
           },
         });
-        console.log("Push notifications sent to caregivers");
+        console.log("Web push notifications sent to caregivers");
       } catch (pushError) {
-        console.error("Failed to send push notifications:", pushError);
+        console.error("Failed to send web push notifications:", pushError);
+      }
+
+      // Send native iOS push notification
+      try {
+        await supabase.functions.invoke("send-native-push", {
+          body: {
+            user_ids: caregiverIds,
+            payload: {
+              title: "⚠️ Missed Dose Alert",
+              body: `${patientName} missed ${medicationName} at ${formattedTime}`,
+              badge: 1,
+              sound: "default",
+              data: { url: "/dashboard/caregiver/notifications" },
+            },
+          },
+        });
+        console.log("Native iOS push notifications sent to caregivers");
+      } catch (nativePushError) {
+        console.error("Failed to send native iOS push notifications:", nativePushError);
       }
     }
 
