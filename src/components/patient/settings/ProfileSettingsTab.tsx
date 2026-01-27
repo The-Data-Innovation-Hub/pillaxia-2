@@ -27,6 +27,7 @@ import {
   X,
   Mail,
   Building2,
+  BadgeCheck,
 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
@@ -35,6 +36,7 @@ interface ProfileData {
   last_name: string;
   phone: string;
   organization: string;
+  license_number: string;
   avatar_url: string;
   address_line1: string;
   address_line2: string;
@@ -53,6 +55,7 @@ export function ProfileSettingsTab() {
     last_name: "",
     phone: "",
     organization: "",
+    license_number: "",
     avatar_url: "",
     address_line1: "",
     address_line2: "",
@@ -105,6 +108,7 @@ export function ProfileSettingsTab() {
           last_name: data.last_name || "",
           phone: data.phone || "",
           organization: data.organization || "",
+          license_number: data.license_number || "",
           avatar_url: data.avatar_url || "",
           address_line1: data.address_line1 || "",
           address_line2: data.address_line2 || "",
@@ -130,6 +134,7 @@ export function ProfileSettingsTab() {
           last_name: data.last_name,
           phone: data.phone,
           organization: data.organization,
+          license_number: data.license_number,
           avatar_url: data.avatar_url,
           address_line1: data.address_line1,
           address_line2: data.address_line2,
@@ -554,6 +559,25 @@ export function ProfileSettingsTab() {
             />
             <p className="text-xs text-muted-foreground">
               Your affiliated healthcare organization or pharmacy
+            </p>
+          </div>
+
+          {/* License Number */}
+          <div className="space-y-2">
+            <Label htmlFor="license_number" className="flex items-center gap-2">
+              <BadgeCheck className="h-4 w-4" />
+              License Number
+            </Label>
+            <Input
+              id="license_number"
+              placeholder="e.g., MD12345678"
+              value={profileData.license_number}
+              onChange={(e) =>
+                setProfileData({ ...profileData, license_number: e.target.value })
+              }
+            />
+            <p className="text-xs text-muted-foreground">
+              Your medical or pharmacy license number for credential tracking
             </p>
           </div>
 
