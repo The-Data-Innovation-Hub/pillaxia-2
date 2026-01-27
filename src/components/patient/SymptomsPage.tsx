@@ -1,8 +1,8 @@
-// Force module refresh - v2
-import { useState } from "react";
+// Force module refresh - v3
+import { useState, useMemo } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Plus, Trash2, CloudOff, RefreshCw, Clock } from "lucide-react";
@@ -10,6 +10,12 @@ import { format } from "date-fns";
 import { SymptomEntryDialog } from "./SymptomEntryDialog";
 import { SymptomTrendsChart } from "./SymptomTrendsChart";
 import { OfflineSyncIndicator } from "./OfflineSyncIndicator";
+import {
+  SymptomFiltersPanel,
+  applySymptomFilters,
+  DEFAULT_FILTERS,
+  type SymptomFilters,
+} from "./SymptomFilters";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useCachedSymptoms } from "@/hooks/useCachedSymptoms";
@@ -20,6 +26,13 @@ export function SymptomsPage() {
   const { isOnline } = useOfflineStatus();
   const { symptoms, loading, isFromCache, refresh, hasPending } = useCachedSymptoms();
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [filters, setFilters] = useState<SymptomFilters>(DEFAULT_FILTERS);
+
+  // Apply filters to symptoms
+  const filteredSymptoms = useMemo(
+    () => applySymptomFilters(symptoms, filters),
+    [symptoms, filters]
+  );
 
   const handleDelete = async (id: string) => {
     // Don't allow deleting pending entries that haven't synced
@@ -90,10 +103,32 @@ export function SymptomsPage() {
         </div>
       </div>
 
-      {/* Trends Chart - only show when we have symptoms */}
-      {symptoms.length > 0 && <SymptomTrendsChart symptoms={symptoms} />}
+      {/* Filters Panel */}
+      {symptoms.length > 0 && (
+        <SymptomFiltersPanel
+          symptoms={symptoms}
+          filters={filters}
+          onFiltersChange={setFilters}
+        />
+      )}
 
-      {symptoms.length === 0 ? (
+      {/* Trends Chart - only show when we have filtered symptoms */}
+      {filteredSymptoms.length > 0 && <SymptomTrendsChart symptoms={filteredSymptoms} />}
+
+      {filteredSymptoms.length === 0 && symptoms.length > 0 ? (
+        <Card>
+          <CardContent className="py-12 text-center">
+            <div className="text-4xl mb-4">🔍</div>
+            <h3 className="text-lg font-medium mb-2">No symptoms match filters</h3>
+            <p className="text-muted-foreground mb-4">
+              Try adjusting your filter criteria
+            </p>
+            <Button variant="outline" onClick={() => setFilters(DEFAULT_FILTERS)}>
+              Clear Filters
+            </Button>
+          </CardContent>
+        </Card>
+      ) : symptoms.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center">
             <div className="text-4xl mb-4">📋</div>
@@ -109,8 +144,12 @@ export function SymptomsPage() {
         </Card>
       ) : (
         <div className="space-y-3">
-          <h2 className="text-lg font-semibold">Recent Entries</h2>
-          {symptoms.map((symptom) => (
+          <h2 className="text-lg font-semibold">
+            {filters.dateFrom || filters.dateTo || filters.symptomType || filters.medicationId || filters.severityRange[0] !== 1 || filters.severityRange[1] !== 10
+              ? `Filtered Entries (${filteredSymptoms.length})`
+              : "Recent Entries"}
+          </h2>
+          {filteredSymptoms.map((symptom) => (
             <Card 
               key={symptom.id} 
               className={cn(
