@@ -180,6 +180,7 @@ Deno.serve(async (req: Request) => {
     console.log(`Sending reminders to ${dosesByUser.size} users`);
 
     const emailResults: { userId: string; email: string; success: boolean; result?: unknown; error?: string; skipped?: string }[] = [];
+    const smsResults: { userId: string; success: boolean; error?: string; skipped?: string }[] = [];
 
     for (const [userId, userDoses] of dosesByUser) {
       // Check patient notification preferences
@@ -351,18 +352,34 @@ Deno.serve(async (req: Request) => {
 
         // Send SMS notification if sms_reminders is enabled
         if (!prefs || prefs.sms_reminders) {
-          const smsMessage = `Pillaxia Reminder: Time to take ${medNames}. ${userDoses.length} dose${userDoses.length > 1 ? "s" : ""} scheduled now.`;
-          
-          await supabase.functions.invoke("send-sms-notification", {
-            body: {
-              user_id: userId,
-              message: smsMessage,
-              notification_type: "medication_reminder",
-              metadata: { dose_count: userDoses.length },
-            },
-          });
-          
-          console.log(`SMS reminder sent to user ${userId}`);
+          try {
+            const smsMessage = `Pillaxia Reminder: Time to take ${medNames}. ${userDoses.length} dose${userDoses.length > 1 ? "s" : ""} scheduled now.`;
+            
+            const { data: smsData, error: smsError } = await supabase.functions.invoke("send-sms-notification", {
+              body: {
+                user_id: userId,
+                message: smsMessage,
+                notification_type: "medication_reminder",
+                metadata: { dose_count: userDoses.length },
+              },
+            });
+
+            if (smsError) {
+              console.error(`SMS error for user ${userId}:`, smsError);
+              smsResults.push({ userId, success: false, error: String(smsError) });
+            } else if (smsData?.skipped) {
+              console.log(`SMS skipped for user ${userId}: ${smsData.error || "no phone"}`);
+              smsResults.push({ userId, success: true, skipped: smsData.error });
+            } else {
+              console.log(`SMS reminder sent to user ${userId}`);
+              smsResults.push({ userId, success: true });
+            }
+          } catch (smsErr) {
+            console.error(`SMS exception for user ${userId}:`, smsErr);
+            smsResults.push({ userId, success: false, error: String(smsErr) });
+          }
+        } else {
+          smsResults.push({ userId, success: true, skipped: "sms_reminders_disabled" });
         }
       } catch (emailError) {
         console.error(`Failed to send email to ${profile.email}:`, emailError);
@@ -384,12 +401,17 @@ Deno.serve(async (req: Request) => {
 
     const successCount = emailResults.filter((r) => r.success && !r.skipped).length;
     const skippedCount = emailResults.filter((r) => r.skipped).length;
-    console.log(`Sent ${successCount}/${emailResults.length} reminder emails, ${skippedCount} skipped due to preferences`);
+    const smsSuccessCount = smsResults.filter((r) => r.success && !r.skipped).length;
+    const smsSkippedCount = smsResults.filter((r) => r.skipped).length;
+    
+    console.log(`Sent ${successCount}/${emailResults.length} reminder emails, ${skippedCount} skipped`);
+    console.log(`Sent ${smsSuccessCount}/${smsResults.length} reminder SMS, ${smsSkippedCount} skipped`);
 
     return new Response(
       JSON.stringify({
-        message: `Processed ${doses.length} doses, sent ${successCount} emails, ${skippedCount} skipped`,
-        results: emailResults,
+        message: `Processed ${doses.length} doses, sent ${successCount} emails, ${smsSuccessCount} SMS`,
+        emailResults,
+        smsResults,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
