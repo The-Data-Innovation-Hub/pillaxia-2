@@ -74,23 +74,40 @@ export function ProfileSettingsTab() {
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Load profile data on mount
+  // Load profile data on mount - need to fetch full profile with address fields
   useEffect(() => {
-    if (profile) {
-      setProfileData({
-        first_name: profile.first_name || "",
-        last_name: profile.last_name || "",
-        phone: profile.phone || "",
-        avatar_url: profile.avatar_url || "",
-        address_line1: "",
-        address_line2: "",
-        city: "",
-        state: "",
-        postal_code: "",
-        country: "",
-      });
-    }
-  }, [profile]);
+    const loadFullProfile = async () => {
+      if (!user) return;
+      
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      
+      if (error) {
+        console.error("Error loading profile:", error);
+        return;
+      }
+      
+      if (data) {
+        setProfileData({
+          first_name: data.first_name || "",
+          last_name: data.last_name || "",
+          phone: data.phone || "",
+          avatar_url: data.avatar_url || "",
+          address_line1: data.address_line1 || "",
+          address_line2: data.address_line2 || "",
+          city: data.city || "",
+          state: data.state || "",
+          postal_code: data.postal_code || "",
+          country: data.country || "",
+        });
+      }
+    };
+    
+    loadFullProfile();
+  }, [user]);
 
   const updateProfileMutation = useMutation({
     mutationFn: async (data: Partial<ProfileData>) => {
@@ -103,6 +120,12 @@ export function ProfileSettingsTab() {
           last_name: data.last_name,
           phone: data.phone,
           avatar_url: data.avatar_url,
+          address_line1: data.address_line1,
+          address_line2: data.address_line2,
+          city: data.city,
+          state: data.state,
+          postal_code: data.postal_code,
+          country: data.country,
         })
         .eq("user_id", user.id);
       
@@ -536,9 +559,10 @@ export function ProfileSettingsTab() {
             </div>
           </div>
 
-          <p className="text-sm text-muted-foreground">
-            Address storage coming soon. Changes here are not yet saved.
-          </p>
+          <Button onClick={handleSaveProfile} disabled={savingProfile}>
+            {savingProfile && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+            Save Address
+          </Button>
         </CardContent>
       </Card>
 
