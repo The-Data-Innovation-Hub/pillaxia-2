@@ -8,6 +8,8 @@ import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { RedFlagAlertsCard } from "./RedFlagAlertsCard";
 import { PolypharmacyWarningsCard } from "./PolypharmacyWarningsCard";
+import { PatientRiskFlagsCard } from "./PatientRiskFlagsCard";
+
 export function ClinicianDashboardHome() {
   const { user } = useAuth();
 
@@ -140,6 +142,9 @@ export function ClinicianDashboardHome() {
           </Card>
         ))}
       </div>
+
+      {/* Risk Flags Card */}
+      <PatientRiskFlagsCard />
 
       {/* Alert Cards */}
       <div className="grid gap-4 md:grid-cols-2">
