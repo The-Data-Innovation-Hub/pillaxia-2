@@ -1,4 +1,4 @@
-import { LayoutDashboard, FileText, Package, RefreshCw, LogOut } from "lucide-react";
+import { LayoutDashboard, FileText, Package, RefreshCw, LogOut, Bell } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -20,6 +20,7 @@ const menuItems = [
   { title: "Prescriptions", url: "/dashboard/prescriptions", icon: FileText },
   { title: "Inventory", url: "/dashboard/inventory", icon: Package },
   { title: "Refill Requests", url: "/dashboard/refills", icon: RefreshCw },
+  { title: "Notifications", url: "/dashboard/notifications", icon: Bell },
 ];
 
 export function PharmacistSidebar() {
