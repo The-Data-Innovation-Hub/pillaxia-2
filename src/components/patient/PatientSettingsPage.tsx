@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useLanguage } from "@/i18n/LanguageContext";
 import { toast } from "@/hooks/use-toast";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { PushDebugPanel } from "@/components/patient/PushDebugPanel";
@@ -21,6 +22,13 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Bell,
   BellRing,
   Mail,
@@ -34,6 +42,7 @@ import {
   Send,
   Stethoscope,
   MessageSquare,
+  Globe,
 } from "lucide-react";
 
 interface NotificationPreferences {
@@ -70,6 +79,7 @@ const DEFAULT_PREFERENCES: Omit<NotificationPreferences, "id" | "user_id"> = {
 
 export function PatientSettingsPage() {
   const { user } = useAuth();
+  const { t, language, setLanguage, languages, isLoading: langLoading } = useLanguage();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const pushNotifications = usePushNotifications();
@@ -256,11 +266,55 @@ export function PatientSettingsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Settings</h1>
+        <h1 className="text-2xl font-bold">{t.settings.title}</h1>
         <p className="text-muted-foreground">
-          Manage how you receive notifications and reminders
+          {t.settings.subtitle}
         </p>
       </div>
+
+      {/* Language Settings */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Globe className="h-5 w-5 text-primary" />
+            {t.settings.language}
+          </CardTitle>
+          <CardDescription>
+            {t.settings.languageSubtitle}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Globe className="h-4 w-4 text-muted-foreground" />
+              <div>
+                <Label className="font-medium">{t.settings.language}</Label>
+                <p className="text-sm text-muted-foreground">
+                  {t.settings.languageSubtitle}
+                </p>
+              </div>
+            </div>
+            <Select
+              value={language}
+              onValueChange={(value) => setLanguage(value as any)}
+              disabled={langLoading}
+            >
+              <SelectTrigger className="w-48">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="bg-background border z-50">
+                {languages.map((lang) => (
+                  <SelectItem key={lang.code} value={lang.code}>
+                    <span className="flex flex-col">
+                      <span>{lang.nativeName}</span>
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Push Notifications */}
       <Card>

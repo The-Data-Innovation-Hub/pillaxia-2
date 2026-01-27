@@ -1,6 +1,7 @@
 import { Users, Pill, Activity, LayoutDashboard, LogOut, Heart, History, Bell } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/contexts/AuthContext";
+import { useLanguage } from "@/i18n/LanguageContext";
 import { useHasCaregiverRelationships } from "@/hooks/useHasCaregiverRelationships";
 import { Button } from "@/components/ui/button";
 import {
@@ -16,22 +17,23 @@ import {
   SidebarHeader,
 } from "@/components/ui/sidebar";
 
-const baseMenuItems = [
-  { title: "Overview", url: "/dashboard", icon: LayoutDashboard },
-  { title: "Patient Roster", url: "/dashboard/patients", icon: Users },
-  { title: "Medication Review", url: "/dashboard/medications", icon: Pill },
-  { title: "Adherence Monitor", url: "/dashboard/adherence", icon: Activity },
-  { title: "Notifications", url: "/dashboard/notifications", icon: Bell },
-];
-
-const caregiverMenuItems = [
-  { title: "Caregiver View", url: "/dashboard/caregiver-view", icon: Heart },
-  { title: "Alert History", url: "/dashboard/caregiver-history", icon: History },
-];
-
 export function ClinicianSidebar() {
   const { signOut, profile } = useAuth();
+  const { t } = useLanguage();
   const { data: hasCaregiverRelationships } = useHasCaregiverRelationships();
+
+  const baseMenuItems = [
+    { title: t.dashboard.overview, url: "/dashboard", icon: LayoutDashboard },
+    { title: "Patient Roster", url: "/dashboard/patients", icon: Users },
+    { title: "Medication Review", url: "/dashboard/medications", icon: Pill },
+    { title: "Adherence Monitor", url: "/dashboard/adherence", icon: Activity },
+    { title: t.notifications.title, url: "/dashboard/notifications", icon: Bell },
+  ];
+
+  const caregiverMenuItems = [
+    { title: "Caregiver View", url: "/dashboard/caregiver-view", icon: Heart },
+    { title: "Alert History", url: "/dashboard/caregiver-history", icon: History },
+  ];
 
   const menuItems = hasCaregiverRelationships
     ? [...baseMenuItems, ...caregiverMenuItems]
@@ -57,7 +59,7 @@ export function ClinicianSidebar() {
           <SidebarGroupContent>
             <SidebarMenu>
               {menuItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
+                <SidebarMenuItem key={item.url}>
                   <SidebarMenuButton asChild>
                     <NavLink
                       to={item.url}
@@ -87,7 +89,7 @@ export function ClinicianSidebar() {
             <p className="text-sm font-medium truncate">
               Dr. {profile?.first_name} {profile?.last_name}
             </p>
-            <p className="text-xs text-muted-foreground">Clinician</p>
+            <p className="text-xs text-muted-foreground">{t.auth.roleClinician}</p>
           </div>
         </div>
         <Button
@@ -97,7 +99,7 @@ export function ClinicianSidebar() {
           onClick={signOut}
         >
           <LogOut className="h-4 w-4" />
-          Sign Out
+          {t.nav.signOut}
         </Button>
       </SidebarFooter>
     </Sidebar>

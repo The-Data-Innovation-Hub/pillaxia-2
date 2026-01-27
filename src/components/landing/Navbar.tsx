@@ -3,6 +3,8 @@ import { Menu, X } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import pillaxiaLogo from "@/assets/pillaxia-logo.png";
+import { LanguageSwitcher } from "@/components/LanguageSwitcher";
+import { useLanguage } from "@/i18n/LanguageContext";
 
 interface NavbarProps {
   onSignupClick?: () => void;
@@ -12,10 +14,11 @@ const Navbar = ({
   onSignupClick = () => {},
 }: NavbarProps) => {
   const navigate = useNavigate();
+  const { t } = useLanguage();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const navLinks = [
-    { href: "#", label: "Home" },
+    { href: "#", label: t.nav.home },
     { href: "#about", label: "About us" },
     { href: "#features", label: "Features" },
     { href: "#contact", label: "Contact Us" },
@@ -43,18 +46,19 @@ const Navbar = ({
             ))}
           </div>
           <div className="flex items-center space-x-4">
+            <LanguageSwitcher />
             <Button
               variant="outline"
               className="border-pillaxia-cyan text-pillaxia-cyan hover:bg-pillaxia-cyan hover:text-primary-foreground shadow-pillaxia"
               onClick={() => navigate("/auth")}
             >
-              Login
+              {t.nav.login}
             </Button>
             <Button
               className="bg-primary hover:bg-pillaxia-navy-dark text-primary-foreground shadow-pillaxia"
               onClick={onSignupClick}
             >
-              Join our Waiting List
+              {t.landing.joinWaitlist}
             </Button>
           </div>
         </div>
@@ -84,6 +88,10 @@ const Navbar = ({
                 {link.label}
               </a>
             ))}
+            <div className="flex items-center justify-between py-2">
+              <span className="text-muted-foreground">{t.settings.language}</span>
+              <LanguageSwitcher showLabel={false} />
+            </div>
             <div className="border-t border-border pt-4 mt-4 space-y-3">
               <Button
                 variant="outline"
@@ -93,7 +101,7 @@ const Navbar = ({
                   setMobileMenuOpen(false);
                 }}
               >
-                Login
+                {t.nav.login}
               </Button>
               <Button
                 className="w-full bg-primary hover:bg-pillaxia-navy-dark text-primary-foreground"
@@ -102,7 +110,7 @@ const Navbar = ({
                   setMobileMenuOpen(false);
                 }}
               >
-                Join our Waiting List
+                {t.landing.joinWaitlist}
               </Button>
             </div>
           </div>

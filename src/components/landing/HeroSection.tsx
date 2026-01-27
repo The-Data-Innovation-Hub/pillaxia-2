@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import heroImage from "@/assets/hero-angela.png";
+import { useLanguage } from "@/i18n/LanguageContext";
 
 interface HeroSectionProps {
   onGetStarted?: () => void;
@@ -9,6 +10,8 @@ interface HeroSectionProps {
 
 const HeroSection = ({ onGetStarted }: HeroSectionProps) => {
   const navigate = useNavigate();
+  const { t } = useLanguage();
+  
   return (
     <section className="relative bg-background overflow-hidden pt-32 pb-20">
       <div className="container mx-auto px-4">
@@ -38,7 +41,7 @@ const HeroSection = ({ onGetStarted }: HeroSectionProps) => {
               transition={{ duration: 0.6, delay: 0.2 }}
               className="text-lg text-muted-foreground mb-8 max-w-lg"
             >
-              Angela is Pillaxia's intelligent assistant that helps you and your family stay on track with daily pill reminders, symptom logs, and voice alerts — all in one easy-to-use app.
+              {t.landing.heroSubtitle}
             </motion.p>
             
             <motion.ul
@@ -72,7 +75,7 @@ const HeroSection = ({ onGetStarted }: HeroSectionProps) => {
                 className="bg-primary hover:bg-pillaxia-navy-dark text-primary-foreground text-xl py-6 px-8 rounded-xl shadow-lg"
                 onClick={onGetStarted}
               >
-                Get Started
+                {t.nav.getStarted}
               </Button>
               <Button
                 size="lg"
@@ -80,7 +83,7 @@ const HeroSection = ({ onGetStarted }: HeroSectionProps) => {
                 className="border-pillaxia-cyan text-pillaxia-cyan hover:bg-pillaxia-cyan hover:text-primary-foreground text-xl py-6 px-8 rounded-xl shadow-lg"
                 onClick={() => navigate("/auth")}
               >
-                Login
+                {t.nav.login}
               </Button>
             </motion.div>
           </div>
