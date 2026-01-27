@@ -26,3 +26,4 @@ export { HealthProfilePage } from "./HealthProfilePage";
 export { PhotoMedicationImport } from "./PhotoMedicationImport";
 export { DrugInteractionWarning } from "./DrugInteractionWarning";
 export { NotificationSetupWizard } from "./NotificationSetupWizard";
+export { NotificationSchedulingCard } from "./NotificationSchedulingCard";

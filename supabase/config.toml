@@ -68,3 +68,9 @@ verify_jwt = false
 
 [functions.email-tracking-pixel]
 verify_jwt = false
+
+[functions.email-click-tracker]
+verify_jwt = false
+
+[functions.send-daily-digest]
+verify_jwt = false
