@@ -27,7 +27,8 @@ async function sendEmail(to: string[], subject: string, html: string): Promise<{
     throw new Error(`Resend API error: ${error}`);
   }
   
-  return res.json();
+  const data = await res.json();
+  return { id: data.id };
 }
 
 interface MedicationInfo {
@@ -311,7 +312,7 @@ Deno.serve(async (req: Request) => {
         console.log(`Email sent to ${profile.email}:`, emailResult);
         emailResults.push({ userId, email: profile.email, success: true, result: emailResult });
 
-        // Log successful email notification
+        // Log successful email notification with Resend email ID for webhook tracking
         await supabase.from("notification_history").insert({
           user_id: userId,
           channel: "email",
@@ -319,7 +320,11 @@ Deno.serve(async (req: Request) => {
           title: `Medication Reminder: ${userDoses.length} dose${userDoses.length > 1 ? "s" : ""}`,
           body: `Upcoming medication${userDoses.length > 1 ? "s" : ""} to take soon`,
           status: "sent",
-          metadata: { recipient_email: profile.email, dose_count: userDoses.length },
+          metadata: { 
+            recipient_email: profile.email, 
+            dose_count: userDoses.length,
+            resend_email_id: emailResult.id 
+          },
         });
 
         // Also send push notification if in_app_reminders is enabled

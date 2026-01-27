@@ -211,10 +211,12 @@ serve(async (req) => {
             const errorData = await response.text();
             throw new Error("Resend API error: " + errorData);
           }
+          
+          const emailData = await response.json();
           notificationResults.email++;
-          console.log("Email sent to caregiver " + caregiver.user_id);
+          console.log("Email sent to caregiver " + caregiver.user_id + ", ID: " + emailData.id);
 
-          // Log successful email notification
+          // Log successful email notification with Resend email ID for webhook tracking
           await supabase.from("notification_history").insert({
             user_id: caregiver.user_id,
             channel: "email",
@@ -222,7 +224,12 @@ serve(async (req) => {
             title: "Missed Dose Alert: " + patientName,
             body: patientName + " missed " + medicationName + " at " + formattedTime,
             status: "sent",
-            metadata: { patient_name: patientName, medication_name: medicationName, recipient_email: caregiver.email },
+            metadata: { 
+              patient_name: patientName, 
+              medication_name: medicationName, 
+              recipient_email: caregiver.email,
+              resend_email_id: emailData.id 
+            },
           });
         } catch (emailError) {
           console.error("Failed to send email to " + caregiver.email + ":", emailError);
