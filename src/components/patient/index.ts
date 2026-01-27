@@ -34,3 +34,4 @@ export { EngagementScoreCard } from "./EngagementScoreCard";
 export { AppointmentsCard } from "./AppointmentsCard";
 export { RequestRefillDialog } from "./RequestRefillDialog";
 export { RefillRequestsCard } from "./RefillRequestsCard";
+export { NotificationCenterCard } from "./NotificationCenterCard";
