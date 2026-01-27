@@ -43,9 +43,10 @@ const getHourLabel = (hour: number): string => {
 };
 
 const getSeverityColor = (severity: number): string => {
-  if (severity <= 3) return "hsl(var(--chart-3))";
-  if (severity <= 6) return "hsl(var(--chart-2))";
-  return "hsl(var(--chart-1))";
+  // Green (mild) → Yellow (moderate) → Red (severe)
+  if (severity <= 3) return "hsl(142, 76%, 36%)"; // green-600
+  if (severity <= 6) return "hsl(45, 93%, 47%)";  // amber-500
+  return "hsl(0, 84%, 60%)";                       // red-500
 };
 
 const TIME_PERIODS = [
