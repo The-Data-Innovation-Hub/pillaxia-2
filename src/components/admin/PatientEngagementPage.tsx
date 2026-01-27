@@ -34,6 +34,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { EngagementTrendsChart } from "./analytics/EngagementTrendsChart";
 
 interface EngagementScore {
   id: string;
@@ -229,6 +230,9 @@ export function PatientEngagementPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Engagement Trends Chart */}
+      <EngagementTrendsChart />
 
       {/* Filters and Table */}
       <Card>
