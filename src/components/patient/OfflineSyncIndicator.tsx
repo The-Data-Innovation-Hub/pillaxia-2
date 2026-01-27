@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Cloud, CloudOff, RefreshCw, Check, Clock, Loader2 } from "lucide-react";
+import { Cloud, CloudOff, RefreshCw, Check, Clock, Loader2, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { offlineQueue } from "@/lib/offlineQueue";
@@ -8,6 +8,7 @@ import { useOfflineSync } from "@/hooks/useOfflineSync";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
+import { useNavigate } from "react-router-dom";
 
 interface OfflineSyncIndicatorProps {
   onSyncComplete?: () => void;
@@ -22,8 +23,9 @@ export function OfflineSyncIndicator({
 }: OfflineSyncIndicatorProps) {
   const [pendingCount, setPendingCount] = useState(0);
   const { isOnline } = useOfflineStatus();
-  const { syncPendingActions, syncInProgress, lastSyncTime } = useOfflineSync(onSyncComplete);
+  const { syncPendingActions, syncInProgress, lastSyncTime, conflictCount } = useOfflineSync(onSyncComplete);
   const { t } = useLanguage();
+  const navigate = useNavigate();
 
   useEffect(() => {
     const updateCount = async () => {
@@ -60,7 +62,16 @@ export function OfflineSyncIndicator({
         ) : (
           <CloudOff className="h-3 w-3 text-warning" />
         )}
-        {pendingCount > 0 && (
+        {conflictCount > 0 && (
+          <button 
+            onClick={() => navigate("/dashboard/sync-status")}
+            className="text-warning flex items-center gap-1 hover:underline"
+          >
+            <AlertTriangle className="h-3 w-3" />
+            {conflictCount} conflicts
+          </button>
+        )}
+        {pendingCount > 0 && conflictCount === 0 && (
           <span className="text-warning">{pendingCount} {t.offline.pending}</span>
         )}
         {syncInProgress && (
@@ -108,6 +119,19 @@ export function OfflineSyncIndicator({
       </div>
 
       <div className="space-y-2 text-sm">
+        {/* Conflicts warning */}
+        {conflictCount > 0 && (
+          <button 
+            onClick={() => navigate("/dashboard/sync-status")}
+            className="flex items-center gap-2 w-full p-2 rounded-md bg-warning/10 border border-warning/30 hover:bg-warning/20 transition-colors"
+          >
+            <AlertTriangle className="h-4 w-4 text-warning shrink-0" />
+            <span className="text-warning text-left">
+              {conflictCount} conflict{conflictCount > 1 ? "s" : ""} need{conflictCount === 1 ? "s" : ""} review
+            </span>
+          </button>
+        )}
+
         {pendingCount > 0 ? (
           <div className="flex items-center gap-2">
             <Badge variant="secondary" className={cn(
@@ -120,12 +144,12 @@ export function OfflineSyncIndicator({
               {t.offline.changesWaiting || "changes waiting to sync"}
             </span>
           </div>
-        ) : (
+        ) : conflictCount === 0 ? (
           <div className="flex items-center gap-2 text-muted-foreground">
             <Check className="h-4 w-4 text-primary" />
             <span>{t.offline.allSynced}</span>
           </div>
-        )}
+        ) : null}
 
         {showLastSync && (
           <div className="flex items-center gap-2 text-muted-foreground">

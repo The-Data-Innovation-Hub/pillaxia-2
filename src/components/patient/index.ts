@@ -2,6 +2,7 @@ export { PatientLayout } from "./PatientLayout";
 export { default as ChatDialog } from "./ChatDialog";
 export { PatientSidebar } from "./PatientSidebar";
 export { PatientDashboardHome } from "./PatientDashboardHome";
+export { ConflictResolutionDialog } from "./ConflictResolutionDialog";
 export { MedicationsPage } from "./MedicationsPage";
 export { SchedulePage } from "./SchedulePage";
 export { SymptomsPage } from "./SymptomsPage";

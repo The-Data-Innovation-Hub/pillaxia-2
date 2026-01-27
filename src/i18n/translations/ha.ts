@@ -246,5 +246,8 @@ export const ha: Translations = {
     lastSynced: "Daidaita na ƙarshe",
     neverSynced: "Ba a taɓa daidaitawa ba",
     symptomQueuedForSync: "An adana alamar rashin lafiya offline - za a daidaita idan kun shiga kan layi",
+    conflictDetected: "An gano rikici - ana buƙatar bita",
+    conflictsNeedReview: "rikice-rikice suna buƙatar bita",
+    resolveConflicts: "Warware Rikice-rikice",
   },
 };

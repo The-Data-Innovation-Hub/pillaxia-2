@@ -244,6 +244,9 @@ export const en = {
     lastSynced: "Last synced",
     neverSynced: "Never synced",
     symptomQueuedForSync: "Symptom saved offline - will sync when online",
+    conflictDetected: "Conflict detected - review needed",
+    conflictsNeedReview: "conflicts need review",
+    resolveConflicts: "Resolve Conflicts",
   },
 };
 
