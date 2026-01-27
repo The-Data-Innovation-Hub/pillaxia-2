@@ -212,14 +212,14 @@ export function CaregiverDashboardPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold">Caregiver Dashboard</h1>
           <p className="text-muted-foreground">
             Monitoring {patients.length} patient{patients.length !== 1 ? "s" : ""}
           </p>
         </div>
-        <Badge variant="outline" className="flex items-center gap-1.5 px-3 py-1.5">
+        <Badge variant="outline" className="self-start sm:self-auto flex items-center gap-1.5 px-3 py-1.5">
           <Bell className="h-3.5 w-3.5 text-primary animate-pulse" />
           <span className="text-xs">Real-time alerts active</span>
         </Badge>
@@ -337,8 +337,8 @@ function PatientDetailView({ patient, caregiverName, caregiverId }: { patient: P
       {/* Patient Header */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0">
               <CardTitle className="flex items-center gap-2">
                 <User className="h-5 w-5" />
                 {patientName}
@@ -347,7 +347,7 @@ function PatientDetailView({ patient, caregiverName, caregiverId }: { patient: P
                 {patient.patient_profile?.email || "Email not available"}
               </CardDescription>
             </div>
-            <div className="flex items-center gap-2 flex-wrap justify-end">
+            <div className="flex items-center gap-2 flex-wrap justify-start sm:justify-end">
               <Button
                 variant="default"
                 size="sm"
