@@ -1,4 +1,4 @@
-import { LayoutDashboard, FileText, Package, RefreshCw, LogOut, Bell, HelpCircle, Shield } from "lucide-react";
+import { LayoutDashboard, FileText, Package, RefreshCw, LogOut, Bell, HelpCircle, Shield, Settings } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -24,6 +24,7 @@ const menuItems = [
   { title: "Controlled Drugs", url: "/dashboard/controlled-drugs", icon: Shield },
   { title: "Refill Requests", url: "/dashboard/refills", icon: RefreshCw },
   { title: "Notifications", url: "/dashboard/notifications", icon: Bell },
+  { title: "Settings", url: "/dashboard/settings", icon: Settings },
 ];
 
 export function PharmacistSidebar() {
