@@ -310,6 +310,27 @@ Deno.serve(async (req: Request) => {
 
         console.log(`Email sent to ${profile.email}:`, emailResult);
         emailResults.push({ userId, email: profile.email, success: true, result: emailResult });
+
+        // Also send push notification if in_app_reminders is enabled
+        if (!prefs || prefs.in_app_reminders) {
+          const medNames = userDoses.map((dose) => {
+            const medsData = dose.medications;
+            const med = Array.isArray(medsData) ? medsData[0] : medsData;
+            return med?.name || "medication";
+          }).join(", ");
+
+          await supabase.functions.invoke("send-push-notification", {
+            body: {
+              user_ids: [userId],
+              payload: {
+                title: "💊 Medication Reminder",
+                body: `Time to take: ${medNames}`,
+                tag: "medication-reminder",
+                data: { url: "/dashboard/schedule" },
+              },
+            },
+          });
+        }
       } catch (emailError) {
         console.error(`Failed to send email to ${profile.email}:`, emailError);
         emailResults.push({ userId, email: profile.email, success: false, error: String(emailError) });
