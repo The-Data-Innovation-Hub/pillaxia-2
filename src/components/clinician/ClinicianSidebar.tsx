@@ -1,9 +1,11 @@
-import { Users, Pill, Activity, LayoutDashboard, LogOut, Heart, History, Bell } from "lucide-react";
+import { Users, Pill, Activity, LayoutDashboard, LogOut, Heart, History, Bell, RefreshCw } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { useHasCaregiverRelationships } from "@/hooks/useHasCaregiverRelationships";
+import { useOfflineSync } from "@/hooks/useOfflineSync";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import {
   Sidebar,
   SidebarContent,
@@ -21,6 +23,7 @@ export function ClinicianSidebar() {
   const { signOut, profile } = useAuth();
   const { t } = useLanguage();
   const { data: hasCaregiverRelationships } = useHasCaregiverRelationships();
+  const { conflictCount } = useOfflineSync();
 
   const baseMenuItems = [
     { title: t.dashboard.overview, url: "/dashboard", icon: LayoutDashboard },
@@ -78,7 +81,20 @@ export function ClinicianSidebar() {
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter className="p-4 border-t">
+      <SidebarFooter className="p-4 border-t space-y-2">
+        <NavLink 
+          to="/dashboard/sync-status"
+          className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-muted/50 transition-colors text-sm"
+          activeClassName="bg-primary/10 text-primary font-medium"
+        >
+          <RefreshCw className="h-4 w-4" />
+          <span className="flex-1">Sync Status</span>
+          {conflictCount > 0 && (
+            <Badge variant="destructive" className="h-5 min-w-5 px-1.5 text-xs font-medium">
+              {conflictCount > 99 ? "99+" : conflictCount}
+            </Badge>
+          )}
+        </NavLink>
         <div className="flex items-center gap-3 mb-3">
           <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
             <span className="text-primary font-medium text-sm">
