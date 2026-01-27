@@ -18,7 +18,7 @@ interface CachedMedicationLog {
 }
 
 const DB_NAME = "pillaxia-cache";
-const DB_VERSION = 2; // Increment version to add new store
+const DB_VERSION = 4; // Must match all cache files using same DB
 const SCHEDULE_STORE = "today-schedule";
 const META_STORE = "cache-meta";
 

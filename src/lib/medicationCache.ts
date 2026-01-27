@@ -9,7 +9,7 @@ type Medication = Tables<"medications"> & {
 };
 
 const DB_NAME = "pillaxia-cache";
-const DB_VERSION = 1;
+const DB_VERSION = 4; // Must match all cache files using same DB
 const MEDICATIONS_STORE = "medications";
 const META_STORE = "cache-meta";
 
