@@ -1,11 +1,12 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Pill, Clock, MoreVertical, Edit, Trash2 } from "lucide-react";
+import { Pill, Clock, MoreVertical, Edit, Trash2, RefreshCw } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
@@ -18,6 +19,7 @@ interface MedicationCardProps {
     form: string;
     instructions?: string;
     is_active: boolean;
+    refills_remaining?: number | null;
     schedules?: Array<{
       time_of_day: string;
       quantity: number;
@@ -25,9 +27,10 @@ interface MedicationCardProps {
   };
   onEdit?: (id: string) => void;
   onDelete?: (id: string) => void;
+  onRequestRefill?: (id: string) => void;
 }
 
-export function MedicationCard({ medication, onEdit, onDelete }: MedicationCardProps) {
+export function MedicationCard({ medication, onEdit, onDelete, onRequestRefill }: MedicationCardProps) {
   const formIcons: Record<string, string> = {
     tablet: "💊",
     capsule: "💊",
@@ -68,6 +71,11 @@ export function MedicationCard({ medication, onEdit, onDelete }: MedicationCardP
                   <Edit className="h-4 w-4 mr-2" />
                   Edit
                 </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => onRequestRefill?.(medication.id)}>
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Request Refill
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
                 <DropdownMenuItem 
                   onClick={() => onDelete?.(medication.id)}
                   className="text-destructive focus:text-destructive"
@@ -84,16 +92,27 @@ export function MedicationCard({ medication, onEdit, onDelete }: MedicationCardP
         {medication.instructions && (
           <p className="text-sm text-muted-foreground mb-3">{medication.instructions}</p>
         )}
-        {medication.schedules && medication.schedules.length > 0 && (
-          <div className="flex flex-wrap gap-2">
-            {medication.schedules.map((schedule, idx) => (
-              <Badge key={idx} variant="outline" className="gap-1">
-                <Clock className="h-3 w-3" />
-                {schedule.time_of_day.slice(0, 5)} ({schedule.quantity}x)
-              </Badge>
-            ))}
-          </div>
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          {medication.schedules && medication.schedules.length > 0 && (
+            <>
+              {medication.schedules.map((schedule, idx) => (
+                <Badge key={idx} variant="outline" className="gap-1">
+                  <Clock className="h-3 w-3" />
+                  {schedule.time_of_day.slice(0, 5)} ({schedule.quantity}x)
+                </Badge>
+              ))}
+            </>
+          )}
+          {typeof medication.refills_remaining === "number" && (
+            <Badge 
+              variant="outline" 
+              className={medication.refills_remaining === 0 ? "border-destructive text-destructive" : ""}
+            >
+              <RefreshCw className="h-3 w-3 mr-1" />
+              {medication.refills_remaining} refill{medication.refills_remaining !== 1 ? "s" : ""} left
+            </Badge>
+          )}
+        </div>
       </CardContent>
     </Card>
   );

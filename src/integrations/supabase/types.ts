@@ -1162,6 +1162,56 @@ export type Database = {
           },
         ]
       }
+      refill_requests: {
+        Row: {
+          created_at: string
+          id: string
+          medication_id: string
+          patient_notes: string | null
+          patient_user_id: string
+          pharmacist_notes: string | null
+          refills_granted: number | null
+          resolved_at: string | null
+          resolved_by: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          medication_id: string
+          patient_notes?: string | null
+          patient_user_id: string
+          pharmacist_notes?: string | null
+          refills_granted?: number | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          medication_id?: string
+          patient_notes?: string | null
+          patient_user_id?: string
+          pharmacist_notes?: string | null
+          refills_granted?: number | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "refill_requests_medication_id_fkey"
+            columns: ["medication_id"]
+            isOneToOne: false
+            referencedRelation: "medications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       soap_notes: {
         Row: {
           assessment: string | null
