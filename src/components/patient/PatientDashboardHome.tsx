@@ -11,6 +11,7 @@ import { CaregiverInvitationsReceived } from "./CaregiverInvitationsReceived";
 import { PatientMessagesCard } from "./PatientMessagesCard";
 import { ClinicianMessagesCard } from "./ClinicianMessagesCard";
 import { OfflineSyncIndicator } from "./OfflineSyncIndicator";
+import { NotificationChannelsCard } from "./NotificationChannelsCard";
 import { useCachedTodaysSchedule } from "@/hooks/useCachedTodaysSchedule";
 import { useOfflineStatus } from "@/hooks/useOfflineStatus";
 
@@ -224,6 +225,9 @@ export function PatientDashboardHome() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Notification Channels Summary */}
+      <NotificationChannelsCard />
 
       {/* Quick Actions */}
       <Card>
