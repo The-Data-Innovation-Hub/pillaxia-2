@@ -474,6 +474,201 @@ export type Database = {
         }
         Relationships: []
       }
+      drug_recall_notifications: {
+        Row: {
+          acknowledged_at: string | null
+          acknowledged_by: string | null
+          channels_used: Json
+          id: string
+          notification_type: string
+          notified_at: string
+          patient_user_id: string | null
+          pharmacy_id: string | null
+          recall_id: string
+        }
+        Insert: {
+          acknowledged_at?: string | null
+          acknowledged_by?: string | null
+          channels_used?: Json
+          id?: string
+          notification_type: string
+          notified_at?: string
+          patient_user_id?: string | null
+          pharmacy_id?: string | null
+          recall_id: string
+        }
+        Update: {
+          acknowledged_at?: string | null
+          acknowledged_by?: string | null
+          channels_used?: Json
+          id?: string
+          notification_type?: string
+          notified_at?: string
+          patient_user_id?: string | null
+          pharmacy_id?: string | null
+          recall_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "drug_recall_notifications_pharmacy_id_fkey"
+            columns: ["pharmacy_id"]
+            isOneToOne: false
+            referencedRelation: "pharmacy_locations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "drug_recall_notifications_recall_id_fkey"
+            columns: ["recall_id"]
+            isOneToOne: false
+            referencedRelation: "drug_recalls"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      drug_recalls: {
+        Row: {
+          affected_ndc_numbers: string[] | null
+          created_at: string
+          created_by: string | null
+          drug_name: string
+          expiry_date_range: string | null
+          fda_reference: string | null
+          generic_name: string | null
+          id: string
+          instructions: string | null
+          is_active: boolean
+          lot_numbers: string[] | null
+          manufacturer: string | null
+          recall_class: string
+          recall_date: string
+          recall_reason: string
+          updated_at: string
+        }
+        Insert: {
+          affected_ndc_numbers?: string[] | null
+          created_at?: string
+          created_by?: string | null
+          drug_name: string
+          expiry_date_range?: string | null
+          fda_reference?: string | null
+          generic_name?: string | null
+          id?: string
+          instructions?: string | null
+          is_active?: boolean
+          lot_numbers?: string[] | null
+          manufacturer?: string | null
+          recall_class?: string
+          recall_date?: string
+          recall_reason: string
+          updated_at?: string
+        }
+        Update: {
+          affected_ndc_numbers?: string[] | null
+          created_at?: string
+          created_by?: string | null
+          drug_name?: string
+          expiry_date_range?: string | null
+          fda_reference?: string | null
+          generic_name?: string | null
+          id?: string
+          instructions?: string | null
+          is_active?: boolean
+          lot_numbers?: string[] | null
+          manufacturer?: string | null
+          recall_class?: string
+          recall_date?: string
+          recall_reason?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      drug_transfers: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          completed_at: string | null
+          completed_by: string | null
+          created_at: string
+          destination_pharmacy_id: string
+          dosage: string | null
+          drug_name: string
+          expiry_date: string | null
+          form: string | null
+          generic_name: string | null
+          id: string
+          lot_number: string | null
+          notes: string | null
+          quantity: number
+          reason: string | null
+          requested_at: string
+          requested_by: string
+          source_pharmacy_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          completed_at?: string | null
+          completed_by?: string | null
+          created_at?: string
+          destination_pharmacy_id: string
+          dosage?: string | null
+          drug_name: string
+          expiry_date?: string | null
+          form?: string | null
+          generic_name?: string | null
+          id?: string
+          lot_number?: string | null
+          notes?: string | null
+          quantity: number
+          reason?: string | null
+          requested_at?: string
+          requested_by: string
+          source_pharmacy_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          completed_at?: string | null
+          completed_by?: string | null
+          created_at?: string
+          destination_pharmacy_id?: string
+          dosage?: string | null
+          drug_name?: string
+          expiry_date?: string | null
+          form?: string | null
+          generic_name?: string | null
+          id?: string
+          lot_number?: string | null
+          notes?: string | null
+          quantity?: number
+          reason?: string | null
+          requested_at?: string
+          requested_by?: string
+          source_pharmacy_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "drug_transfers_destination_pharmacy_id_fkey"
+            columns: ["destination_pharmacy_id"]
+            isOneToOne: false
+            referencedRelation: "pharmacy_locations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "drug_transfers_source_pharmacy_id_fkey"
+            columns: ["source_pharmacy_id"]
+            isOneToOne: false
+            referencedRelation: "pharmacy_locations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       medication_availability: {
         Row: {
           created_at: string

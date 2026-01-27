@@ -42,6 +42,8 @@ import {
   RefillRequestsPage,
   ControlledDrugRegisterPage,
   MedicationAvailabilityPage,
+  DrugRecallsPage,
+  DrugTransfersPage,
 } from "@/components/pharmacist";
 import {
   AdminLayout,
@@ -119,6 +121,8 @@ function AppRoutes() {
         <Route path="inventory" element={<InventoryPage />} />
         <Route path="availability" element={<MedicationAvailabilityPage />} />
         <Route path="controlled-drugs" element={<ControlledDrugRegisterPage />} />
+        <Route path="recalls" element={<DrugRecallsPage />} />
+        <Route path="transfers" element={<DrugTransfersPage />} />
         <Route path="refills" element={<RefillRequestsPage />} />
         {/* Admin Routes */}
         <Route path="users" element={<UserManagementPage />} />
