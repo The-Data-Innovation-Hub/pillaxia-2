@@ -1,4 +1,4 @@
-// Force module refresh - v4
+// Force module refresh - v5
 import { useState, useMemo } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -10,6 +10,7 @@ import { format } from "date-fns";
 import { SymptomEntryDialog } from "./SymptomEntryDialog";
 import { SymptomTrendsChart } from "./SymptomTrendsChart";
 import { SymptomCorrelations } from "./SymptomCorrelations";
+import { SymptomTimeAnalysis } from "./SymptomTimeAnalysis";
 import { OfflineSyncIndicator } from "./OfflineSyncIndicator";
 import {
   SymptomFiltersPanel,
@@ -118,6 +119,9 @@ export function SymptomsPage() {
 
       {/* Correlation Insights */}
       {filteredSymptoms.length > 0 && <SymptomCorrelations symptoms={filteredSymptoms} />}
+
+      {/* Time of Day Analysis */}
+      {filteredSymptoms.length > 0 && <SymptomTimeAnalysis symptoms={filteredSymptoms} />}
 
       {filteredSymptoms.length === 0 && symptoms.length > 0 ? (
         <Card>
