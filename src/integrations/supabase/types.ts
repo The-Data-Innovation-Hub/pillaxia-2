@@ -296,8 +296,12 @@ export type Database = {
           created_at: string
           error_message: string | null
           id: string
+          last_retry_at: string | null
+          max_retries: number
           metadata: Json | null
+          next_retry_at: string | null
           notification_type: string
+          retry_count: number
           status: string
           title: string
           user_id: string
@@ -308,8 +312,12 @@ export type Database = {
           created_at?: string
           error_message?: string | null
           id?: string
+          last_retry_at?: string | null
+          max_retries?: number
           metadata?: Json | null
+          next_retry_at?: string | null
           notification_type: string
+          retry_count?: number
           status?: string
           title: string
           user_id: string
@@ -320,8 +328,12 @@ export type Database = {
           created_at?: string
           error_message?: string | null
           id?: string
+          last_retry_at?: string | null
+          max_retries?: number
           metadata?: Json | null
+          next_retry_at?: string | null
           notification_type?: string
+          retry_count?: number
           status?: string
           title?: string
           user_id?: string

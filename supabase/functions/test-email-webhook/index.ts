@@ -132,7 +132,10 @@ serve(async (req: Request): Promise<Response> => {
       const errorMessage = emailResponse.error.message || "Unknown email error";
       const errorName = emailResponse.error.name || "ResendError";
       
-      // Log failed email with detailed error
+      // Schedule first retry in 1 minute (exponential backoff)
+      const nextRetryAt = new Date(Date.now() + 60 * 1000).toISOString();
+      
+      // Log failed email with detailed error and retry scheduling
       await serviceClient.from("notification_history").insert({
         user_id: userId,
         channel: "email",
@@ -141,6 +144,9 @@ serve(async (req: Request): Promise<Response> => {
         body: `Test email to ${to}`,
         status: "failed",
         error_message: `${errorName}: ${errorMessage}`.slice(0, 500),
+        retry_count: 0,
+        max_retries: 3,
+        next_retry_at: nextRetryAt,
         metadata: { 
           recipient_email: to, 
           test: true,
