@@ -4,13 +4,15 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { Pill, Calendar, ClipboardList, TrendingUp, Plus, Bot } from "lucide-react";
+import { Pill, Calendar, ClipboardList, TrendingUp, Plus, Bot, CloudOff, RefreshCw } from "lucide-react";
 import { format } from "date-fns";
 import { useNavigate } from "react-router-dom";
 import { CaregiverInvitationsReceived } from "./CaregiverInvitationsReceived";
 import { PatientMessagesCard } from "./PatientMessagesCard";
 import { ClinicianMessagesCard } from "./ClinicianMessagesCard";
 import { OfflineSyncIndicator } from "./OfflineSyncIndicator";
+import { useCachedTodaysSchedule } from "@/hooks/useCachedTodaysSchedule";
+import { useOfflineStatus } from "@/hooks/useOfflineStatus";
 
 interface DashboardStats {
   totalMedications: number;
@@ -23,6 +25,8 @@ interface DashboardStats {
 export function PatientDashboardHome() {
   const { user, profile } = useAuth();
   const navigate = useNavigate();
+  const { isOnline } = useOfflineStatus();
+  const { logs: cachedLogs, isFromCache, refresh: refreshSchedule } = useCachedTodaysSchedule();
   const [stats, setStats] = useState<DashboardStats>({
     totalMedications: 0,
     todaysDoses: 0,
@@ -31,6 +35,20 @@ export function PatientDashboardHome() {
     recentSymptoms: 0,
   });
   const [loading, setLoading] = useState(true);
+
+  // Update stats when cached logs change
+  useEffect(() => {
+    if (cachedLogs.length > 0) {
+      const todaysDoses = cachedLogs.length;
+      const takenDoses = cachedLogs.filter(l => l.status === "taken").length;
+      setStats(prev => ({
+        ...prev,
+        todaysDoses,
+        takenDoses,
+        adherenceRate: todaysDoses > 0 ? Math.round((takenDoses / todaysDoses) * 100) : 100,
+      }));
+    }
+  }, [cachedLogs]);
 
   useEffect(() => {
     if (user) {
@@ -95,10 +113,15 @@ export function PatientDashboardHome() {
     return "Good evening";
   };
 
+  const handleSyncComplete = async () => {
+    await fetchStats();
+    await refreshSchedule();
+  };
+
   return (
     <div className="space-y-6">
       {/* Sync Status Indicator */}
-      <OfflineSyncIndicator onSyncComplete={fetchStats} />
+      <OfflineSyncIndicator onSyncComplete={handleSyncComplete} />
 
       {/* Caregiver Invitations (if any) */}
       <CaregiverInvitationsReceived />
@@ -142,16 +165,36 @@ export function PatientDashboardHome() {
 
         <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate("/dashboard/schedule")}>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
+            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-1.5">
               Today's Progress
+              {isFromCache && !isOnline && (
+                <CloudOff className="h-3 w-3 text-warning" />
+              )}
             </CardTitle>
-            <Calendar className="h-4 w-4 text-muted-foreground" />
+            {isFromCache && !isOnline ? (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  refreshSchedule();
+                }}
+              >
+                <RefreshCw className="h-3 w-3 text-muted-foreground" />
+              </Button>
+            ) : (
+              <Calendar className="h-4 w-4 text-muted-foreground" />
+            )}
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
               {stats.takenDoses}/{stats.todaysDoses}
             </div>
             <Progress value={stats.adherenceRate} className="mt-2" />
+            {isFromCache && !isOnline && (
+              <p className="text-xs text-warning mt-1">Cached data</p>
+            )}
           </CardContent>
         </Card>
 
