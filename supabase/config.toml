@@ -62,3 +62,6 @@ verify_jwt = false
 
 [functions.send-test-notifications]
 verify_jwt = false
+
+[functions.twilio-webhook]
+verify_jwt = false
