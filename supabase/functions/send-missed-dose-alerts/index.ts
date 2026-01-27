@@ -250,80 +250,40 @@ serve(async (req) => {
         }
       }
 
-      // Send WhatsApp if configured
-      const whatsappToken = Deno.env.get("WHATSAPP_ACCESS_TOKEN");
-      const whatsappPhoneId = Deno.env.get("WHATSAPP_PHONE_NUMBER_ID");
-      if (whatsappToken && whatsappPhoneId && caregiver.phone) {
+      // Send WhatsApp using the dual-provider approach (Twilio primary, Meta fallback)
+      if (caregiver.phone) {
         try {
-          const whatsappMessage = "MISSED DOSE ALERT\n\n" + 
-            patientName + " missed their " + medicationName + " scheduled for " + formattedTime + ".\n\n" +
-            "Please check in with them when you can.\n\n— Pillaxia";
+          const whatsappMessage = `⚠️ MISSED DOSE ALERT\n\n${patientName} missed their ${medicationName} scheduled for ${formattedTime}.\n\nPlease check in with them when you can.\n\n— Pillaxia`;
 
-          const response = await fetch(
-            "https://graph.facebook.com/v17.0/" + whatsappPhoneId + "/messages",
-            {
-              method: "POST",
-              headers: {
-                "Authorization": "Bearer " + whatsappToken,
-                "Content-Type": "application/json",
+          const { data: whatsappResult, error: whatsappError } = await supabase.functions.invoke("send-whatsapp-notification", {
+            body: {
+              user_id: caregiver.user_id,
+              phone_number: caregiver.phone,
+              message: whatsappMessage,
+              notification_type: "missed_dose_alert",
+              metadata: { 
+                patient_name: patientName, 
+                medication_name: medicationName 
               },
-              body: JSON.stringify({
-                messaging_product: "whatsapp",
-                to: caregiver.phone.replace(/\D/g, ""),
-                type: "text",
-                text: {
-                  body: whatsappMessage,
-                },
-              }),
-            }
-          );
+            },
+          });
 
-          if (response.ok) {
+          if (whatsappError) {
+            throw whatsappError;
+          }
+
+          if (whatsappResult?.success) {
             notificationResults.whatsapp++;
-            console.log("WhatsApp sent to caregiver " + caregiver.user_id);
-
-            // Log successful WhatsApp notification
-            await supabase.from("notification_history").insert({
-              user_id: caregiver.user_id,
-              channel: "whatsapp",
-              notification_type: "missed_dose_alert",
-              title: "Missed Dose Alert: " + patientName,
-              body: patientName + " missed " + medicationName + " at " + formattedTime,
-              status: "sent",
-              metadata: { patient_name: patientName, medication_name: medicationName, recipient_phone: caregiver.phone },
-            });
+            console.log("WhatsApp sent to caregiver " + caregiver.user_id + " via " + (whatsappResult.provider || "unknown"));
+          } else if (whatsappResult?.skipped) {
+            console.log("WhatsApp skipped for caregiver " + caregiver.user_id + ": " + (whatsappResult?.reason || "not configured"));
+            notificationResults.skipped++;
           } else {
-            const errorData = await response.text();
-            console.error("WhatsApp API error for " + caregiver.phone + ":", errorData);
-            notificationResults.failed++;
-
-            // Log failed WhatsApp notification
-            await supabase.from("notification_history").insert({
-              user_id: caregiver.user_id,
-              channel: "whatsapp",
-              notification_type: "missed_dose_alert",
-              title: "Missed Dose Alert: " + patientName,
-              body: patientName + " missed " + medicationName + " at " + formattedTime,
-              status: "failed",
-              error_message: errorData.slice(0, 500),
-              metadata: { patient_name: patientName, medication_name: medicationName, recipient_phone: caregiver.phone },
-            });
+            throw new Error(whatsappResult?.error || "WhatsApp send failed");
           }
         } catch (whatsappError) {
           console.error("Failed to send WhatsApp to " + caregiver.phone + ":", whatsappError);
           notificationResults.failed++;
-
-          // Log failed WhatsApp notification
-          await supabase.from("notification_history").insert({
-            user_id: caregiver.user_id,
-            channel: "whatsapp",
-            notification_type: "missed_dose_alert",
-            title: "Missed Dose Alert: " + patientName,
-            body: patientName + " missed " + medicationName + " at " + formattedTime,
-            status: "failed",
-            error_message: String(whatsappError).slice(0, 500),
-            metadata: { patient_name: patientName, medication_name: medicationName, recipient_phone: caregiver.phone },
-          });
         }
       }
 
