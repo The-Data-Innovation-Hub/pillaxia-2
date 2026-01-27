@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Users, Pill, Activity, AlertTriangle, FileText } from "lucide-react";
+import { Users, Pill, Activity, AlertTriangle, FileText, CalendarDays } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -157,6 +157,12 @@ export function ClinicianDashboardHome() {
             <Button variant="outline" className="gap-2">
               <Users className="h-4 w-4" />
               View Patient Roster
+            </Button>
+          </Link>
+          <Link to="/dashboard/appointments">
+            <Button variant="outline" className="gap-2">
+              <CalendarDays className="h-4 w-4" />
+              Manage Appointments
             </Button>
           </Link>
           <Link to="/dashboard/adherence">
