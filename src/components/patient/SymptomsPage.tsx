@@ -6,12 +6,13 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, Plus, Trash2, CloudOff, RefreshCw, Clock, TrendingUp, Activity, List } from "lucide-react";
+import { Loader2, Plus, Trash2, CloudOff, RefreshCw, Clock, TrendingUp, Activity, List, CalendarDays } from "lucide-react";
 import { format } from "date-fns";
 import { SymptomEntryDialog } from "./SymptomEntryDialog";
 import { SymptomTrendsChart } from "./SymptomTrendsChart";
 import { SymptomCorrelations } from "./SymptomCorrelations";
 import { SymptomTimeAnalysis } from "./SymptomTimeAnalysis";
+import { SymptomCalendar } from "./SymptomCalendar";
 import { OfflineSyncIndicator } from "./OfflineSyncIndicator";
 import {
   SymptomFiltersPanel,
@@ -146,10 +147,14 @@ export function SymptomsPage() {
         </Card>
       ) : (
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-4 mb-4">
+          <TabsList className="grid w-full grid-cols-5 mb-4">
             <TabsTrigger value="entries" className="flex items-center gap-2">
               <List className="h-4 w-4" />
               <span className="hidden sm:inline">Entries</span>
+            </TabsTrigger>
+            <TabsTrigger value="calendar" className="flex items-center gap-2">
+              <CalendarDays className="h-4 w-4" />
+              <span className="hidden sm:inline">Calendar</span>
             </TabsTrigger>
             <TabsTrigger value="trends" className="flex items-center gap-2">
               <TrendingUp className="h-4 w-4" />
@@ -238,6 +243,11 @@ export function SymptomsPage() {
                 </CardContent>
               </Card>
             ))}
+          </TabsContent>
+
+          {/* Calendar Tab */}
+          <TabsContent value="calendar" className="mt-0">
+            <SymptomCalendar symptoms={filteredSymptoms} />
           </TabsContent>
 
           {/* Trends Tab */}
