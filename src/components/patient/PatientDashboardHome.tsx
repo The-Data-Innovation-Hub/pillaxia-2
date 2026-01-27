@@ -14,6 +14,7 @@ import { OfflineSyncIndicator } from "./OfflineSyncIndicator";
 import { NotificationChannelsCard } from "./NotificationChannelsCard";
 import { NotificationSetupWizard } from "./NotificationSetupWizard";
 import { OnboardingFlow } from "./OnboardingFlow";
+import { EngagementScoreCard } from "./EngagementScoreCard";
 import { useCachedTodaysSchedule } from "@/hooks/useCachedTodaysSchedule";
 import { useOfflineStatus } from "@/hooks/useOfflineStatus";
 import { useQuery } from "@tanstack/react-query";
@@ -281,7 +282,10 @@ export function PatientDashboardHome() {
       </div>
 
       {/* Notification Channels Summary */}
-      <NotificationChannelsCard />
+      <div className="grid gap-6 lg:grid-cols-2">
+        <NotificationChannelsCard />
+        <EngagementScoreCard />
+      </div>
 
       {/* Quick Actions */}
       <Card>

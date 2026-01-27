@@ -466,6 +466,30 @@ export type Database = {
         }
         Relationships: []
       }
+      patient_activity_log: {
+        Row: {
+          activity_data: Json | null
+          activity_type: string
+          created_at: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          activity_data?: Json | null
+          activity_type: string
+          created_at?: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          activity_data?: Json | null
+          activity_type?: string
+          created_at?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       patient_allergies: {
         Row: {
           allergen: string
@@ -563,6 +587,48 @@ export type Database = {
           name?: string
           phone?: string
           relationship?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      patient_engagement_scores: {
+        Row: {
+          adherence_score: number
+          app_usage_score: number
+          created_at: string
+          id: string
+          metrics: Json | null
+          notification_score: number
+          overall_score: number
+          risk_level: string
+          score_date: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          adherence_score?: number
+          app_usage_score?: number
+          created_at?: string
+          id?: string
+          metrics?: Json | null
+          notification_score?: number
+          overall_score?: number
+          risk_level?: string
+          score_date?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          adherence_score?: number
+          app_usage_score?: number
+          created_at?: string
+          id?: string
+          metrics?: Json | null
+          notification_score?: number
+          overall_score?: number
+          risk_level?: string
+          score_date?: string
           updated_at?: string
           user_id?: string
         }
