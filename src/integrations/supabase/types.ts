@@ -920,6 +920,54 @@ export type Database = {
         }
         Relationships: []
       }
+      patient_risk_flags: {
+        Row: {
+          clinician_user_id: string
+          created_at: string
+          days_since_last_log: number | null
+          description: string | null
+          flag_type: string
+          id: string
+          is_resolved: boolean
+          metric_value: number | null
+          patient_user_id: string
+          resolved_at: string | null
+          resolved_by: string | null
+          severity: string
+          updated_at: string
+        }
+        Insert: {
+          clinician_user_id: string
+          created_at?: string
+          days_since_last_log?: number | null
+          description?: string | null
+          flag_type: string
+          id?: string
+          is_resolved?: boolean
+          metric_value?: number | null
+          patient_user_id: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          severity?: string
+          updated_at?: string
+        }
+        Update: {
+          clinician_user_id?: string
+          created_at?: string
+          days_since_last_log?: number | null
+          description?: string | null
+          flag_type?: string
+          id?: string
+          is_resolved?: boolean
+          metric_value?: number | null
+          patient_user_id?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          severity?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       polypharmacy_warnings: {
         Row: {
           acknowledged_at: string | null

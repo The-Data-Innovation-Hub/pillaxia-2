@@ -1,6 +1,7 @@
 export { ClinicianLayout } from "./ClinicianLayout";
 export { ClinicianSidebar } from "./ClinicianSidebar";
 export { ClinicianDashboardHome } from "./ClinicianDashboardHome";
+export { PatientRiskFlagsCard } from "./PatientRiskFlagsCard";
 export { PatientRosterPage } from "./PatientRosterPage";
 export { MedicationReviewPage } from "./MedicationReviewPage";
 export { AdherenceMonitorPage } from "./AdherenceMonitorPage";
