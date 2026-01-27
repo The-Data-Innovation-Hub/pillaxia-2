@@ -74,3 +74,6 @@ verify_jwt = false
 
 [functions.send-daily-digest]
 verify_jwt = false
+
+[functions.calculate-engagement-scores]
+verify_jwt = false

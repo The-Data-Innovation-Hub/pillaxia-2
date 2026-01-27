@@ -1,4 +1,4 @@
-import { LayoutDashboard, Users, BarChart3, FileText, LogOut, Shield, Settings, Bell, TrendingUp, FlaskConical } from "lucide-react";
+import { LayoutDashboard, Users, BarChart3, FileText, LogOut, Shield, Settings, Bell, TrendingUp, FlaskConical, Activity } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -20,6 +20,7 @@ const menuItems = [
   { title: "User Management", url: "/dashboard/users", icon: Users },
   { title: "System Analytics", url: "/dashboard/analytics", icon: BarChart3 },
   { title: "Notification Analytics", url: "/dashboard/notification-analytics", icon: TrendingUp },
+  { title: "Patient Engagement", url: "/dashboard/patient-engagement", icon: Activity },
   { title: "A/B Testing", url: "/dashboard/ab-testing", icon: FlaskConical },
   { title: "Audit Logs", url: "/dashboard/audit-logs", icon: FileText },
   { title: "Notifications", url: "/dashboard/notifications", icon: Bell },
