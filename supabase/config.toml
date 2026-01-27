@@ -89,3 +89,6 @@ verify_jwt = false
 
 [functions.calculate-patient-risks]
 verify_jwt = false
+
+[functions.check-medication-expiry]
+verify_jwt = false

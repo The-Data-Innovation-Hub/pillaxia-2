@@ -5,6 +5,7 @@ import { FileText, Package, RefreshCw, AlertTriangle } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { ExpiryTrackingCard } from "./ExpiryTrackingCard";
 
 export function PharmacistDashboardHome() {
   const { data: stats, isLoading } = useQuery({
@@ -102,32 +103,37 @@ export function PharmacistDashboardHome() {
         ))}
       </div>
 
-      {/* Quick Actions */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Quick Actions</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-wrap gap-3">
-          <Link to="/dashboard/prescriptions">
-            <Button variant="outline" className="gap-2">
-              <FileText className="h-4 w-4" />
-              View All Prescriptions
-            </Button>
-          </Link>
-          <Link to="/dashboard/refills">
-            <Button variant="outline" className="gap-2">
-              <RefreshCw className="h-4 w-4" />
-              Process Refill Requests
-            </Button>
-          </Link>
-          <Link to="/dashboard/inventory">
-            <Button variant="outline" className="gap-2">
-              <Package className="h-4 w-4" />
-              Check Inventory
-            </Button>
-          </Link>
-        </CardContent>
-      </Card>
+      {/* Expiry Tracking & Quick Actions Row */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        <ExpiryTrackingCard />
+        
+        {/* Quick Actions */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Quick Actions</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-wrap gap-3">
+            <Link to="/dashboard/prescriptions">
+              <Button variant="outline" className="gap-2">
+                <FileText className="h-4 w-4" />
+                View All Prescriptions
+              </Button>
+            </Link>
+            <Link to="/dashboard/refills">
+              <Button variant="outline" className="gap-2">
+                <RefreshCw className="h-4 w-4" />
+                Process Refill Requests
+              </Button>
+            </Link>
+            <Link to="/dashboard/inventory">
+              <Button variant="outline" className="gap-2">
+                <Package className="h-4 w-4" />
+                Check Inventory
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }
