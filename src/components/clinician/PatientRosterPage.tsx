@@ -32,9 +32,10 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Search, User, Pill, Activity, Calendar, UserPlus, UserMinus, Users } from "lucide-react";
+import { Search, User, Pill, Activity, Calendar, UserPlus, UserMinus, Users, MessageCircle } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
+import { ClinicianChatDialog } from "./ClinicianChatDialog";
 
 interface PatientDetails {
   userId: string;
@@ -56,7 +57,27 @@ export function PatientRosterPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedPatient, setSelectedPatient] = useState<PatientDetails | null>(null);
   const [unassignPatient, setUnassignPatient] = useState<PatientDetails | null>(null);
+  const [chatPatient, setChatPatient] = useState<PatientDetails | null>(null);
   const [activeTab, setActiveTab] = useState("assigned");
+
+  // Fetch clinician profile for name
+  const { data: clinicianProfile } = useQuery({
+    queryKey: ["clinician-profile", user?.id],
+    queryFn: async () => {
+      if (!user) return null;
+      const { data } = await supabase
+        .from("profiles")
+        .select("first_name, last_name")
+        .eq("user_id", user.id)
+        .single();
+      return data;
+    },
+    enabled: !!user,
+  });
+
+  const clinicianName = clinicianProfile
+    ? `${clinicianProfile.first_name || ""} ${clinicianProfile.last_name || ""}`.trim() || "Clinician"
+    : "Clinician";
 
   // Get clinician's assigned patients and all patients in a single query
   const { data: patientsData, isLoading } = useQuery({
@@ -263,6 +284,15 @@ export function PatientRosterPage() {
                   ) : (
                     <>
                       <Button
+                        variant="default"
+                        size="sm"
+                        onClick={() => setChatPatient(patient)}
+                        className="gap-1"
+                      >
+                        <MessageCircle className="h-4 w-4" />
+                        Message
+                      </Button>
+                      <Button
                         variant="ghost"
                         size="sm"
                         onClick={() => setSelectedPatient(patient)}
@@ -453,6 +483,19 @@ export function PatientRosterPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Chat Dialog */}
+      {chatPatient && user && (
+        <ClinicianChatDialog
+          open={!!chatPatient}
+          onOpenChange={(open) => !open && setChatPatient(null)}
+          clinicianId={user.id}
+          clinicianName={clinicianName}
+          patientId={chatPatient.userId}
+          patientName={`${chatPatient.profile.first_name || ""} ${chatPatient.profile.last_name || ""}`.trim() || "Patient"}
+          viewerRole="clinician"
+        />
+      )}
     </div>
   );
 }
