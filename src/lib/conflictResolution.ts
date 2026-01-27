@@ -276,6 +276,174 @@ class ConflictResolutionManager {
         return "Entry";
     }
   }
+
+  // Intelligent merge strategies for different field types
+  private getMergeStrategy(fieldName: string): MergeStrategy {
+    // Fields that should always take the latest value
+    const latestWins: string[] = ["status", "taken_at", "severity", "is_read"];
+    
+    // Fields that should preserve local changes (user intent)
+    const localPreferred: string[] = ["notes", "description"];
+    
+    // Fields that should never be merged (use server as source of truth)
+    const serverAuthority: string[] = ["id", "user_id", "created_at", "medication_id", "schedule_id", "scheduled_time"];
+    
+    // Fields that should combine values
+    const combinable: string[] = [];
+
+    if (serverAuthority.includes(fieldName)) return "server";
+    if (localPreferred.includes(fieldName)) return "local";
+    if (latestWins.includes(fieldName)) return "latest";
+    if (combinable.includes(fieldName)) return "combine";
+    
+    return "latest"; // Default strategy
+  }
+
+  // Merge two data objects intelligently
+  mergeData(
+    localData: Record<string, unknown>,
+    serverData: Record<string, unknown>,
+    localTimestamp: number
+  ): MergeResult {
+    const merged: Record<string, unknown> = {};
+    const fieldDecisions: FieldMergeDecision[] = [];
+    
+    // Get all unique keys from both objects
+    const allKeys = new Set([
+      ...Object.keys(localData),
+      ...Object.keys(serverData),
+    ]);
+
+    // Exclude internal/meta fields from merge
+    const excludeFields = ["_pending", "_localId", "_timestamp", "updated_at"];
+
+    for (const key of allKeys) {
+      if (excludeFields.includes(key)) {
+        // Use server value for meta fields, or local if server doesn't have it
+        merged[key] = serverData[key] ?? localData[key];
+        continue;
+      }
+
+      const localValue = localData[key];
+      const serverValue = serverData[key];
+      const strategy = this.getMergeStrategy(key);
+
+      let chosenValue: unknown;
+      let source: "local" | "server" | "merged";
+
+      // If values are equal, no conflict
+      if (JSON.stringify(localValue) === JSON.stringify(serverValue)) {
+        chosenValue = localValue;
+        source = "server"; // Arbitrary when equal
+      } else {
+        switch (strategy) {
+          case "server":
+            chosenValue = serverValue ?? localValue;
+            source = "server";
+            break;
+            
+          case "local":
+            chosenValue = localValue ?? serverValue;
+            source = "local";
+            break;
+            
+          case "latest": {
+            const serverTime = serverData.updated_at 
+              ? new Date(serverData.updated_at as string).getTime()
+              : serverData.created_at 
+                ? new Date(serverData.created_at as string).getTime() 
+                : 0;
+            
+            if (localTimestamp > serverTime) {
+              chosenValue = localValue ?? serverValue;
+              source = "local";
+            } else {
+              chosenValue = serverValue ?? localValue;
+              source = "server";
+            }
+            break;
+          }
+            
+          case "combine":
+            // For text fields, we could concatenate or use other logic
+            if (typeof localValue === "string" && typeof serverValue === "string") {
+              if (localValue && serverValue && localValue !== serverValue) {
+                chosenValue = `${serverValue}\n---\n${localValue}`;
+                source = "merged";
+              } else {
+                chosenValue = localValue || serverValue;
+                source = localValue ? "local" : "server";
+              }
+            } else {
+              chosenValue = localValue ?? serverValue;
+              source = "local";
+            }
+            break;
+            
+          default:
+            chosenValue = localValue ?? serverValue;
+            source = "local";
+        }
+      }
+
+      merged[key] = chosenValue;
+      
+      // Track decision for transparency
+      if (localValue !== undefined || serverValue !== undefined) {
+        fieldDecisions.push({
+          field: key,
+          localValue,
+          serverValue,
+          mergedValue: chosenValue,
+          source,
+          strategy,
+        });
+      }
+    }
+
+    // Set updated_at to now for the merged result
+    merged.updated_at = new Date().toISOString();
+
+    return {
+      mergedData: merged,
+      fieldDecisions,
+      hasChanges: fieldDecisions.some(d => d.source !== "server" || d.localValue !== d.serverValue),
+    };
+  }
+
+  // Check if merge is possible (not for delete conflicts)
+  canMerge(conflict: ConflictEntry): boolean {
+    return conflict.conflictType !== "delete_conflict" && conflict.serverData !== null;
+  }
+
+  // Get a preview of what the merged data would look like
+  getMergePreview(conflict: ConflictEntry): MergeResult | null {
+    if (!this.canMerge(conflict)) return null;
+    
+    return this.mergeData(
+      conflict.localData,
+      conflict.serverData as Record<string, unknown>,
+      conflict.localTimestamp
+    );
+  }
+}
+
+// Type definitions for merge functionality
+export type MergeStrategy = "local" | "server" | "latest" | "combine";
+
+export interface FieldMergeDecision {
+  field: string;
+  localValue: unknown;
+  serverValue: unknown;
+  mergedValue: unknown;
+  source: "local" | "server" | "merged";
+  strategy: MergeStrategy;
+}
+
+export interface MergeResult {
+  mergedData: Record<string, unknown>;
+  fieldDecisions: FieldMergeDecision[];
+  hasChanges: boolean;
 }
 
 export const conflictManager = new ConflictResolutionManager();

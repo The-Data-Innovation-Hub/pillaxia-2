@@ -263,6 +263,38 @@ class OfflineQueue {
     await this.removeAction(actionId);
   }
 
+  // Sync with merged data (after conflict resolution with merge)
+  async syncWithMergedData(actionId: number, mergedData: Record<string, unknown>): Promise<boolean> {
+    const actions = await this.getActions();
+    const action = actions.find(a => a.id === actionId);
+    
+    if (!action) {
+      console.warn("[OfflineQueue] Action not found for merge:", actionId);
+      return false;
+    }
+
+    try {
+      // Use the merged data instead of the original action body
+      const response = await fetch(action.url, {
+        method: action.method,
+        headers: action.headers,
+        body: JSON.stringify(mergedData),
+      });
+
+      if (response.ok) {
+        await this.removeAction(actionId);
+        console.log("[OfflineQueue] Merged data synced successfully:", actionId);
+        return true;
+      } else {
+        console.error("[OfflineQueue] Merge sync failed:", actionId, response.status);
+        return false;
+      }
+    } catch (error) {
+      console.error("[OfflineQueue] Merge sync error:", actionId, error);
+      return false;
+    }
+  }
+
   // Request background sync if available
   async requestBackgroundSync(tag: string = "sync-pending-actions"): Promise<boolean> {
     if ("serviceWorker" in navigator && "sync" in ServiceWorkerRegistration.prototype) {
