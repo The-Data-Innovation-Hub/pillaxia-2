@@ -10,3 +10,4 @@ export { ABTestingPage } from "./ABTestingPage";
 export { PatientEngagementPage } from "./PatientEngagementPage";
 export { PatientDetailDrawer } from "./PatientDetailDrawer";
 export { ClinicianEncouragementDialog } from "./ClinicianEncouragementDialog";
+export { LicenseCompliancePage } from "./LicenseCompliancePage";
