@@ -110,8 +110,27 @@
     @apply border-border;
   }
 
+  html {
+    /* Ensure proper sizing on iOS */
+    height: -webkit-fill-available;
+  }
+
   body {
     @apply bg-background text-foreground font-sans antialiased;
+    /* iOS safe area support */
+    min-height: 100vh;
+    min-height: -webkit-fill-available;
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+    /* Prevent iOS overscroll bounce */
+    overscroll-behavior: none;
+  }
+
+  #root {
+    min-height: 100vh;
+    min-height: -webkit-fill-available;
   }
 }
 
