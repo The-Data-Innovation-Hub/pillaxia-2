@@ -13,6 +13,7 @@ import { ClinicianMessagesCard } from "./ClinicianMessagesCard";
 import { OfflineSyncIndicator } from "./OfflineSyncIndicator";
 import { NotificationChannelsCard } from "./NotificationChannelsCard";
 import { NotificationSetupWizard } from "./NotificationSetupWizard";
+import { OnboardingFlow } from "./OnboardingFlow";
 import { useCachedTodaysSchedule } from "@/hooks/useCachedTodaysSchedule";
 import { useOfflineStatus } from "@/hooks/useOfflineStatus";
 import { useQuery } from "@tanstack/react-query";
@@ -143,7 +144,10 @@ export function PatientDashboardHome() {
 
   return (
     <div className="space-y-6">
-      {/* Notification Setup Wizard */}
+      {/* Full Onboarding Flow for new users */}
+      <OnboardingFlow />
+
+      {/* Notification Setup Wizard (manual trigger) */}
       <NotificationSetupWizard
         open={showSetupWizard}
         onOpenChange={setShowSetupWizard}
