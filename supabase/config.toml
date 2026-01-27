@@ -59,3 +59,6 @@ verify_jwt = false
 
 [functions.check-polypharmacy]
 verify_jwt = false
+
+[functions.send-test-notifications]
+verify_jwt = false
