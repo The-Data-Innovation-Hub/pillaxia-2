@@ -28,7 +28,13 @@ import {
   Mail,
   Building2,
   BadgeCheck,
+  CalendarIcon,
+  AlertTriangle,
 } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { format, differenceInDays, parseISO } from "date-fns";
+import { cn } from "@/lib/utils";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface ProfileData {
@@ -37,6 +43,7 @@ interface ProfileData {
   phone: string;
   organization: string;
   license_number: string;
+  license_expiration_date: string | null;
   avatar_url: string;
   address_line1: string;
   address_line2: string;
@@ -56,6 +63,7 @@ export function ProfileSettingsTab() {
     phone: "",
     organization: "",
     license_number: "",
+    license_expiration_date: null,
     avatar_url: "",
     address_line1: "",
     address_line2: "",
@@ -109,6 +117,7 @@ export function ProfileSettingsTab() {
           phone: data.phone || "",
           organization: data.organization || "",
           license_number: data.license_number || "",
+          license_expiration_date: data.license_expiration_date || null,
           avatar_url: data.avatar_url || "",
           address_line1: data.address_line1 || "",
           address_line2: data.address_line2 || "",
@@ -135,6 +144,7 @@ export function ProfileSettingsTab() {
           phone: data.phone,
           organization: data.organization,
           license_number: data.license_number,
+          license_expiration_date: data.license_expiration_date,
           avatar_url: data.avatar_url,
           address_line1: data.address_line1,
           address_line2: data.address_line2,
@@ -579,6 +589,76 @@ export function ProfileSettingsTab() {
             <p className="text-xs text-muted-foreground">
               Your medical or pharmacy license number for credential tracking
             </p>
+          </div>
+
+          {/* License Expiration Date */}
+          <div className="space-y-2">
+            <Label className="flex items-center gap-2">
+              <CalendarIcon className="h-4 w-4" />
+              License Expiration Date
+            </Label>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className={cn(
+                    "w-full justify-start text-left font-normal",
+                    !profileData.license_expiration_date && "text-muted-foreground"
+                  )}
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {profileData.license_expiration_date
+                    ? format(parseISO(profileData.license_expiration_date), "PPP")
+                    : "Select expiration date"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={profileData.license_expiration_date ? parseISO(profileData.license_expiration_date) : undefined}
+                  onSelect={(date) =>
+                    setProfileData({
+                      ...profileData,
+                      license_expiration_date: date ? format(date, "yyyy-MM-dd") : null,
+                    })
+                  }
+                  initialFocus
+                  className="p-3 pointer-events-auto"
+                />
+              </PopoverContent>
+            </Popover>
+            {profileData.license_expiration_date && (() => {
+              const daysUntilExpiry = differenceInDays(
+                parseISO(profileData.license_expiration_date),
+                new Date()
+              );
+              if (daysUntilExpiry < 0) {
+                return (
+                  <div className="flex items-center gap-2 text-destructive text-sm">
+                    <AlertTriangle className="h-4 w-4" />
+                    License has expired! Please renew immediately.
+                  </div>
+                );
+              } else if (daysUntilExpiry <= 30) {
+                return (
+                  <div className="flex items-center gap-2 text-warning text-sm">
+                    <AlertTriangle className="h-4 w-4" />
+                    License expires in {daysUntilExpiry} days. Renewal recommended.
+                  </div>
+                );
+              } else if (daysUntilExpiry <= 90) {
+                return (
+                  <p className="text-xs text-muted-foreground">
+                    License expires in {daysUntilExpiry} days. You'll receive reminders before expiration.
+                  </p>
+                );
+              }
+              return (
+                <p className="text-xs text-muted-foreground">
+                  License valid for {daysUntilExpiry} days. Reminders will be sent 90, 30, and 7 days before expiration.
+                </p>
+              );
+            })()}
           </div>
 
           <Button onClick={handleSaveProfile} disabled={savingProfile}>

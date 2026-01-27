@@ -963,6 +963,7 @@ export type Database = {
           id: string
           language_preference: string | null
           last_name: string | null
+          license_expiration_date: string | null
           license_number: string | null
           organization: string | null
           phone: string | null
@@ -984,6 +985,7 @@ export type Database = {
           id?: string
           language_preference?: string | null
           last_name?: string | null
+          license_expiration_date?: string | null
           license_number?: string | null
           organization?: string | null
           phone?: string | null
@@ -1005,6 +1007,7 @@ export type Database = {
           id?: string
           language_preference?: string | null
           last_name?: string | null
+          license_expiration_date?: string | null
           license_number?: string | null
           organization?: string | null
           phone?: string | null

@@ -83,3 +83,6 @@ verify_jwt = false
 
 [functions.appointment-reply-webhook]
 verify_jwt = false
+
+[functions.check-license-renewals]
+verify_jwt = false
