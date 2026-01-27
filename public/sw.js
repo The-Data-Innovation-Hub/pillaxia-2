@@ -212,6 +212,15 @@ self.addEventListener("push", (event) => {
     console.error("[SW] Error parsing push data:", e);
   }
 
+  // Add conflict-specific actions
+  let actions = data.actions || [];
+  if (data.tag === "sync-conflict" || data.data?.type === "sync_conflict") {
+    actions = [
+      { action: "review", title: "Review Now" },
+      { action: "dismiss", title: "Later" },
+    ];
+  }
+
   const options = {
     body: data.body,
     icon: data.icon || "/favicon.ico",
@@ -220,7 +229,7 @@ self.addEventListener("push", (event) => {
     data: data.data || {},
     vibrate: [200, 100, 200],
     requireInteraction: data.requireInteraction || false,
-    actions: data.actions || [],
+    actions: actions,
   };
 
   event.waitUntil(self.registration.showNotification(data.title, options));
@@ -228,9 +237,25 @@ self.addEventListener("push", (event) => {
 
 self.addEventListener("notificationclick", (event) => {
   console.log("[SW] Notification click:", event);
+  
+  const action = event.action;
+  const notificationData = event.notification.data || {};
+  
+  // Handle dismiss action
+  if (action === "dismiss") {
+    event.notification.close();
+    return;
+  }
+
   event.notification.close();
 
-  const urlToOpen = event.notification.data?.url || "/dashboard";
+  // Determine URL based on notification type
+  let urlToOpen = notificationData.url || "/dashboard";
+  
+  // For conflict notifications, always go to sync status
+  if (notificationData.type === "sync_conflict" || action === "review") {
+    urlToOpen = "/dashboard/sync-status";
+  }
 
   event.waitUntil(
     clients

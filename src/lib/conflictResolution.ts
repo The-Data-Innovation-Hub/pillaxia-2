@@ -1,6 +1,8 @@
 // Conflict Resolution for Offline Sync
 // Detects and manages conflicts between local offline changes and server data
 
+import { supabase } from "@/integrations/supabase/client";
+
 export interface ConflictEntry {
   id: string;
   type: "medication_log" | "symptom_entry";
@@ -83,8 +85,59 @@ class ConflictResolutionManager {
 
       const request = store.put(entry);
       request.onerror = () => reject(request.error);
-      request.onsuccess = () => resolve(id);
+      request.onsuccess = () => {
+        // Send push notification for the new conflict
+        this.sendConflictPushNotification(entry).catch(err => {
+          console.warn("[ConflictManager] Failed to send conflict push:", err);
+        });
+        resolve(id);
+      };
     });
+  }
+
+  // Send push notification when a conflict is detected
+  private async sendConflictPushNotification(conflict: ConflictEntry): Promise<void> {
+    try {
+      // Get current user
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        console.log("[ConflictManager] No user session, skipping push notification");
+        return;
+      }
+
+      const typeLabel = this.getTypeLabel(conflict.type);
+      const conflictLabel = conflict.conflictType === "update_conflict" 
+        ? "was modified on another device"
+        : conflict.conflictType === "delete_conflict"
+          ? "was deleted on the server"
+          : "has outdated data";
+
+      const { error } = await supabase.functions.invoke("send-push-notification", {
+        body: {
+          user_ids: [user.id],
+          payload: {
+            title: "Sync Conflict Detected",
+            body: `Your ${typeLabel.toLowerCase()} ${conflictLabel}. Review needed.`,
+            icon: "/favicon.ico",
+            tag: "sync-conflict",
+            requireInteraction: true,
+            data: {
+              url: "/dashboard/sync-status",
+              conflictId: conflict.id,
+              type: "sync_conflict",
+            },
+          },
+        },
+      });
+
+      if (error) {
+        console.error("[ConflictManager] Push notification error:", error);
+      } else {
+        console.log("[ConflictManager] Conflict push notification sent");
+      }
+    } catch (error) {
+      console.error("[ConflictManager] Failed to send push notification:", error);
+    }
   }
 
   async getUnresolvedConflicts(): Promise<ConflictEntry[]> {
