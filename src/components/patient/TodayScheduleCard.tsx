@@ -1,10 +1,10 @@
-import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Check, X, Clock } from "lucide-react";
+import { Check, X } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import { useHaptics } from "@/hooks/useHaptics";
 
 interface TodayScheduleCardProps {
   log: {
@@ -28,10 +28,21 @@ interface TodayScheduleCardProps {
 }
 
 export function TodayScheduleCard({ log, onTake, onSkip }: TodayScheduleCardProps) {
+  const haptics = useHaptics();
   const scheduledTime = new Date(log.scheduled_time);
   const now = new Date();
   const isPast = scheduledTime < now;
   const isUpcoming = !isPast && scheduledTime.getTime() - now.getTime() < 30 * 60 * 1000; // Within 30 min
+
+  const handleTake = async (id: string) => {
+    await haptics.success();
+    onTake(id);
+  };
+
+  const handleSkip = async (id: string) => {
+    await haptics.warning();
+    onSkip(id);
+  };
 
   const statusColors = {
     pending: isPast ? "bg-amber-500" : isUpcoming ? "bg-blue-500" : "bg-muted",
@@ -92,14 +103,14 @@ export function TodayScheduleCard({ log, onTake, onSkip }: TodayScheduleCardProp
                   size="sm"
                   variant="outline"
                   className="text-destructive hover:bg-destructive/10"
-                  onClick={() => onSkip(log.id)}
+                  onClick={() => handleSkip(log.id)}
                 >
                   <X className="h-4 w-4" />
                 </Button>
                 <Button
                   size="sm"
                   className="bg-green-600 hover:bg-green-700"
-                  onClick={() => onTake(log.id)}
+                  onClick={() => handleTake(log.id)}
                 >
                   <Check className="h-4 w-4 mr-1" />
                   Take

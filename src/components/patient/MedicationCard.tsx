@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Pill, Clock, MoreVertical, Edit, Trash2, RefreshCw } from "lucide-react";
+import { Clock, MoreVertical, Edit, Trash2, RefreshCw } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -9,6 +9,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useHaptics } from "@/hooks/useHaptics";
 
 interface MedicationCardProps {
   medication: {
@@ -31,6 +32,8 @@ interface MedicationCardProps {
 }
 
 export function MedicationCard({ medication, onEdit, onDelete, onRequestRefill }: MedicationCardProps) {
+  const haptics = useHaptics();
+
   const formIcons: Record<string, string> = {
     tablet: "💊",
     capsule: "💊",
@@ -39,6 +42,21 @@ export function MedicationCard({ medication, onEdit, onDelete, onRequestRefill }
     inhaler: "🌬️",
     cream: "🧴",
     drops: "💧",
+  };
+
+  const handleEdit = async (id: string) => {
+    await haptics.lightTap();
+    onEdit?.(id);
+  };
+
+  const handleDelete = async (id: string) => {
+    await haptics.warning();
+    onDelete?.(id);
+  };
+
+  const handleRequestRefill = async (id: string) => {
+    await haptics.mediumTap();
+    onRequestRefill?.(id);
   };
 
   return (
@@ -67,17 +85,17 @@ export function MedicationCard({ medication, onEdit, onDelete, onRequestRefill }
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="bg-background">
-                <DropdownMenuItem onClick={() => onEdit?.(medication.id)}>
+                <DropdownMenuItem onClick={() => handleEdit(medication.id)}>
                   <Edit className="h-4 w-4 mr-2" />
                   Edit
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => onRequestRefill?.(medication.id)}>
+                <DropdownMenuItem onClick={() => handleRequestRefill(medication.id)}>
                   <RefreshCw className="h-4 w-4 mr-2" />
                   Request Refill
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem 
-                  onClick={() => onDelete?.(medication.id)}
+                  onClick={() => handleDelete(medication.id)}
                   className="text-destructive focus:text-destructive"
                 >
                   <Trash2 className="h-4 w-4 mr-2" />
