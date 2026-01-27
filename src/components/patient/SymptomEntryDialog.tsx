@@ -193,12 +193,12 @@ export function SymptomEntryDialog({ open, onOpenChange, onSuccess }: SymptomEnt
 
           <div className="space-y-2">
             <Label htmlFor="medication">Related Medication (optional)</Label>
-            <Select value={medicationId} onValueChange={setMedicationId}>
+            <Select value={medicationId} onValueChange={(val) => setMedicationId(val === "none" ? "" : val)}>
               <SelectTrigger>
                 <SelectValue placeholder="Select if related to a medication" />
               </SelectTrigger>
               <SelectContent className="bg-background">
-                <SelectItem value="">None</SelectItem>
+                <SelectItem value="none">None</SelectItem>
                 {medications.map((med) => (
                   <SelectItem key={med.id} value={med.id}>
                     {med.name}
