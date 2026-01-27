@@ -18,7 +18,7 @@ export interface CachedSymptomEntry {
 }
 
 const DB_NAME = "pillaxia-cache";
-const DB_VERSION = 3; // Increment for new store
+const DB_VERSION = 4; // Must match all cache files using same DB
 const SYMPTOMS_STORE = "symptoms";
 const META_STORE = "cache-meta";
 
