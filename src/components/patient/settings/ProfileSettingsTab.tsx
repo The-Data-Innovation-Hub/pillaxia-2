@@ -25,7 +25,9 @@ import {
   Eye,
   EyeOff,
   X,
+  Mail,
 } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface ProfileData {
   first_name: string;
@@ -68,6 +70,10 @@ export function ProfileSettingsTab() {
     new: false,
     confirm: false,
   });
+  
+  const [newEmail, setNewEmail] = useState("");
+  const [savingEmail, setSavingEmail] = useState(false);
+  const [emailSent, setEmailSent] = useState(false);
   
   const [savingProfile, setSavingProfile] = useState(false);
   const [savingPassword, setSavingPassword] = useState(false);
@@ -328,6 +334,61 @@ export function ProfileSettingsTab() {
     }
   };
 
+  const handleChangeEmail = async () => {
+    if (!newEmail.trim()) {
+      toast({
+        title: "Email required",
+        description: "Please enter a new email address.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(newEmail)) {
+      toast({
+        title: "Invalid email",
+        description: "Please enter a valid email address.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (newEmail === user?.email) {
+      toast({
+        title: "Same email",
+        description: "The new email is the same as your current email.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setSavingEmail(true);
+    try {
+      const { error } = await supabase.auth.updateUser({
+        email: newEmail,
+      });
+
+      if (error) throw error;
+
+      setEmailSent(true);
+      toast({
+        title: "Verification email sent",
+        description: "Please check both your current and new email inboxes to confirm the change.",
+      });
+    } catch (error: any) {
+      console.error("Failed to change email:", error);
+      toast({
+        title: "Failed to change email",
+        description: error.message || "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setSavingEmail(false);
+    }
+  };
+
   const getInitials = () => {
     const first = profileData.first_name?.[0] || "";
     const last = profileData.last_name?.[0] || "";
@@ -563,6 +624,68 @@ export function ProfileSettingsTab() {
             {savingProfile && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
             Save Address
           </Button>
+        </CardContent>
+      </Card>
+
+      {/* Change Email */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Mail className="h-5 w-5 text-primary" />
+            Change Email
+          </CardTitle>
+          <CardDescription>
+            Update your email address. A verification link will be sent to both your current and new email.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label>Current Email</Label>
+            <Input value={user?.email || ""} disabled className="bg-muted" />
+          </div>
+
+          {emailSent ? (
+            <Alert>
+              <Mail className="h-4 w-4" />
+              <AlertDescription>
+                Verification emails have been sent. Please check both your current email ({user?.email}) 
+                and your new email ({newEmail}) to complete the change. The links will expire in 24 hours.
+              </AlertDescription>
+            </Alert>
+          ) : (
+            <>
+              <div className="space-y-2">
+                <Label htmlFor="new_email">New Email Address</Label>
+                <Input
+                  id="new_email"
+                  type="email"
+                  placeholder="Enter new email address"
+                  value={newEmail}
+                  onChange={(e) => setNewEmail(e.target.value)}
+                />
+              </div>
+
+              <Button
+                onClick={handleChangeEmail}
+                disabled={savingEmail || !newEmail.trim()}
+              >
+                {savingEmail && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                Send Verification Email
+              </Button>
+            </>
+          )}
+
+          {emailSent && (
+            <Button
+              variant="outline"
+              onClick={() => {
+                setEmailSent(false);
+                setNewEmail("");
+              }}
+            >
+              Change to Different Email
+            </Button>
+          )}
         </CardContent>
       </Card>
 
