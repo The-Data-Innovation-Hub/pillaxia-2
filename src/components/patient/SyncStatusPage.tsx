@@ -161,7 +161,8 @@ export function SyncStatusPage() {
 
   const handleResolveConflict = async (
     conflictId: string, 
-    resolution: "keep_local" | "keep_server" | "merge"
+    resolution: "keep_local" | "keep_server" | "merge",
+    mergedData?: Record<string, unknown>
   ) => {
     const conflict = conflicts.find(c => c.id === conflictId);
     if (!conflict) return;
@@ -182,11 +183,27 @@ export function SyncStatusPage() {
         await offlineQueue.discardAction(conflict.actionId);
         await conflictManager.removeConflict(conflictId);
         toast.success("Conflict resolved - server version kept");
+      } else if (resolution === "merge" && mergedData) {
+        // Sync with the intelligently merged data
+        const success = await offlineQueue.syncWithMergedData(conflict.actionId, mergedData);
+        if (success) {
+          await conflictManager.removeConflict(conflictId);
+          toast.success(t.offline.mergeApplied);
+        } else {
+          toast.error("Failed to apply merged changes");
+          return;
+        }
       }
+
+      const resolutionLabel = resolution === "merge" 
+        ? "merged intelligently" 
+        : resolution === "keep_local" 
+          ? "kept local" 
+          : "kept server";
 
       addHistoryEntry({
         type: "conflict_resolved",
-        message: `Resolved ${conflictManager.getTypeLabel(conflict.type)} conflict: ${resolution === "keep_local" ? "kept local" : "kept server"}`,
+        message: `Resolved ${conflictManager.getTypeLabel(conflict.type)} conflict: ${resolutionLabel}`,
       });
 
       await loadData();
