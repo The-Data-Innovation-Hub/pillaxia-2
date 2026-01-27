@@ -12,6 +12,32 @@ interface MissedDosePayload {
   scheduledTime: string;
 }
 
+interface PatientPreferences {
+  email_missed_alerts: boolean;
+  in_app_missed_alerts: boolean;
+  quiet_hours_enabled: boolean;
+  quiet_hours_start: string | null;
+  quiet_hours_end: string | null;
+}
+
+function isInQuietHours(prefs: PatientPreferences): boolean {
+  if (!prefs.quiet_hours_enabled || !prefs.quiet_hours_start || !prefs.quiet_hours_end) {
+    return false;
+  }
+
+  const now = new Date();
+  const currentTime = now.toTimeString().slice(0, 5); // HH:MM format
+  const start = prefs.quiet_hours_start.slice(0, 5);
+  const end = prefs.quiet_hours_end.slice(0, 5);
+
+  // Handle overnight quiet hours (e.g., 22:00 to 07:00)
+  if (start > end) {
+    return currentTime >= start || currentTime < end;
+  }
+  
+  return currentTime >= start && currentTime < end;
+}
+
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
@@ -23,7 +49,7 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Check if missed_dose_alerts are enabled
+    // Check if missed_dose_alerts are enabled globally
     const { data: setting, error: settingError } = await supabase
       .from("notification_settings")
       .select("is_enabled")
@@ -36,7 +62,7 @@ serve(async (req) => {
 
     // If setting exists and is disabled, skip sending
     if (setting && !setting.is_enabled) {
-      console.log("Missed dose alerts are disabled, skipping notification");
+      console.log("Missed dose alerts are disabled globally, skipping notification");
       return new Response(
         JSON.stringify({ success: true, skipped: true, reason: "notifications_disabled" }),
         { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
@@ -54,6 +80,26 @@ serve(async (req) => {
     }
 
     console.log("Processing missed dose alert for patient " + patientUserId + ", medication: " + medicationName);
+
+    // Check patient notification preferences
+    const { data: patientPrefs, error: prefsError } = await supabase
+      .from("patient_notification_preferences")
+      .select("email_missed_alerts, in_app_missed_alerts, quiet_hours_enabled, quiet_hours_start, quiet_hours_end")
+      .eq("user_id", patientUserId)
+      .maybeSingle();
+
+    if (prefsError) {
+      console.error("Error fetching patient preferences:", prefsError);
+    }
+
+    // Check if patient is in quiet hours (this affects whether we notify caregivers too)
+    if (patientPrefs && isInQuietHours(patientPrefs)) {
+      console.log("Patient " + patientUserId + " is in quiet hours, skipping missed dose alert");
+      return new Response(
+        JSON.stringify({ success: true, skipped: true, reason: "patient_quiet_hours" }),
+        { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
 
     // Get patient profile
     const { data: patientProfile, error: patientError } = await supabase
@@ -120,10 +166,11 @@ serve(async (req) => {
       hour12: true,
     });
 
-    const notificationResults: { email: number; whatsapp: number; failed: number } = {
+    const notificationResults: { email: number; whatsapp: number; failed: number; skipped: number } = {
       email: 0,
       whatsapp: 0,
       failed: 0,
+      skipped: 0,
     };
 
     // Send notifications to each caregiver
