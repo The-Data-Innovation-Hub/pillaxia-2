@@ -26,6 +26,7 @@ import {
   Heart,
   History,
   Bell,
+  RefreshCw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -95,6 +96,14 @@ export function PatientSidebar() {
       </SidebarContent>
 
       <SidebarFooter className="border-t p-4 space-y-2">
+        <NavLink 
+          to="/dashboard/sync-status"
+          className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-muted/50 transition-colors text-sm"
+          activeClassName="bg-primary/10 text-primary font-medium"
+        >
+          <RefreshCw className="h-4 w-4" />
+          <span>Sync Status</span>
+        </NavLink>
         <NavLink 
           to="/dashboard/settings"
           className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-muted/50 transition-colors text-sm"
