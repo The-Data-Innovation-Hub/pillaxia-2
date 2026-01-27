@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
 import {
@@ -13,8 +14,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { User, TrendingUp, TrendingDown, Minus, AlertTriangle, CheckCircle } from "lucide-react";
+import { User, TrendingUp, TrendingDown, Minus, AlertTriangle, CheckCircle, History } from "lucide-react";
 import { format, subDays } from "date-fns";
+import { PatientAdherenceHistoryDialog } from "./PatientAdherenceHistoryDialog";
 
 interface PatientAdherence {
   patientId: string;
@@ -31,6 +33,7 @@ interface PatientAdherence {
 export function AdherenceMonitorPage() {
   const { user } = useAuth();
   const [timeRange, setTimeRange] = useState<"7" | "14" | "30">("7");
+  const [selectedPatient, setSelectedPatient] = useState<{ id: string; name: string } | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ["clinician-adherence", user?.id, timeRange],
@@ -250,7 +253,7 @@ export function AdherenceMonitorPage() {
               {data.map((patient) => (
                 <div
                   key={patient.patientId}
-                  className="p-4 rounded-lg border flex flex-col sm:flex-row sm:items-center gap-4"
+                  className="p-4 rounded-lg border flex flex-col sm:flex-row sm:items-center gap-4 hover:bg-muted/50 transition-colors"
                 >
                   <div className="flex items-center gap-3 flex-1">
                     <div className={`h-10 w-10 rounded-full flex items-center justify-center ${
@@ -291,6 +294,14 @@ export function AdherenceMonitorPage() {
                     }>
                       {patient.current7Day}%
                     </Badge>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setSelectedPatient({ id: patient.patientId, name: patient.patientName })}
+                    >
+                      <History className="h-4 w-4 mr-1" />
+                      History
+                    </Button>
                   </div>
                 </div>
               ))}
@@ -298,6 +309,14 @@ export function AdherenceMonitorPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Patient History Dialog */}
+      <PatientAdherenceHistoryDialog
+        open={!!selectedPatient}
+        onOpenChange={(open) => !open && setSelectedPatient(null)}
+        patientId={selectedPatient?.id || ""}
+        patientName={selectedPatient?.name || ""}
+      />
     </div>
   );
 }

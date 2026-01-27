@@ -5,6 +5,7 @@ export { PatientRiskFlagsCard } from "./PatientRiskFlagsCard";
 export { PatientRosterPage } from "./PatientRosterPage";
 export { MedicationReviewPage } from "./MedicationReviewPage";
 export { AdherenceMonitorPage } from "./AdherenceMonitorPage";
+export { PatientAdherenceHistoryDialog } from "./PatientAdherenceHistoryDialog";
 export { ClinicianChatDialog } from "./ClinicianChatDialog";
 export { SOAPNotesPage } from "./SOAPNotesPage";
 export { RedFlagAlertsCard } from "./RedFlagAlertsCard";
