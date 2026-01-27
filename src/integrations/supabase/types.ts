@@ -224,6 +224,175 @@ export type Database = {
         }
         Relationships: []
       }
+      controlled_drug_adjustments: {
+        Row: {
+          adjustment_type: string
+          controlled_drug_id: string
+          created_at: string
+          id: string
+          invoice_number: string | null
+          new_stock: number
+          performed_by: string
+          previous_stock: number
+          quantity: number
+          reason: string
+          supplier: string | null
+          witness_id: string | null
+        }
+        Insert: {
+          adjustment_type: string
+          controlled_drug_id: string
+          created_at?: string
+          id?: string
+          invoice_number?: string | null
+          new_stock: number
+          performed_by: string
+          previous_stock: number
+          quantity: number
+          reason: string
+          supplier?: string | null
+          witness_id?: string | null
+        }
+        Update: {
+          adjustment_type?: string
+          controlled_drug_id?: string
+          created_at?: string
+          id?: string
+          invoice_number?: string | null
+          new_stock?: number
+          performed_by?: string
+          previous_stock?: number
+          quantity?: number
+          reason?: string
+          supplier?: string | null
+          witness_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "controlled_drug_adjustments_controlled_drug_id_fkey"
+            columns: ["controlled_drug_id"]
+            isOneToOne: false
+            referencedRelation: "controlled_drugs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      controlled_drug_dispensing: {
+        Row: {
+          controlled_drug_id: string
+          created_at: string
+          dispensed_at: string
+          dispensing_pharmacist_id: string
+          id: string
+          notes: string | null
+          patient_id: string | null
+          patient_name: string
+          prescriber_dea: string | null
+          prescriber_name: string
+          prescription_number: string
+          quantity_dispensed: number
+          quantity_remaining: number
+          witness_pharmacist_id: string | null
+        }
+        Insert: {
+          controlled_drug_id: string
+          created_at?: string
+          dispensed_at?: string
+          dispensing_pharmacist_id: string
+          id?: string
+          notes?: string | null
+          patient_id?: string | null
+          patient_name: string
+          prescriber_dea?: string | null
+          prescriber_name: string
+          prescription_number: string
+          quantity_dispensed: number
+          quantity_remaining: number
+          witness_pharmacist_id?: string | null
+        }
+        Update: {
+          controlled_drug_id?: string
+          created_at?: string
+          dispensed_at?: string
+          dispensing_pharmacist_id?: string
+          id?: string
+          notes?: string | null
+          patient_id?: string | null
+          patient_name?: string
+          prescriber_dea?: string | null
+          prescriber_name?: string
+          prescription_number?: string
+          quantity_dispensed?: number
+          quantity_remaining?: number
+          witness_pharmacist_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "controlled_drug_dispensing_controlled_drug_id_fkey"
+            columns: ["controlled_drug_id"]
+            isOneToOne: false
+            referencedRelation: "controlled_drugs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      controlled_drugs: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          current_stock: number
+          form: string
+          generic_name: string | null
+          id: string
+          is_active: boolean
+          manufacturer: string | null
+          minimum_stock: number
+          name: string
+          ndc_number: string | null
+          schedule: Database["public"]["Enums"]["drug_schedule"]
+          storage_location: string | null
+          strength: string
+          unit_of_measure: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          current_stock?: number
+          form?: string
+          generic_name?: string | null
+          id?: string
+          is_active?: boolean
+          manufacturer?: string | null
+          minimum_stock?: number
+          name: string
+          ndc_number?: string | null
+          schedule: Database["public"]["Enums"]["drug_schedule"]
+          storage_location?: string | null
+          strength: string
+          unit_of_measure?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          current_stock?: number
+          form?: string
+          generic_name?: string | null
+          id?: string
+          is_active?: boolean
+          manufacturer?: string | null
+          minimum_stock?: number
+          name?: string
+          ndc_number?: string | null
+          schedule?: Database["public"]["Enums"]["drug_schedule"]
+          storage_location?: string | null
+          strength?: string
+          unit_of_measure?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       drug_interactions: {
         Row: {
           created_at: string
@@ -1062,6 +1231,7 @@ export type Database = {
     }
     Enums: {
       app_role: "patient" | "clinician" | "pharmacist" | "admin"
+      drug_schedule: "II" | "III" | "IV" | "V"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1190,6 +1360,7 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["patient", "clinician", "pharmacist", "admin"],
+      drug_schedule: ["II", "III", "IV", "V"],
     },
   },
 } as const

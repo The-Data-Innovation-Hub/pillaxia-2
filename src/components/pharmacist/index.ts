@@ -4,3 +4,7 @@ export { PharmacistDashboardHome } from "./PharmacistDashboardHome";
 export { PrescriptionsPage } from "./PrescriptionsPage";
 export { InventoryPage } from "./InventoryPage";
 export { RefillRequestsPage } from "./RefillRequestsPage";
+export { ControlledDrugRegisterPage } from "./ControlledDrugRegisterPage";
+export { AddControlledDrugDialog } from "./AddControlledDrugDialog";
+export { DispenseControlledDrugDialog } from "./DispenseControlledDrugDialog";
+export { AdjustStockDialog } from "./AdjustStockDialog";
