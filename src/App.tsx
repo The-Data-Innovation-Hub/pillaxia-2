@@ -57,7 +57,87 @@ import { HelpPage } from "@/components/shared";
 
 const queryClient = new QueryClient();
 
-// Protected route wrapper
+// These components must be rendered inside AuthProvider, so we define them here
+// and they will be used within the AppRoutes component which is inside AuthProvider
+
+const App = () => (
+  <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <AuthProvider>
+            <LanguageProvider>
+              <OfflineBanner />
+              <AppRoutes />
+            </LanguageProvider>
+          </AuthProvider>
+        </BrowserRouter>
+      </TooltipProvider>
+    </QueryClientProvider>
+  </ThemeProvider>
+);
+
+// All routes and components that use useAuth must be inside this component
+// which is rendered within AuthProvider
+function AppRoutes() {
+  return (
+    <Routes>
+      <Route path="/" element={<Index />} />
+      <Route path="/auth" element={<Auth />} />
+    
+      {/* Protected Dashboard Routes */}
+      <Route
+        path="/dashboard"
+        element={
+          <ProtectedRoute>
+            <DashboardRouter />
+          </ProtectedRoute>
+        }
+      >
+        <Route index element={<DashboardHome />} />
+        {/* Patient Routes */}
+        <Route path="medications" element={<MedicationsPage />} />
+        <Route path="schedule" element={<SchedulePage />} />
+        <Route path="symptoms" element={<SymptomsPage />} />
+        <Route path="caregivers" element={<CaregiversPage />} />
+        <Route path="caregiver-view" element={<CaregiverDashboardPage />} />
+        <Route path="caregiver-history" element={<CaregiverNotificationHistoryPage />} />
+        <Route path="angela" element={<AngelaPage />} />
+        <Route path="notifications" element={<NotificationHistoryPage />} />
+        <Route path="health-profile" element={<HealthProfilePage />} />
+        {/* Clinician Routes */}
+        <Route path="patients" element={<PatientRosterPage />} />
+        <Route path="adherence" element={<AdherenceMonitorPage />} />
+        <Route path="soap-notes" element={<SOAPNotesPage />} />
+        <Route path="appointments" element={<AppointmentsPage />} />
+        {/* Pharmacist Routes */}
+        <Route path="prescriptions" element={<PrescriptionsPage />} />
+        <Route path="inventory" element={<InventoryPage />} />
+        <Route path="controlled-drugs" element={<ControlledDrugRegisterPage />} />
+        <Route path="refills" element={<RefillRequestsPage />} />
+        {/* Admin Routes */}
+        <Route path="users" element={<UserManagementPage />} />
+        <Route path="analytics" element={<SystemAnalyticsPage />} />
+        <Route path="notification-analytics" element={<NotificationAnalyticsPage />} />
+        <Route path="audit-logs" element={<AuditLogPage />} />
+        <Route path="admin-settings" element={<SettingsPage />} />
+        <Route path="ab-testing" element={<ABTestingPage />} />
+        <Route path="patient-engagement" element={<PatientEngagementPage />} />
+        {/* Shared Routes */}
+        <Route path="settings" element={<PatientSettingsPage />} />
+        <Route path="sync-status" element={<SyncStatusPage />} />
+        <Route path="help" element={<HelpPage />} />
+      </Route>
+      
+      {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+      <Route path="*" element={<NotFound />} />
+    </Routes>
+  );
+}
+
+// Protected route wrapper - now used inside AppRoutes which is inside AuthProvider
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
 
@@ -120,74 +200,5 @@ function DashboardHome() {
   }
   return <PatientDashboardHome />;
 }
-
-const App = () => (
-  <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <AuthProvider>
-            <LanguageProvider>
-              <OfflineBanner />
-              <Routes>
-                <Route path="/" element={<Index />} />
-                <Route path="/auth" element={<Auth />} />
-              
-              {/* Protected Dashboard Routes */}
-              <Route
-                path="/dashboard"
-                element={
-                  <ProtectedRoute>
-                    <DashboardRouter />
-                  </ProtectedRoute>
-                }
-              >
-                <Route index element={<DashboardHome />} />
-                {/* Patient Routes */}
-                <Route path="medications" element={<MedicationsPage />} />
-                <Route path="schedule" element={<SchedulePage />} />
-                <Route path="symptoms" element={<SymptomsPage />} />
-                <Route path="caregivers" element={<CaregiversPage />} />
-                <Route path="caregiver-view" element={<CaregiverDashboardPage />} />
-                <Route path="caregiver-history" element={<CaregiverNotificationHistoryPage />} />
-                <Route path="angela" element={<AngelaPage />} />
-                <Route path="notifications" element={<NotificationHistoryPage />} />
-                <Route path="health-profile" element={<HealthProfilePage />} />
-                {/* Clinician Routes */}
-                <Route path="patients" element={<PatientRosterPage />} />
-                <Route path="adherence" element={<AdherenceMonitorPage />} />
-                <Route path="soap-notes" element={<SOAPNotesPage />} />
-                <Route path="appointments" element={<AppointmentsPage />} />
-                {/* Pharmacist Routes */}
-                <Route path="prescriptions" element={<PrescriptionsPage />} />
-                <Route path="inventory" element={<InventoryPage />} />
-                <Route path="controlled-drugs" element={<ControlledDrugRegisterPage />} />
-                <Route path="refills" element={<RefillRequestsPage />} />
-                {/* Admin Routes */}
-                <Route path="users" element={<UserManagementPage />} />
-                <Route path="analytics" element={<SystemAnalyticsPage />} />
-                <Route path="notification-analytics" element={<NotificationAnalyticsPage />} />
-                <Route path="audit-logs" element={<AuditLogPage />} />
-                <Route path="admin-settings" element={<SettingsPage />} />
-                <Route path="ab-testing" element={<ABTestingPage />} />
-                <Route path="patient-engagement" element={<PatientEngagementPage />} />
-                {/* Shared Routes */}
-                <Route path="settings" element={<PatientSettingsPage />} />
-                <Route path="sync-status" element={<SyncStatusPage />} />
-                <Route path="help" element={<HelpPage />} />
-              </Route>
-              
-              {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </LanguageProvider>
-        </AuthProvider>
-      </BrowserRouter>
-    </TooltipProvider>
-  </QueryClientProvider>
-  </ThemeProvider>
-);
 
 export default App;
