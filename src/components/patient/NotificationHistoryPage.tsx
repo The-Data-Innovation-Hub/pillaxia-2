@@ -6,7 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Bell, Mail, Smartphone, MessageCircle, RefreshCw, CheckCircle, XCircle, Clock, Send, RotateCcw } from "lucide-react";
+import { Bell, Mail, Smartphone, MessageCircle, RefreshCw, CheckCircle, XCircle, Clock, Send, RotateCcw, Timer, AlertTriangle } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { format } from "date-fns";
 import { toast } from "@/hooks/use-toast";
 
@@ -19,6 +20,10 @@ interface NotificationRecord {
   status: "sent" | "delivered" | "failed" | "pending";
   error_message: string | null;
   created_at: string;
+  retry_count: number;
+  max_retries: number;
+  next_retry_at: string | null;
+  last_retry_at: string | null;
 }
 
 const channelIcons = {
@@ -236,6 +241,61 @@ export function NotificationHistoryPage() {
                               {notification.notification_type.replace(/_/g, " ")}
                             </span>
                           </div>
+                          {/* Retry Status Indicator */}
+                          {notification.status === "failed" && notification.retry_count > 0 && (
+                            <div className="mt-2 flex items-center gap-2">
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <div className="flex items-center gap-1.5 rounded-md bg-secondary px-2 py-1 text-xs text-secondary-foreground">
+                                      <RotateCcw className="h-3 w-3" />
+                                      <span>Retry {notification.retry_count}/{notification.max_retries}</span>
+                                    </div>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p>Attempted {notification.retry_count} of {notification.max_retries} retries</p>
+                                    {notification.last_retry_at && (
+                                      <p className="text-muted-foreground">
+                                        Last retry: {format(new Date(notification.last_retry_at), "MMM d, h:mm a")}
+                                      </p>
+                                    )}
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                              
+                              {notification.next_retry_at && (
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <div className="flex items-center gap-1.5 rounded-md bg-primary/10 px-2 py-1 text-xs text-primary">
+                                        <Timer className="h-3 w-3" />
+                                        <span>Next: {format(new Date(notification.next_retry_at), "h:mm a")}</span>
+                                      </div>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                      <p>Next retry scheduled for {format(new Date(notification.next_retry_at), "MMM d, yyyy 'at' h:mm a")}</p>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+                              )}
+                              
+                              {notification.retry_count >= notification.max_retries && !notification.next_retry_at && (
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <div className="flex items-center gap-1.5 rounded-md bg-destructive/10 px-2 py-1 text-xs text-destructive">
+                                        <AlertTriangle className="h-3 w-3" />
+                                        <span>Permanently failed</span>
+                                      </div>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                      <p>All retry attempts exhausted</p>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+                              )}
+                            </div>
+                          )}
                           {notification.error_message && (
                             <p className="mt-2 text-sm text-destructive">
                               Error: {notification.error_message}
