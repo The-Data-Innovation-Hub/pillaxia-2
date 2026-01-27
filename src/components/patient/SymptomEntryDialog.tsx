@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useOfflineSymptomLog } from "@/hooks/useOfflineSymptomLog";
+import { useLanguage } from "@/i18n/LanguageContext";
 import {
   Dialog,
   DialogContent,
@@ -20,7 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2 } from "lucide-react";
+import { Loader2, CloudOff } from "lucide-react";
 
 interface SymptomEntryDialogProps {
   open: boolean;
@@ -50,6 +52,8 @@ interface Medication {
 
 export function SymptomEntryDialog({ open, onOpenChange, onSuccess }: SymptomEntryDialogProps) {
   const { user } = useAuth();
+  const { logSymptom, isOnline } = useOfflineSymptomLog();
+  const { t } = useLanguage();
   const [loading, setLoading] = useState(false);
   const [symptomType, setSymptomType] = useState("");
   const [severity, setSeverity] = useState([5]);
@@ -87,20 +91,22 @@ export function SymptomEntryDialog({ open, onOpenChange, onSuccess }: SymptomEnt
 
     setLoading(true);
     try {
-      const { error } = await supabase.from("symptom_entries").insert({
-        user_id: user.id,
-        symptom_type: symptomType,
+      const success = await logSymptom({
+        userId: user.id,
+        symptomType,
         severity: severity[0],
         description: description || null,
-        medication_id: medicationId || null,
+        medicationId: medicationId || null,
       });
 
-      if (error) throw error;
-
-      toast.success("Symptom logged successfully!");
-      resetForm();
-      onSuccess();
-      onOpenChange(false);
+      if (success) {
+        if (isOnline) {
+          toast.success("Symptom logged successfully!");
+        }
+        resetForm();
+        onSuccess();
+        onOpenChange(false);
+      }
     } catch (error) {
       console.error("Error logging symptom:", error);
       toast.error("Failed to log symptom");
@@ -129,9 +135,19 @@ export function SymptomEntryDialog({ open, onOpenChange, onSuccess }: SymptomEnt
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px] bg-background">
         <DialogHeader>
-          <DialogTitle>Log Symptom</DialogTitle>
+          <DialogTitle className="flex items-center gap-2">
+            Log Symptom
+            {!isOnline && (
+              <CloudOff className="h-4 w-4 text-muted-foreground" />
+            )}
+          </DialogTitle>
           <DialogDescription>
             Record how you're feeling to track patterns over time
+            {!isOnline && (
+              <span className="block text-xs text-amber-600 mt-1">
+                {t.offline.pendingSync}
+              </span>
+            )}
           </DialogDescription>
         </DialogHeader>
 

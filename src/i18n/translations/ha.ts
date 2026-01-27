@@ -245,5 +245,6 @@ export const ha: Translations = {
     changesWaiting: "canje-canje suna jiran daidaitawa",
     lastSynced: "Daidaita na ƙarshe",
     neverSynced: "Ba a taɓa daidaitawa ba",
+    symptomQueuedForSync: "An adana alamar rashin lafiya offline - za a daidaita idan kun shiga kan layi",
   },
 };
