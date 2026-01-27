@@ -5,3 +5,6 @@ export { PatientRosterPage } from "./PatientRosterPage";
 export { MedicationReviewPage } from "./MedicationReviewPage";
 export { AdherenceMonitorPage } from "./AdherenceMonitorPage";
 export { ClinicianChatDialog } from "./ClinicianChatDialog";
+export { SOAPNotesPage } from "./SOAPNotesPage";
+export { RedFlagAlertsCard } from "./RedFlagAlertsCard";
+export { PolypharmacyWarningsCard } from "./PolypharmacyWarningsCard";

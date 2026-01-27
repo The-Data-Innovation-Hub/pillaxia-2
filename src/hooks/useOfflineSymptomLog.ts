@@ -19,7 +19,7 @@ export function useOfflineSymptomLog() {
   const { t } = useLanguage();
 
   const logSymptom = useCallback(
-    async (params: SymptomEntryParams): Promise<boolean> => {
+    async (params: SymptomEntryParams): Promise<{ id: string } | null> => {
       const insertData = {
         user_id: params.userId,
         symptom_type: params.symptomType,
@@ -31,16 +31,18 @@ export function useOfflineSymptomLog() {
       if (isOnline) {
         // Online: Direct insert
         try {
-          const { error } = await supabase
+          const { data, error } = await supabase
             .from("symptom_entries")
-            .insert(insertData);
+            .insert(insertData)
+            .select("id")
+            .single();
 
           if (error) throw error;
-          return true;
+          return data;
         } catch (error) {
           console.error("[useOfflineSymptomLog] Online insert failed:", error);
           toast.error(t.offline.updateFailed);
-          return false;
+          return null;
         }
       } else {
         // Offline: Queue the action AND add to local cache
@@ -50,7 +52,7 @@ export function useOfflineSymptomLog() {
 
           if (!accessToken) {
             toast.error(t.offline.notAuthenticated);
-            return false;
+            return null;
           }
 
           const localId = `pending-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -79,11 +81,11 @@ export function useOfflineSymptomLog() {
           });
 
           toast.info(t.offline.symptomQueuedForSync || t.offline.queuedForSync);
-          return true;
+          return { id: localId }; // Return local ID for offline entries
         } catch (error) {
           console.error("[useOfflineSymptomLog] Queue failed:", error);
           toast.error(t.offline.queueFailed);
-          return false;
+          return null;
         }
       }
     },

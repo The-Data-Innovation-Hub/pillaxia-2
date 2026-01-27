@@ -92,7 +92,7 @@ export function SymptomEntryDialog({ open, onOpenChange, onSuccess }: SymptomEnt
 
     setLoading(true);
     try {
-      const success = await logSymptom({
+      const result = await logSymptom({
         userId: user.id,
         symptomType,
         severity: severity[0],
@@ -100,9 +100,17 @@ export function SymptomEntryDialog({ open, onOpenChange, onSuccess }: SymptomEnt
         medicationId: medicationId || null,
       });
 
-      if (success) {
+      if (result) {
         if (isOnline) {
           toast.success("Symptom logged successfully!");
+          
+          // Check for red flag symptoms if severity is high
+          if (severity[0] >= 8) {
+            // Trigger red flag check in background
+            supabase.functions.invoke("check-red-flag-symptoms", {
+              body: { symptom_entry_id: result.id },
+            }).catch(console.error);
+          }
         }
         resetForm();
         onSuccess();
