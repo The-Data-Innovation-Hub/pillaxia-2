@@ -26,6 +26,7 @@ import {
   EyeOff,
   X,
   Mail,
+  Building2,
 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
@@ -33,6 +34,7 @@ interface ProfileData {
   first_name: string;
   last_name: string;
   phone: string;
+  organization: string;
   avatar_url: string;
   address_line1: string;
   address_line2: string;
@@ -50,6 +52,7 @@ export function ProfileSettingsTab() {
     first_name: "",
     last_name: "",
     phone: "",
+    organization: "",
     avatar_url: "",
     address_line1: "",
     address_line2: "",
@@ -101,6 +104,7 @@ export function ProfileSettingsTab() {
           first_name: data.first_name || "",
           last_name: data.last_name || "",
           phone: data.phone || "",
+          organization: data.organization || "",
           avatar_url: data.avatar_url || "",
           address_line1: data.address_line1 || "",
           address_line2: data.address_line2 || "",
@@ -125,6 +129,7 @@ export function ProfileSettingsTab() {
           first_name: data.first_name,
           last_name: data.last_name,
           phone: data.phone,
+          organization: data.organization,
           avatar_url: data.avatar_url,
           address_line1: data.address_line1,
           address_line2: data.address_line2,
@@ -525,6 +530,28 @@ export function ProfileSettingsTab() {
                 setProfileData({ ...profileData, phone: e.target.value })
               }
             />
+            <p className="text-xs text-muted-foreground">
+              Use international format for SMS/WhatsApp (e.g., +234...)
+            </p>
+          </div>
+
+          {/* Organization / Pharmacy */}
+          <div className="space-y-2">
+            <Label htmlFor="organization" className="flex items-center gap-2">
+              <Building2 className="h-4 w-4" />
+              Organization / Pharmacy Name
+            </Label>
+            <Input
+              id="organization"
+              placeholder="ABC Pharmacy"
+              value={profileData.organization}
+              onChange={(e) =>
+                setProfileData({ ...profileData, organization: e.target.value })
+              }
+            />
+            <p className="text-xs text-muted-foreground">
+              Your affiliated healthcare organization or pharmacy
+            </p>
           </div>
 
           <Button onClick={handleSaveProfile} disabled={savingProfile}>
