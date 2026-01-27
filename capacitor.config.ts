@@ -1,7 +1,7 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'app.lovable.8333c041bf5948aca7173597c3a11358',
+  appId: 'com.pillaxia.app',
   appName: 'Pillaxia',
   webDir: 'dist',
   server: {
