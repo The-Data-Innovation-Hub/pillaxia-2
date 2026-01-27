@@ -59,6 +59,7 @@ import {
   EngagementFunnelChart,
   ChannelEngagementTable,
   DeliveryTrendChart,
+  AnalyticsExport,
 } from "./analytics";
 
 const CHANNEL_COLORS: Record<string, string> = {
@@ -420,6 +421,19 @@ export function NotificationAnalyticsPage() {
           </p>
         </div>
         <div className="flex items-center gap-3">
+          {analytics && (
+            <AnalyticsExport
+              channelStats={analytics.channelStats}
+              trendData={analytics.trendData}
+              totalNotifications={analytics.totalNotifications}
+              totalSent={analytics.totalSent}
+              totalDelivered={analytics.totalDelivered}
+              totalOpened={analytics.totalOpened}
+              totalClicked={analytics.totalClicked}
+              totalFailed={analytics.totalFailed}
+              timeRange={timeRange}
+            />
+          )}
           <Dialog open={isTestDialogOpen} onOpenChange={setIsTestDialogOpen}>
             <DialogTrigger asChild>
               <Button variant="outline" size="sm">

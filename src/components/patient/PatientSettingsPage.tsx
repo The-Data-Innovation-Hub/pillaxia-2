@@ -10,6 +10,7 @@ import { useOfflineStatus } from "@/hooks/useOfflineStatus";
 import { PushDebugPanel } from "@/components/patient/PushDebugPanel";
 import { AutoResolutionSettingsCard } from "@/components/patient/AutoResolutionSettingsCard";
 import { TwoFactorSettingsCard } from "@/components/patient/TwoFactorSettingsCard";
+import { NotificationSchedulingCard } from "@/components/patient/NotificationSchedulingCard";
 import { medicationCache, scheduleCache, symptomCache } from "@/lib/cache";
 import {
   Card,
@@ -1143,6 +1144,9 @@ export function PatientSettingsPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Notification Scheduling */}
+      <NotificationSchedulingCard />
     </div>
   );
 }
