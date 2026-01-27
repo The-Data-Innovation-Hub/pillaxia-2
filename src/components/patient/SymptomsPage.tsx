@@ -1,4 +1,4 @@
-// Force module refresh - v3
+// Force module refresh - v4
 import { useState, useMemo } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -9,6 +9,7 @@ import { Loader2, Plus, Trash2, CloudOff, RefreshCw, Clock } from "lucide-react"
 import { format } from "date-fns";
 import { SymptomEntryDialog } from "./SymptomEntryDialog";
 import { SymptomTrendsChart } from "./SymptomTrendsChart";
+import { SymptomCorrelations } from "./SymptomCorrelations";
 import { OfflineSyncIndicator } from "./OfflineSyncIndicator";
 import {
   SymptomFiltersPanel,
@@ -114,6 +115,9 @@ export function SymptomsPage() {
 
       {/* Trends Chart - only show when we have filtered symptoms */}
       {filteredSymptoms.length > 0 && <SymptomTrendsChart symptoms={filteredSymptoms} />}
+
+      {/* Correlation Insights */}
+      {filteredSymptoms.length > 0 && <SymptomCorrelations symptoms={filteredSymptoms} />}
 
       {filteredSymptoms.length === 0 && symptoms.length > 0 ? (
         <Card>
