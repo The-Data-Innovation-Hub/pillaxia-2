@@ -36,7 +36,7 @@ serve(async (req) => {
     // Get patient profile and preferences
     const { data: profile, error: profileError } = await supabase
       .from("profiles")
-      .select("email, first_name, last_name")
+      .select("email, first_name, last_name, phone")
       .eq("user_id", patient_user_id)
       .single();
 
@@ -48,12 +48,13 @@ serve(async (req) => {
     // Check notification preferences
     const { data: prefs } = await supabase
       .from("patient_notification_preferences")
-      .select("email_reminders, push_clinician_messages")
+      .select("email_reminders, push_clinician_messages, sms_reminders")
       .eq("user_id", patient_user_id)
       .single();
 
     const emailEnabled = prefs?.email_reminders !== false;
     const pushEnabled = prefs?.push_clinician_messages !== false;
+    const smsEnabled = prefs?.sms_reminders !== false;
 
     const patientName = profile.first_name || "Patient";
     const isApproved = status === "approved";
@@ -75,7 +76,7 @@ serve(async (req) => {
       body += ` Note from pharmacist: ${pharmacist_notes}`;
     }
 
-    const results = { email: null as any, push: null as any };
+    const results = { email: null as any, push: null as any, sms: null as any };
 
     // Send email notification
     if (emailEnabled && profile.email) {
@@ -186,6 +187,52 @@ serve(async (req) => {
       } catch (pushError) {
         console.error("Failed to send push notification:", pushError);
         results.push = { success: false, error: String(pushError) };
+      }
+    }
+
+    // Send SMS notification
+    if (smsEnabled && profile.phone) {
+      try {
+        // Build concise SMS message
+        let smsBody = isApproved
+          ? `Pillaxia: Your refill for ${medication_name} is approved!`
+          : `Pillaxia: Your refill for ${medication_name} was denied.`;
+        
+        if (isApproved && refills_granted) {
+          smsBody += ` ${refills_granted} refill${refills_granted > 1 ? 's' : ''} granted.`;
+        }
+        
+        if (!isApproved && pharmacist_notes) {
+          // Truncate notes for SMS
+          const truncatedNotes = pharmacist_notes.length > 80 
+            ? pharmacist_notes.substring(0, 77) + "..." 
+            : pharmacist_notes;
+          smsBody += ` Note: ${truncatedNotes}`;
+        }
+
+        const smsResponse = await supabase.functions.invoke("send-sms-notification", {
+          body: {
+            to: profile.phone,
+            message: smsBody,
+          },
+        });
+
+        results.sms = { success: !smsResponse.error, data: smsResponse.data };
+        console.log("SMS notification result:", smsResponse);
+
+        // Log SMS to notification history
+        await supabase.from("notification_history").insert({
+          user_id: patient_user_id,
+          notification_type: "refill_request",
+          channel: "sms",
+          title: isApproved ? "Refill Approved" : "Refill Denied",
+          body: smsBody,
+          status: results.sms?.success ? "delivered" : "failed",
+          metadata: { medication_name, refill_status: status, refills_granted, phone: profile.phone },
+        });
+      } catch (smsError) {
+        console.error("Failed to send SMS notification:", smsError);
+        results.sms = { success: false, error: String(smsError) };
       }
     }
 
