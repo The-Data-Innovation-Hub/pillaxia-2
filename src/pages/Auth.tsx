@@ -245,9 +245,20 @@ const Auth = () => {
 
       setRemainingCodes(count || 0);
 
-      // Show warning if running low on codes
+      // Send email alert if running low on codes (3 or fewer)
       if (count !== null && count <= 3) {
         toast.warning(`You have ${count} recovery code${count === 1 ? "" : "s"} remaining. Consider generating new codes in your settings.`);
+        
+        // Send email notification in the background
+        supabase.functions.invoke("send-low-recovery-codes-alert", {
+          body: {
+            email: currentUser.email,
+            firstName: currentUser.user_metadata?.first_name,
+            remainingCodes: count,
+          },
+        }).catch((err) => {
+          console.error("Failed to send low recovery codes alert email:", err);
+        });
       }
 
       toast.success("Recovery code accepted!");

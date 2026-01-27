@@ -38,3 +38,9 @@ verify_jwt = false
 
 [functions.process-notification-retries]
 verify_jwt = false
+
+[functions.send-low-recovery-codes-alert]
+verify_jwt = false
+
+[functions.send-clinician-message-notification]
+verify_jwt = false
