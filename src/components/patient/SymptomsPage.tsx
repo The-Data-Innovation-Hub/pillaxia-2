@@ -90,8 +90,8 @@ export function SymptomsPage() {
         </div>
       </div>
 
-      {/* Trends Chart */}
-      <SymptomTrendsChart symptoms={symptoms} />
+      {/* Trends Chart - only show when we have symptoms */}
+      {symptoms.length > 0 && <SymptomTrendsChart symptoms={symptoms} />}
 
       {symptoms.length === 0 ? (
         <Card>
