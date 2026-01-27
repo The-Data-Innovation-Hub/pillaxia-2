@@ -11,6 +11,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Switch } from "@/components/ui/switch";
@@ -27,6 +28,7 @@ import {
   Bell,
   AlertTriangle,
   Heart,
+  Clock,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
@@ -367,7 +369,7 @@ export function SettingsPage() {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {notificationSettings?.map((setting) => {
+                  {notificationSettings?.filter(s => s.setting_key !== 'missed_dose_grace_period').map((setting) => {
                     const config = NOTIFICATION_CONFIG[setting.setting_key as keyof typeof NOTIFICATION_CONFIG];
                     const Icon = config?.icon || Bell;
                     
@@ -409,6 +411,13 @@ export function SettingsPage() {
               )}
             </CardContent>
           </Card>
+
+          {/* Grace Period Setting */}
+          <GracePeriodCard 
+            notificationSettings={notificationSettings} 
+            queryClient={queryClient}
+            userId={user?.id}
+          />
         </TabsContent>
 
         <TabsContent value="security" className="space-y-4">
@@ -463,5 +472,89 @@ export function SettingsPage() {
         </TabsContent>
       </Tabs>
     </div>
+  );
+}
+
+// Separate component for grace period to avoid hooks issues
+interface GracePeriodCardProps {
+  notificationSettings: NotificationSetting[] | undefined;
+  queryClient: ReturnType<typeof useQueryClient>;
+  userId: string | undefined;
+}
+
+function GracePeriodCard({ notificationSettings, queryClient, userId }: GracePeriodCardProps) {
+  const gracePeriodSetting = notificationSettings?.find(s => s.setting_key === 'missed_dose_grace_period');
+  const currentValue = gracePeriodSetting?.description || '30';
+  const [gracePeriod, setGracePeriod] = useState(currentValue);
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleSaveGracePeriod = async () => {
+    const value = parseInt(gracePeriod, 10);
+    if (isNaN(value) || value < 5 || value > 120) {
+      toast.error("Grace period must be between 5 and 120 minutes");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const { error } = await supabase
+        .from("notification_settings")
+        .update({ description: value.toString(), updated_by: userId })
+        .eq("setting_key", "missed_dose_grace_period");
+
+      if (error) throw error;
+      
+      queryClient.invalidateQueries({ queryKey: ["notification-settings"] });
+      toast.success("Grace period updated successfully");
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      toast.error("Failed to update grace period", { description: message });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-lg bg-primary/10">
+            <Clock className="h-5 w-5 text-primary" />
+          </div>
+          <div>
+            <CardTitle className="text-lg">Missed Dose Grace Period</CardTitle>
+            <CardDescription>
+              How long to wait after a scheduled dose before marking it as missed
+            </CardDescription>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <Input
+              type="number"
+              min={5}
+              max={120}
+              value={gracePeriod}
+              onChange={(e) => setGracePeriod(e.target.value)}
+              className="w-24"
+            />
+            <span className="text-sm text-muted-foreground">minutes</span>
+          </div>
+          <Button 
+            onClick={handleSaveGracePeriod}
+            disabled={isSaving || gracePeriod === currentValue}
+            size="sm"
+          >
+            {isSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+            Save
+          </Button>
+        </div>
+        <p className="text-xs text-muted-foreground mt-2">
+          Recommended: 15-60 minutes. Currently set to {currentValue} minutes.
+        </p>
+      </CardContent>
+    </Card>
   );
 }

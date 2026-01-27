@@ -18,14 +18,33 @@ serve(async (req) => {
 
     console.log("Checking for missed doses...");
 
-    // Find pending medication logs that are past their scheduled time by more than 30 minutes
-    const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+    // Get grace period from settings (default to 30 minutes)
+    let gracePeriodMinutes = 30;
+    const { data: graceSetting, error: graceError } = await supabase
+      .from("notification_settings")
+      .select("description")
+      .eq("setting_key", "missed_dose_grace_period")
+      .maybeSingle();
+
+    if (graceError) {
+      console.error("Error fetching grace period setting:", graceError);
+    } else if (graceSetting?.description) {
+      const parsed = parseInt(graceSetting.description, 10);
+      if (!isNaN(parsed) && parsed > 0) {
+        gracePeriodMinutes = parsed;
+      }
+    }
+
+    console.log("Using grace period of " + gracePeriodMinutes + " minutes");
+
+    // Find pending medication logs that are past their scheduled time by more than the grace period
+    const cutoffTime = new Date(Date.now() - gracePeriodMinutes * 60 * 1000).toISOString();
     
     const { data: pendingLogs, error: logsError } = await supabase
       .from("medication_logs")
       .select("id, user_id, medication_id, scheduled_time, medications(name)")
       .eq("status", "pending")
-      .lt("scheduled_time", thirtyMinutesAgo);
+      .lt("scheduled_time", cutoffTime);
 
     if (logsError) {
       console.error("Error fetching pending logs:", logsError);
