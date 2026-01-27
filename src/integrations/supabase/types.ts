@@ -531,6 +531,7 @@ export type Database = {
           name: string
           pharmacy: string | null
           prescriber: string | null
+          prescription_status: string
           refills_remaining: number | null
           start_date: string | null
           updated_at: string
@@ -548,6 +549,7 @@ export type Database = {
           name: string
           pharmacy?: string | null
           prescriber?: string | null
+          prescription_status?: string
           refills_remaining?: number | null
           start_date?: string | null
           updated_at?: string
@@ -565,6 +567,7 @@ export type Database = {
           name?: string
           pharmacy?: string | null
           prescriber?: string | null
+          prescription_status?: string
           refills_remaining?: number | null
           start_date?: string | null
           updated_at?: string
