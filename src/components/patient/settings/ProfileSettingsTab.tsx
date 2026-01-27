@@ -45,7 +45,7 @@ interface ProfileData {
 }
 
 export function ProfileSettingsTab() {
-  const { user, profile } = useAuth();
+  const { user, profile, refreshProfile } = useAuth();
   const queryClient = useQueryClient();
   
   const [profileData, setProfileData] = useState<ProfileData>({
@@ -142,8 +142,9 @@ export function ProfileSettingsTab() {
       
       if (error) throw error;
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       queryClient.invalidateQueries({ queryKey: ["profile"] });
+      await refreshProfile(); // Refresh auth context profile
       toast({
         title: "Profile updated",
         description: "Your profile information has been saved.",
@@ -229,6 +230,7 @@ export function ProfileSettingsTab() {
 
       setProfileData({ ...profileData, avatar_url: publicUrl });
       queryClient.invalidateQueries({ queryKey: ["profile"] });
+      await refreshProfile(); // Refresh auth context profile
       
       toast({
         title: "Avatar updated",
@@ -273,6 +275,7 @@ export function ProfileSettingsTab() {
 
       setProfileData({ ...profileData, avatar_url: '' });
       queryClient.invalidateQueries({ queryKey: ["profile"] });
+      await refreshProfile(); // Refresh auth context profile
       
       toast({
         title: "Avatar removed",
