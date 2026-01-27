@@ -120,6 +120,7 @@ export type Database = {
         Row: {
           clinician_user_id: string
           created_at: string
+          delivery_status: Json | null
           id: string
           is_read: boolean
           message: string
@@ -130,6 +131,7 @@ export type Database = {
         Insert: {
           clinician_user_id: string
           created_at?: string
+          delivery_status?: Json | null
           id?: string
           is_read?: boolean
           message: string
@@ -140,6 +142,7 @@ export type Database = {
         Update: {
           clinician_user_id?: string
           created_at?: string
+          delivery_status?: Json | null
           id?: string
           is_read?: boolean
           message?: string

@@ -7,9 +7,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Send, Check, CheckCheck, Stethoscope, User } from "lucide-react";
+import { Send, Check, CheckCheck, Stethoscope, User, Mail, Smartphone, MessageSquare } from "lucide-react";
 import { toast } from "sonner";
 import { format, isToday, isYesterday } from "date-fns";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface ClinicianChatDialogProps {
   open: boolean;
@@ -21,12 +22,25 @@ interface ClinicianChatDialogProps {
   viewerRole: "patient" | "clinician";
 }
 
+interface DeliveryStatus {
+  sent: boolean;
+  at?: string;
+  error?: string;
+}
+
+interface DeliveryStatusMap {
+  email?: DeliveryStatus;
+  push?: DeliveryStatus;
+  whatsapp?: DeliveryStatus;
+}
+
 interface Message {
   id: string;
   message: string;
   sender_type: "clinician" | "patient";
   is_read: boolean;
   created_at: string;
+  delivery_status?: DeliveryStatusMap;
 }
 
 export function ClinicianChatDialog({
@@ -52,7 +66,7 @@ export function ClinicianChatDialog({
     queryFn: async () => {
       const { data, error } = await supabase
         .from("clinician_messages")
-        .select("id, message, sender_type, is_read, created_at")
+        .select("id, message, sender_type, is_read, created_at, delivery_status")
         .eq("clinician_user_id", clinicianId)
         .eq("patient_user_id", patientId)
         .order("created_at", { ascending: true });
@@ -66,23 +80,29 @@ export function ClinicianChatDialog({
   // Send message mutation
   const sendMutation = useMutation({
     mutationFn: async (text: string) => {
-      const { error } = await supabase.from("clinician_messages").insert({
-        clinician_user_id: clinicianId,
-        patient_user_id: patientId,
-        message: text,
-        sender_type: viewerRole,
-        is_read: false,
-      });
+      // First insert the message and get its ID
+      const { data: insertedMessage, error } = await supabase
+        .from("clinician_messages")
+        .insert({
+          clinician_user_id: clinicianId,
+          patient_user_id: patientId,
+          message: text,
+          sender_type: viewerRole,
+          is_read: false,
+        })
+        .select("id")
+        .single();
 
       if (error) throw error;
 
-      // Send notification via email, push, and WhatsApp (fire and forget)
+      // Send notification via email, push, and WhatsApp with messageId for status tracking
       supabase.functions.invoke("send-clinician-message-notification", {
         body: {
           recipientId: viewerRole === "patient" ? clinicianId : patientId,
           senderName: viewerRole === "patient" ? patientName : `Dr. ${clinicianName}`,
           message: text,
           senderType: viewerRole,
+          messageId: insertedMessage.id,
         },
       }).catch(console.error);
     },
@@ -193,6 +213,47 @@ export function ClinicianChatDialog({
 
   const isMyMessage = (msg: Message) => msg.sender_type === viewerRole;
 
+  // Render delivery status indicators
+  const renderDeliveryStatus = (msg: Message) => {
+    const status = msg.delivery_status;
+    if (!status) return null;
+
+    const channels = [
+      { key: 'email' as const, icon: Mail, label: 'Email', color: 'text-blue-400' },
+      { key: 'push' as const, icon: Smartphone, label: 'Push', color: 'text-green-400' },
+      { key: 'whatsapp' as const, icon: MessageSquare, label: 'WhatsApp', color: 'text-emerald-400' },
+    ];
+
+    return (
+      <div className="flex items-center gap-0.5 ml-1">
+        {channels.map(({ key, icon: Icon, label, color }) => {
+          const channelStatus = status[key];
+          if (!channelStatus) return null;
+          
+          const isSent = channelStatus.sent;
+          const tooltipText = isSent 
+            ? `${label}: Delivered` 
+            : `${label}: ${channelStatus.error || 'Not sent'}`;
+          
+          return (
+            <TooltipProvider key={key}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Icon 
+                    className={`h-3 w-3 ${isSent ? color : 'text-muted-foreground/50'}`} 
+                  />
+                </TooltipTrigger>
+                <TooltipContent side="top" className="text-xs">
+                  {tooltipText}
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          );
+        })}
+      </div>
+    );
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md h-[600px] flex flex-col p-0">
@@ -260,17 +321,20 @@ export function ClinicianChatDialog({
                         >
                           <p className="text-sm whitespace-pre-wrap break-words">{msg.message}</p>
                           <div
-                            className={`flex items-center gap-1 mt-1 text-xs ${
+                            className={`flex items-center gap-1 mt-1 text-xs flex-wrap ${
                               isMyMessage(msg) ? "text-primary-foreground/70" : "text-muted-foreground"
                             }`}
                           >
                             <span>{formatMessageTime(msg.created_at)}</span>
                             {isMyMessage(msg) && (
-                              msg.is_read ? (
-                                <CheckCheck className="h-3.5 w-3.5" />
-                              ) : (
-                                <Check className="h-3.5 w-3.5" />
-                              )
+                              <>
+                                {msg.is_read ? (
+                                  <CheckCheck className="h-3.5 w-3.5" />
+                                ) : (
+                                  <Check className="h-3.5 w-3.5" />
+                                )}
+                                {renderDeliveryStatus(msg)}
+                              </>
                             )}
                           </div>
                         </div>

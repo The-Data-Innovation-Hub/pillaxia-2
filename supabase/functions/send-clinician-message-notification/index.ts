@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { Resend } from "npm:resend@2.0.0";
+import { Resend } from "https://esm.sh/resend@2.0.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -12,6 +12,19 @@ interface NotificationRequest {
   senderName: string;
   message: string;
   senderType: "clinician" | "patient";
+  messageId?: string; // Optional: to update delivery status on the message
+}
+
+interface DeliveryStatus {
+  sent: boolean;
+  at?: string;
+  error?: string;
+}
+
+interface DeliveryStatusMap {
+  email?: DeliveryStatus;
+  push?: DeliveryStatus;
+  whatsapp?: DeliveryStatus;
 }
 
 serve(async (req: Request): Promise<Response> => {
@@ -20,7 +33,7 @@ serve(async (req: Request): Promise<Response> => {
   }
 
   try {
-    const { recipientId, senderName, message, senderType }: NotificationRequest = await req.json();
+    const { recipientId, senderName, message, senderType, messageId }: NotificationRequest = await req.json();
 
     if (!recipientId || !senderName || !message || !senderType) {
       throw new Error("Missing required fields: recipientId, senderName, message, senderType");
@@ -58,11 +71,8 @@ serve(async (req: Request): Promise<Response> => {
     const whatsappEnabled = prefs?.whatsapp_clinician_messages ?? true;
 
     const recipientName = profile?.first_name || "there";
-    const results = {
-      email: { sent: false, reason: "" },
-      push: { sent: false, reason: "" },
-      whatsapp: { sent: false, reason: "" },
-    };
+    const deliveryStatus: DeliveryStatusMap = {};
+    const now = new Date().toISOString();
 
     // 1. Send Email if enabled and email exists
     if (emailEnabled && profile?.email) {
@@ -122,7 +132,7 @@ serve(async (req: Request): Promise<Response> => {
 
           if (emailResponse.error) {
             console.error("Email send error:", emailResponse.error);
-            results.email = { sent: false, reason: emailResponse.error.message || "Email API error" };
+            deliveryStatus.email = { sent: false, at: now, error: emailResponse.error.message };
             
             await supabase.from("notification_history").insert({
               user_id: recipientId,
@@ -132,11 +142,11 @@ serve(async (req: Request): Promise<Response> => {
               body: message.substring(0, 200),
               status: "failed",
               error_message: emailResponse.error.message?.slice(0, 500),
-              metadata: { sender_name: senderName, sender_type: senderType },
+              metadata: { sender_name: senderName, sender_type: senderType, message_id: messageId },
             });
           } else {
             console.log(`Email sent to ${profile.email}, ID: ${emailResponse.data?.id}`);
-            results.email = { sent: true, reason: "sent" };
+            deliveryStatus.email = { sent: true, at: now };
             
             await supabase.from("notification_history").insert({
               user_id: recipientId,
@@ -150,18 +160,19 @@ serve(async (req: Request): Promise<Response> => {
                 sender_type: senderType,
                 recipient_email: profile.email,
                 resend_email_id: emailResponse.data?.id,
+                message_id: messageId,
               },
             });
           }
         } else {
-          results.email = { sent: false, reason: "RESEND_API_KEY not configured" };
+          deliveryStatus.email = { sent: false, at: now, error: "RESEND_API_KEY not configured" };
         }
       } catch (emailErr: any) {
         console.error("Email error:", emailErr);
-        results.email = { sent: false, reason: emailErr.message || "Email exception" };
+        deliveryStatus.email = { sent: false, at: now, error: emailErr.message };
       }
     } else {
-      results.email = { sent: false, reason: emailEnabled ? "No email address" : "Disabled by user" };
+      deliveryStatus.email = { sent: false, at: now, error: emailEnabled ? "No email address" : "Disabled by user" };
     }
 
     // 2. Send Push Notification if enabled
@@ -185,19 +196,19 @@ serve(async (req: Request): Promise<Response> => {
 
         if (pushError) {
           console.error("Push notification error:", pushError);
-          results.push = { sent: false, reason: pushError.message || "Push API error" };
+          deliveryStatus.push = { sent: false, at: now, error: pushError.message };
         } else if (pushData?.sent === 0) {
-          results.push = { sent: false, reason: "No active push subscription" };
+          deliveryStatus.push = { sent: false, at: now, error: "No active push subscription" };
         } else {
           console.log(`Push sent to ${pushData?.sent} device(s)`);
-          results.push = { sent: true, reason: `Sent to ${pushData?.sent} device(s)` };
+          deliveryStatus.push = { sent: true, at: now };
         }
       } catch (pushErr: any) {
         console.error("Push error:", pushErr);
-        results.push = { sent: false, reason: pushErr.message || "Push exception" };
+        deliveryStatus.push = { sent: false, at: now, error: pushErr.message };
       }
     } else {
-      results.push = { sent: false, reason: "Disabled by user" };
+      deliveryStatus.push = { sent: false, at: now, error: "Disabled by user" };
     }
 
     // 3. Send WhatsApp if enabled and phone exists
@@ -214,27 +225,41 @@ serve(async (req: Request): Promise<Response> => {
 
         if (waError) {
           console.error("WhatsApp error:", waError);
-          results.whatsapp = { sent: false, reason: waError.message || "WhatsApp API error" };
+          deliveryStatus.whatsapp = { sent: false, at: now, error: waError.message };
         } else if (!waData?.success) {
-          results.whatsapp = { sent: false, reason: waData?.reason || waData?.message || "WhatsApp failed" };
+          deliveryStatus.whatsapp = { sent: false, at: now, error: waData?.reason || waData?.message };
         } else {
           console.log("WhatsApp sent successfully");
-          results.whatsapp = { sent: true, reason: "sent" };
+          deliveryStatus.whatsapp = { sent: true, at: now };
         }
       } catch (waErr: any) {
         console.error("WhatsApp exception:", waErr);
-        results.whatsapp = { sent: false, reason: waErr.message || "WhatsApp exception" };
+        deliveryStatus.whatsapp = { sent: false, at: now, error: waErr.message };
       }
     } else {
-      results.whatsapp = { sent: false, reason: whatsappEnabled ? "No phone number" : "Disabled by user" };
+      deliveryStatus.whatsapp = { sent: false, at: now, error: whatsappEnabled ? "No phone number" : "Disabled by user" };
     }
 
-    console.log("Notification results:", results);
+    // Update the message with delivery status if messageId provided
+    if (messageId) {
+      const { error: updateError } = await supabase
+        .from("clinician_messages")
+        .update({ delivery_status: deliveryStatus })
+        .eq("id", messageId);
+
+      if (updateError) {
+        console.error("Failed to update delivery status:", updateError);
+      } else {
+        console.log("Delivery status updated for message:", messageId);
+      }
+    }
+
+    console.log("Notification results:", deliveryStatus);
 
     return new Response(
       JSON.stringify({ 
         success: true, 
-        results,
+        deliveryStatus,
       }),
       { 
         status: 200, 
