@@ -2,6 +2,7 @@
 // Detects and manages conflicts between local offline changes and server data
 
 import { supabase } from "@/integrations/supabase/client";
+import { getAutoResolutionPreferences, type AutoResolutionPreferences } from "@/hooks/useAutoResolutionPreferences";
 
 export interface ConflictEntry {
   id: string;
@@ -106,6 +107,14 @@ class ConflictResolutionManager {
 
   // Check if a conflict can be automatically resolved without user intervention
   checkAutoResolution(conflict: Omit<ConflictEntry, "id" | "createdAt" | "resolved">): AutoResolutionResult {
+    // Get user preferences
+    const prefs = getAutoResolutionPreferences();
+    
+    // If auto-resolution is disabled, always require manual review
+    if (!prefs.enabled) {
+      return { canAutoResolve: false, reason: "Auto-resolution is disabled in settings" };
+    }
+
     // Cannot auto-resolve delete conflicts - user must decide
     if (conflict.conflictType === "delete_conflict" || !conflict.serverData) {
       return { canAutoResolve: false, reason: "Delete conflicts require manual resolution" };
@@ -113,6 +122,7 @@ class ConflictResolutionManager {
 
     const localData = conflict.localData;
     const serverData = conflict.serverData;
+    const timeThresholdMs = prefs.timeDifferenceThreshold * 1000;
 
     // Get relevant fields (exclude meta fields)
     const excludeFields = ["id", "user_id", "created_at", "updated_at", "_pending", "_localId", "_timestamp"];
@@ -157,7 +167,7 @@ class ConflictResolutionManager {
     }
 
     // Case 2: Only one field differs and it has a clear strategy winner
-    if (differingFields.length === 1) {
+    if (differingFields.length === 1 && prefs.allowSingleFieldAuto) {
       const diff = differingFields[0];
       
       // Server authority fields - always use server
@@ -190,8 +200,8 @@ class ConflictResolutionManager {
         
         const timeDiff = Math.abs(conflict.localTimestamp - serverTime);
         
-        // Only auto-resolve if there's a clear winner (>5 seconds apart)
-        if (timeDiff > 5000) {
+        // Only auto-resolve if there's a clear winner (using user-configured threshold)
+        if (timeDiff > timeThresholdMs) {
           if (conflict.localTimestamp > serverTime) {
             return {
               canAutoResolve: true,
@@ -212,7 +222,7 @@ class ConflictResolutionManager {
     }
 
     // Case 3: Multiple fields differ but all have the same clear winner
-    if (differingFields.length > 1) {
+    if (differingFields.length > 1 && prefs.allowMultiFieldAuto) {
       const allServerAuthority = differingFields.every(d => d.strategy === "server");
       if (allServerAuthority) {
         return {
@@ -244,8 +254,8 @@ class ConflictResolutionManager {
         
         const timeDiff = Math.abs(conflict.localTimestamp - serverTime);
         
-        // Clear time difference for all fields
-        if (timeDiff > 5000) {
+        // Clear time difference for all fields (using user-configured threshold)
+        if (timeDiff > timeThresholdMs) {
           if (conflict.localTimestamp > serverTime) {
             return {
               canAutoResolve: true,
@@ -266,7 +276,7 @@ class ConflictResolutionManager {
     }
 
     // Case 4: Check if auto-merge produces a clean result (no actual conflicts)
-    if (this.canMerge({ ...conflict, id: "", createdAt: "", resolved: false })) {
+    if (prefs.allowAutoMerge && this.canMerge({ ...conflict, id: "", createdAt: "", resolved: false })) {
       const mergePreview = this.mergeData(localData, serverData, conflict.localTimestamp);
       
       // If all decisions are unambiguous (no "merged" source needed for text combining)
