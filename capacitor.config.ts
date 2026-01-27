@@ -20,7 +20,10 @@ const config: CapacitorConfig = {
     }
   },
   ios: {
-    contentInset: 'automatic'
+    contentInset: 'automatic',
+    preferredContentMode: 'mobile',
+    scrollEnabled: true,
+    allowsLinkPreview: false
   },
   android: {
     allowMixedContent: true
