@@ -2,6 +2,7 @@ import { LayoutDashboard, FileText, Package, RefreshCw, LogOut, Bell } from "luc
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import {
   Sidebar,
   SidebarContent,
@@ -67,11 +68,12 @@ export function PharmacistSidebar() {
 
       <SidebarFooter className="p-4 border-t">
         <div className="flex items-center gap-3 mb-3">
-          <div className="h-8 w-8 rounded-full bg-emerald-100 flex items-center justify-center">
-            <span className="text-emerald-700 font-medium text-sm">
+          <Avatar className="h-8 w-8">
+            <AvatarImage src={profile?.avatar_url || undefined} alt={profile?.first_name || "User"} />
+            <AvatarFallback className="bg-emerald-100 text-emerald-700 font-medium text-sm">
               {profile?.first_name?.[0] || "P"}
-            </span>
-          </div>
+            </AvatarFallback>
+          </Avatar>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium truncate">
               {profile?.first_name} {profile?.last_name}

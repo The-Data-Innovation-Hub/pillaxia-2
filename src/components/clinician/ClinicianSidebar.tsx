@@ -6,6 +6,7 @@ import { useHasCaregiverRelationships } from "@/hooks/useHasCaregiverRelationshi
 import { useOfflineSync } from "@/hooks/useOfflineSync";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import {
   Sidebar,
   SidebarContent,
@@ -97,11 +98,12 @@ export function ClinicianSidebar() {
           )}
         </NavLink>
         <div className="flex items-center gap-3 mb-3">
-          <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
-            <span className="text-primary font-medium text-sm">
+          <Avatar className="h-8 w-8">
+            <AvatarImage src={profile?.avatar_url || undefined} alt={profile?.first_name || "User"} />
+            <AvatarFallback className="bg-primary/10 text-primary font-medium text-sm">
               {profile?.first_name?.[0] || "C"}
-            </span>
-          </div>
+            </AvatarFallback>
+          </Avatar>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium truncate">
               Dr. {profile?.first_name} {profile?.last_name}
