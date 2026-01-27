@@ -221,4 +221,11 @@ export const yo: Translations = {
     terms: "Àwọn Òfin Iṣẹ́",
     contact: "Kàn Sí Wa",
   },
+  offline: {
+    banner: "O wà ní offline. Àwọn iṣẹ́ kan lè ní ìdíwọ́n.",
+    reconnected: "O ti padà sórí nẹ́tíwọ̀kì!",
+    slowConnection: "Àsopọ̀ lọ́ra ni. Dátà lè pẹ́ láti gbéléwọlé.",
+    pendingSync: "Àwọn àyípadà yóò ṣe sync nígbà tí o bá padà sórí nẹ́tíwọ̀kì.",
+    syncComplete: "A ti sync gbogbo àyípadà.",
+  },
 };

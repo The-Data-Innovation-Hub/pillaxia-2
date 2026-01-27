@@ -221,4 +221,11 @@ export const ig: Translations = {
     terms: "Usoro Ọrụ",
     contact: "Kpọtụrụ Anyị",
   },
+  offline: {
+    banner: "Ị nọghị n'ịntanetị. Ụfọdụ ọrụ nwere ike inwe nsọpụrụ.",
+    reconnected: "Ị laghachiri n'ịntanetị!",
+    slowConnection: "Nwere njikọ nwayọọ. Data nwere ike ibu nwayọọ.",
+    pendingSync: "Mgbanwe ga-emezu sync mgbe ịlaghachiri n'ịntanetị.",
+    syncComplete: "Emezuola sync mgbanwe niile.",
+  },
 };

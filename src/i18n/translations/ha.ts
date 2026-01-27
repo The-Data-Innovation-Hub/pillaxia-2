@@ -221,4 +221,11 @@ export const ha: Translations = {
     terms: "Sharuɗɗan Sabis",
     contact: "Tuntuɓe Mu",
   },
+  offline: {
+    banner: "Ba ka da haɗin intanet. Wasu ayyuka na iya samun iyakancewa.",
+    reconnected: "Ka dawo kan layi!",
+    slowConnection: "An gano haɗin jinkiri. Bayani na iya ɗaukar lokaci mai tsawo.",
+    pendingSync: "Canje-canje za su yi daidaita lokacin da ka dawo kan layi.",
+    syncComplete: "An daidaita duk canje-canje.",
+  },
 };
