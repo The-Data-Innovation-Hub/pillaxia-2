@@ -192,16 +192,19 @@ export function PatientDashboardHome() {
       <ClinicianMessagesCard />
 
       {/* Welcome Section */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <h1 className="text-2xl font-bold break-words">
             {greeting()}, {profile?.first_name || "there"}! 👋
           </h1>
           <p className="text-muted-foreground">
             {format(new Date(), "EEEE, MMMM d, yyyy")}
           </p>
         </div>
-        <Button onClick={() => navigate("/dashboard/angela")} className="gap-2">
+        <Button
+          onClick={() => navigate("/dashboard/angela")}
+          className="gap-2 w-full sm:w-auto shrink-0"
+        >
           <Bot className="h-4 w-4" />
           Ask Angela
         </Button>

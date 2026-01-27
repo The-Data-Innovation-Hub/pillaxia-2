@@ -10,14 +10,14 @@ export function PatientLayout() {
 
   return (
     <SidebarProvider>
-      <div className="min-h-screen flex w-full">
+      <div className="min-h-screen flex w-full overflow-x-hidden">
         <PatientSidebar />
-        <main className="flex-1 flex flex-col">
+        <main className="flex-1 min-w-0 flex flex-col">
           <header className="h-14 border-b flex items-center px-4 gap-4">
             <SidebarTrigger />
             <img src={pillaxiaLogo} alt="Pillaxia" className="h-7" />
           </header>
-          <div className="flex-1 p-6 overflow-auto bg-muted/30">
+          <div className="flex-1 min-w-0 p-6 overflow-auto overflow-x-hidden bg-muted/30">
             <Outlet />
           </div>
         </main>
