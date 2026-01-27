@@ -183,9 +183,34 @@ serve(async (req) => {
           topic: payload.tag,
         });
         sent++;
+
+        // Log successful push notification
+        await supabase.from("notification_history").insert({
+          user_id: sub.user_id,
+          channel: "push",
+          notification_type: payload.tag || "general",
+          title: payload.title,
+          body: payload.body,
+          status: "sent",
+          metadata: { endpoint: sub.endpoint.slice(0, 50) + "..." },
+        });
       } catch (err) {
         failed++;
         console.error("Push send failed:", err);
+
+        const errorMessage = err instanceof Error ? err.message : String(err);
+
+        // Log failed push notification
+        await supabase.from("notification_history").insert({
+          user_id: sub.user_id,
+          channel: "push",
+          notification_type: payload.tag || "general",
+          title: payload.title,
+          body: payload.body,
+          status: "failed",
+          error_message: errorMessage.slice(0, 500),
+          metadata: { endpoint: sub.endpoint.slice(0, 50) + "..." },
+        });
 
         if (err instanceof webpush.PushMessageError) {
           // Consume response body if any
@@ -200,7 +225,7 @@ serve(async (req) => {
             expiredEndpoints.push(sub.endpoint);
           }
         } else {
-          errors.push(err instanceof Error ? err.message : String(err));
+          errors.push(errorMessage);
         }
       }
     }
