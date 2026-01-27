@@ -48,13 +48,14 @@ serve(async (req) => {
     // Check notification preferences
     const { data: prefs } = await supabase
       .from("patient_notification_preferences")
-      .select("email_reminders, push_clinician_messages, sms_reminders")
+      .select("email_reminders, push_clinician_messages, sms_reminders, whatsapp_reminders")
       .eq("user_id", patient_user_id)
       .single();
 
     const emailEnabled = prefs?.email_reminders !== false;
     const pushEnabled = prefs?.push_clinician_messages !== false;
     const smsEnabled = prefs?.sms_reminders !== false;
+    const whatsappEnabled = prefs?.whatsapp_reminders !== false;
 
     const patientName = profile.first_name || "Patient";
     const isApproved = status === "approved";
@@ -76,7 +77,7 @@ serve(async (req) => {
       body += ` Note from pharmacist: ${pharmacist_notes}`;
     }
 
-    const results = { email: null as any, push: null as any, sms: null as any };
+    const results = { email: null as any, push: null as any, sms: null as any, whatsapp: null as any };
 
     // Send email notification
     if (emailEnabled && profile.email) {
@@ -233,6 +234,53 @@ serve(async (req) => {
       } catch (smsError) {
         console.error("Failed to send SMS notification:", smsError);
         results.sms = { success: false, error: String(smsError) };
+      }
+    }
+
+    // Send WhatsApp notification
+    if (whatsappEnabled && profile.phone) {
+      try {
+        // Build WhatsApp message
+        let whatsappBody = isApproved
+          ? `💊 Pillaxia: Great news! Your refill request for ${medication_name} has been approved.`
+          : `💊 Pillaxia: Your refill request for ${medication_name} has been reviewed.`;
+        
+        if (isApproved && refills_granted) {
+          whatsappBody += ` You have ${refills_granted} refill${refills_granted > 1 ? 's' : ''} available.`;
+        }
+        
+        if (!isApproved && pharmacist_notes) {
+          const truncatedNotes = pharmacist_notes.length > 100 
+            ? pharmacist_notes.substring(0, 97) + "..." 
+            : pharmacist_notes;
+          whatsappBody += ` Pharmacist note: ${truncatedNotes}`;
+        }
+
+        const whatsappResponse = await supabase.functions.invoke("send-whatsapp-notification", {
+          body: {
+            recipientId: patient_user_id,
+            senderName: "Pillaxia Pharmacy",
+            message: whatsappBody,
+            notificationType: "medication_reminder",
+          },
+        });
+
+        results.whatsapp = { success: !whatsappResponse.error, data: whatsappResponse.data };
+        console.log("WhatsApp notification result:", whatsappResponse);
+
+        // Log WhatsApp to notification history
+        await supabase.from("notification_history").insert({
+          user_id: patient_user_id,
+          notification_type: "refill_request",
+          channel: "whatsapp",
+          title: isApproved ? "Refill Approved" : "Refill Denied",
+          body: whatsappBody,
+          status: results.whatsapp?.success ? "delivered" : "failed",
+          metadata: { medication_name, refill_status: status, refills_granted, phone: profile.phone },
+        });
+      } catch (whatsappError) {
+        console.error("Failed to send WhatsApp notification:", whatsappError);
+        results.whatsapp = { success: false, error: String(whatsappError) };
       }
     }
 
