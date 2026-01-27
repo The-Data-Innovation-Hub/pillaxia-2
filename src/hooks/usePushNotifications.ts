@@ -2,9 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/hooks/use-toast";
-
-// VAPID public key - this should match your backend
-const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY;
+import { getVapidPublicKey } from "@/lib/push/getVapidPublicKey";
 
 interface PushNotificationState {
   isSupported: boolean;
@@ -73,7 +71,20 @@ export function usePushNotifications() {
 
   // Subscribe to push notifications
   const subscribe = useCallback(async () => {
-    if (!user || !VAPID_PUBLIC_KEY) {
+    if (!user) {
+      toast({
+        title: "Push notifications unavailable",
+        description: "Please sign in to enable push notifications.",
+        variant: "destructive",
+      });
+      return false;
+    }
+
+    let vapidPublicKey: string;
+    try {
+      vapidPublicKey = await getVapidPublicKey();
+    } catch (e) {
+      console.error("Failed to load VAPID public key:", e);
       toast({
         title: "Push notifications unavailable",
         description: "Push notifications are not configured for this app.",
@@ -107,7 +118,7 @@ export function usePushNotifications() {
       }
 
       // Subscribe to push notifications
-      const applicationServerKey = urlBase64ToUint8Array(VAPID_PUBLIC_KEY);
+      const applicationServerKey = urlBase64ToUint8Array(vapidPublicKey);
       const subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: applicationServerKey.buffer as ArrayBuffer,
@@ -156,7 +167,7 @@ export function usePushNotifications() {
       setState((prev) => ({ ...prev, isLoading: false }));
       return false;
     }
-  }, [user]);
+   }, [user]);
 
   // Unsubscribe from push notifications
   const unsubscribe = useCallback(async () => {
