@@ -77,3 +77,9 @@ verify_jwt = false
 
 [functions.calculate-engagement-scores]
 verify_jwt = false
+
+[functions.send-appointment-reminders]
+verify_jwt = false
+
+[functions.appointment-reply-webhook]
+verify_jwt = false
