@@ -339,6 +339,7 @@ Deno.serve(async (req: Request) => {
 
         // Send push notification if in_app_reminders is enabled
         if (!prefs || prefs.in_app_reminders) {
+          // Send web push notification
           await supabase.functions.invoke("send-push-notification", {
             body: {
               user_ids: [userId],
@@ -350,6 +351,25 @@ Deno.serve(async (req: Request) => {
               },
             },
           });
+
+          // Send native iOS push notification
+          try {
+            await supabase.functions.invoke("send-native-push", {
+              body: {
+                user_ids: [userId],
+                payload: {
+                  title: "💊 Medication Reminder",
+                  body: `Time to take: ${medNames}`,
+                  badge: userDoses.length,
+                  sound: "default",
+                  data: { url: "/dashboard/schedule" },
+                },
+              },
+            });
+            console.log(`Native iOS push sent to user ${userId}`);
+          } catch (nativePushErr) {
+            console.error(`Native iOS push error for user ${userId}:`, nativePushErr);
+          }
         }
 
         // Send SMS notification if sms_reminders is enabled
