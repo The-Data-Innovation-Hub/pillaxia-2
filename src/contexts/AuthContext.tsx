@@ -27,6 +27,7 @@ interface AuthContextType {
   signUp: (email: string, password: string, firstName?: string, lastName?: string, role?: AppRole) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   hasRole: (role: AppRole) => boolean;
+  refreshProfile: () => Promise<void>;
   isAdmin: boolean;
   isClinician: boolean;
   isPharmacist: boolean;
@@ -176,6 +177,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     toast.success("Signed out successfully");
   };
 
+  const refreshProfile = async () => {
+    if (!user) return;
+    const profileData = await fetchProfile(user.id);
+    setProfile(profileData);
+  };
+
   const hasRole = (role: AppRole) => roles.includes(role);
 
   const value: AuthContextType = {
@@ -188,6 +195,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     signUp,
     signOut,
     hasRole,
+    refreshProfile,
     isAdmin: hasRole("admin"),
     isClinician: hasRole("clinician"),
     isPharmacist: hasRole("pharmacist"),
