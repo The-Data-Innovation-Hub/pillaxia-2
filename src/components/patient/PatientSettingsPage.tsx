@@ -189,8 +189,15 @@ export function PatientSettingsPage() {
           ) : pushNotifications.permission === "denied" ? (
             <Alert variant="destructive">
               <AlertTriangle className="h-4 w-4" />
-              <AlertDescription>
-                Push notifications are blocked. Please enable them in your browser settings.
+              <AlertDescription className="space-y-2">
+                <p className="font-medium">Push notifications are blocked by your browser.</p>
+                <p className="text-sm">To enable them:</p>
+                <ol className="text-sm list-decimal list-inside space-y-1 ml-2">
+                  <li>Click the lock/info icon in your browser's address bar</li>
+                  <li>Find "Notifications" in the site settings</li>
+                  <li>Change from "Block" to "Allow"</li>
+                  <li>Refresh this page</li>
+                </ol>
               </AlertDescription>
             </Alert>
           ) : (
