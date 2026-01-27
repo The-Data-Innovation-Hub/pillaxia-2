@@ -11,6 +11,7 @@ import { PushDebugPanel } from "@/components/patient/PushDebugPanel";
 import { AutoResolutionSettingsCard } from "@/components/patient/AutoResolutionSettingsCard";
 import { TwoFactorSettingsCard } from "@/components/patient/TwoFactorSettingsCard";
 import { NotificationSchedulingCard } from "@/components/patient/NotificationSchedulingCard";
+import { TimezoneSelector } from "@/components/patient/TimezoneSelector";
 import { medicationCache, scheduleCache, symptomCache } from "@/lib/cache";
 import {
   Card,
@@ -516,6 +517,9 @@ export function PatientSettingsPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Timezone Settings */}
+      <TimezoneSelector />
 
       {/* Data Sync */}
       <Card>

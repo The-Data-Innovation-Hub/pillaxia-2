@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { Resend } from "https://esm.sh/resend@2.0.0";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { format, subDays, startOfDay, endOfDay } from "https://esm.sh/date-fns@3.6.0";
+import { formatInTimeZone, fromZonedTime, toZonedTime } from "https://esm.sh/date-fns-tz@3.1.3";
 
 const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
 
@@ -11,7 +12,7 @@ const corsHeaders = {
 };
 
 /**
- * Daily Email Digest
+ * Daily Email Digest with Timezone Support
  * 
  * Sends a summary email to patients with:
  * - Yesterday's adherence summary
@@ -19,7 +20,8 @@ const corsHeaders = {
  * - Any missed doses from yesterday
  * - Encouragement messages received
  * 
- * Designed to be called by a cron job at 8am local time.
+ * This function is called hourly by a cron job.
+ * It only sends emails to patients whose local time is 8am (between 8:00-8:59).
  */
 
 interface DigestData {
@@ -37,6 +39,45 @@ interface DigestData {
   }>;
 }
 
+// Get the current hour in a specific timezone
+function getCurrentHourInTimezone(timezone: string): number {
+  try {
+    const now = new Date();
+    const zonedTime = toZonedTime(now, timezone);
+    return zonedTime.getHours();
+  } catch {
+    // Fallback to UTC if timezone is invalid
+    return new Date().getUTCHours();
+  }
+}
+
+// Get yesterday's start and end in the patient's timezone
+function getYesterdayBoundsInTimezone(timezone: string): { start: string; end: string } {
+  try {
+    const now = new Date();
+    const zonedNow = toZonedTime(now, timezone);
+    const zonedYesterday = subDays(zonedNow, 1);
+    const start = startOfDay(zonedYesterday);
+    const end = endOfDay(zonedYesterday);
+    
+    // Convert back to UTC for database query
+    const startUtc = fromZonedTime(start, timezone);
+    const endUtc = fromZonedTime(end, timezone);
+    
+    return {
+      start: startUtc.toISOString(),
+      end: endUtc.toISOString(),
+    };
+  } catch {
+    // Fallback to UTC
+    const yesterday = subDays(new Date(), 1);
+    return {
+      start: startOfDay(yesterday).toISOString(),
+      end: endOfDay(yesterday).toISOString(),
+    };
+  }
+}
+
 serve(async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -49,20 +90,18 @@ serve(async (req: Request): Promise<Response> => {
     );
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const yesterday = subDays(new Date(), 1);
-    const yesterdayStart = startOfDay(yesterday).toISOString();
-    const yesterdayEnd = endOfDay(yesterday).toISOString();
-    const today = new Date();
-    const todayDayOfWeek = today.getDay();
+    const currentUtcHour = new Date().getUTCHours();
 
-    // Get all patients who have digest preference enabled (or default to enabled)
+    console.log(`Processing daily digest. Current UTC hour: ${currentUtcHour}`);
+
+    // Get all patients with email addresses
     const { data: patients, error: patientsError } = await supabase
       .from("profiles")
       .select(`
         user_id,
         email,
         first_name,
-        patient_notification_preferences(email_reminders)
+        timezone
       `)
       .not("email", "is", null);
 
@@ -71,19 +110,45 @@ serve(async (req: Request): Promise<Response> => {
       throw patientsError;
     }
 
-    console.log(`Processing daily digest for ${patients?.length || 0} patients`);
+    console.log(`Found ${patients?.length || 0} patients to check`);
 
     let sentCount = 0;
     let skippedCount = 0;
+    let timezoneSkippedCount = 0;
 
     for (const patient of patients || []) {
       try {
         // Check if patient has email reminders enabled
-        const prefs = patient.patient_notification_preferences?.[0];
+        const { data: prefs } = await supabase
+          .from("patient_notification_preferences")
+          .select("email_reminders")
+          .eq("user_id", patient.user_id)
+          .maybeSingle();
+        
         if (prefs && !prefs.email_reminders) {
           skippedCount++;
           continue;
         }
+
+        // Get patient's timezone (default to UTC if not set)
+        const patientTimezone = patient.timezone || "UTC";
+        
+        // Check if it's 8am in the patient's timezone (between 8:00 and 8:59)
+        const localHour = getCurrentHourInTimezone(patientTimezone);
+        if (localHour !== 8) {
+          timezoneSkippedCount++;
+          continue;
+        }
+
+        console.log(`Sending digest to ${patient.email} (timezone: ${patientTimezone}, local hour: ${localHour})`);
+
+        // Get yesterday's bounds in patient's timezone
+        const { start: yesterdayStart, end: yesterdayEnd } = getYesterdayBoundsInTimezone(patientTimezone);
+        
+        // Get today in patient's timezone for day-of-week filtering
+        const patientNow = toZonedTime(new Date(), patientTimezone);
+        const todayDayOfWeek = patientNow.getDay();
+        const patientYesterday = subDays(patientNow, 1);
 
         // Get yesterday's medication logs
         const { data: logs } = await supabase
@@ -175,8 +240,8 @@ serve(async (req: Request): Promise<Response> => {
         // Generate email HTML
         const emailHtml = generateDigestEmail({
           patientName: patient.first_name || "there",
-          yesterday: format(yesterday, "MMMM d"),
-          today: format(today, "EEEE, MMMM d"),
+          yesterday: format(patientYesterday, "MMMM d"),
+          today: format(patientNow, "EEEE, MMMM d"),
           adherencePercent,
           takenCount,
           missedCount,
@@ -191,7 +256,7 @@ serve(async (req: Request): Promise<Response> => {
         const emailResponse = await resend.emails.send({
           from: "Pillaxia <noreply@resend.dev>",
           to: [patient.email!],
-          subject: `📊 Your Daily Medication Summary - ${format(today, "MMM d")}`,
+          subject: `📊 Your Daily Medication Summary - ${format(patientNow, "MMM d")}`,
           html: emailHtml,
         });
 
@@ -225,10 +290,15 @@ serve(async (req: Request): Promise<Response> => {
       }
     }
 
-    console.log(`Daily digest complete: ${sentCount} sent, ${skippedCount} skipped`);
+    console.log(`Daily digest complete: ${sentCount} sent, ${skippedCount} skipped (prefs), ${timezoneSkippedCount} skipped (not 8am local)`);
 
     return new Response(
-      JSON.stringify({ success: true, sent: sentCount, skipped: skippedCount }),
+      JSON.stringify({ 
+        success: true, 
+        sent: sentCount, 
+        skipped: skippedCount, 
+        timezoneSkipped: timezoneSkippedCount 
+      }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {
