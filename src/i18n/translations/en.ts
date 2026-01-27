@@ -260,6 +260,9 @@ export const en = {
     combinedSource: "Combined",
     noConflict: "no conflict",
     mergeApplied: "Changes merged successfully",
+    autoResolved: "Auto-resolved",
+    autoResolvedCount: "conflict(s) auto-resolved",
+    autoResolutionEnabled: "Simple conflicts are automatically resolved",
   },
 };
 

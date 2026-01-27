@@ -13,7 +13,8 @@ import {
   ChevronUp,
   AlertTriangle,
   Smartphone,
-  ArrowRight
+  ArrowRight,
+  Sparkles
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -122,16 +123,26 @@ export function SyncStatusPage() {
     const result = await syncPendingActions();
     
     if (result) {
+      let message = "";
+      if (result.autoResolved > 0) {
+        message = `Synced ${result.success} items, ${result.autoResolved} auto-resolved`;
+        if (result.conflicts > 0) {
+          message += `, ${result.conflicts} need review`;
+        }
+      } else if (result.conflicts > 0) {
+        message = `Synced ${result.success} items, ${result.conflicts} conflict(s) need review`;
+      } else if (result.failed > 0) {
+        message = `Synced ${result.success} items, ${result.failed} failed`;
+      } else {
+        message = `Successfully synced ${result.success} items`;
+      }
+
       addHistoryEntry({
         type: result.failed > 0 ? "error" : "sync",
-        itemsSynced: result.success,
+        itemsSynced: result.success + result.autoResolved,
         itemsFailed: result.failed,
         conflictsDetected: result.conflicts,
-        message: result.conflicts > 0 
-          ? `Synced ${result.success} items, ${result.conflicts} conflict(s) need review`
-          : result.failed > 0 
-            ? `Synced ${result.success} items, ${result.failed} failed`
-            : `Successfully synced ${result.success} items`,
+        message,
       });
     }
     
@@ -357,6 +368,17 @@ export function SyncStatusPage() {
               <Progress value={undefined} className="animate-pulse" />
             </div>
           )}
+
+          {/* Auto-Resolution Info */}
+          <div className="flex items-center gap-3 p-3 rounded-lg bg-primary/5 border border-primary/20">
+            <Sparkles className="h-5 w-5 text-primary flex-shrink-0" />
+            <div className="text-sm">
+              <span className="font-medium text-primary">Smart Auto-Resolution</span>
+              <span className="text-muted-foreground ml-1">
+                — Simple conflicts are automatically resolved when the winner is clear (e.g., single field change, clear timestamp winner).
+              </span>
+            </div>
+          </div>
         </CardContent>
       </Card>
 

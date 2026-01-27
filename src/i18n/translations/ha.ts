@@ -262,5 +262,8 @@ export const ha: Translations = {
     combinedSource: "An Haɗa",
     noConflict: "babu rikici",
     mergeApplied: "An yi amfani da canje-canje cikin nasara",
+    autoResolved: "An warware ta atomatik",
+    autoResolvedCount: "rikice-rikice da aka warware ta atomatik",
+    autoResolutionEnabled: "Ana warware sauƙin rikice-rikice ta atomatik",
   },
 };

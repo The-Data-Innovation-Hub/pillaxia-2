@@ -40,7 +40,7 @@ export function useOfflineSync(onSyncComplete?: () => void) {
         setLastSyncTime(now);
         localStorage.setItem("pillaxia_last_sync", now.toISOString());
         await updateConflictCount();
-        return { success: 0, failed: 0, conflicts: 0, conflictIds: [] };
+        return { success: 0, failed: 0, conflicts: 0, conflictIds: [], autoResolved: 0 };
       }
 
       isSyncing.current = true;
@@ -49,7 +49,7 @@ export function useOfflineSync(onSyncComplete?: () => void) {
 
       const result = await offlineQueue.syncAll();
 
-      if (result.success > 0) {
+      if (result.success > 0 || result.autoResolved > 0) {
         // Clear pending symptoms from cache after successful sync
         await symptomCache.clearPendingSymptoms();
         
@@ -59,7 +59,12 @@ export function useOfflineSync(onSyncComplete?: () => void) {
         queryClient.invalidateQueries({ queryKey: ["symptoms"] });
         queryClient.invalidateQueries({ queryKey: ["today-schedule"] });
         
-        toast.success(t.offline.syncSuccess);
+        // Show appropriate message
+        if (result.autoResolved > 0 && result.conflicts === 0) {
+          toast.success(`Synced successfully. ${result.autoResolved} conflict(s) auto-resolved.`);
+        } else {
+          toast.success(t.offline.syncSuccess);
+        }
         onSyncComplete?.();
       }
 

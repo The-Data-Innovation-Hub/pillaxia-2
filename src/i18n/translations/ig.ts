@@ -262,5 +262,8 @@ export const ig: Translations = {
     combinedSource: "Ejikọtara",
     noConflict: "enweghị esemokwu",
     mergeApplied: "Etinyere mgbanwe nke ọma",
+    autoResolved: "Edoziri n'onwe ya",
+    autoResolvedCount: "esemokwu edoziri n'onwe ya",
+    autoResolutionEnabled: "A na-edozi esemokwu dị mfe n'onwe ya",
   },
 };
