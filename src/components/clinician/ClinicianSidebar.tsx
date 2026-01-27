@@ -110,6 +110,9 @@ export function ClinicianSidebar() {
             <p className="text-sm font-medium truncate">
               Dr. {profile?.first_name} {profile?.last_name}
             </p>
+            {profile?.organization && (
+              <p className="text-xs text-muted-foreground truncate">{profile.organization}</p>
+            )}
             <p className="text-xs text-muted-foreground">{t.auth.roleClinician}</p>
           </div>
         </div>
