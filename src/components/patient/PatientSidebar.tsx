@@ -1,5 +1,6 @@
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/contexts/AuthContext";
+import { useLanguage } from "@/i18n/LanguageContext";
 import { useHasCaregiverRelationships } from "@/hooks/useHasCaregiverRelationships";
 import {
   Sidebar,
@@ -28,27 +29,28 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-const baseMenuItems = [
-  { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
-  { title: "Medications", url: "/dashboard/medications", icon: Pill },
-  { title: "Today's Schedule", url: "/dashboard/schedule", icon: Calendar },
-  { title: "Symptom Diary", url: "/dashboard/symptoms", icon: ClipboardList },
-  { title: "Caregivers", url: "/dashboard/caregivers", icon: Users },
-  { title: "Notifications", url: "/dashboard/notifications", icon: Bell },
-  { title: "Ask Angela", url: "/dashboard/angela", icon: Bot },
-];
-
-const caregiverMenuItems = [
-  { title: "Caregiver View", url: "/dashboard/caregiver-view", icon: Heart },
-  { title: "Alert History", url: "/dashboard/caregiver-history", icon: History },
-];
-
 export function PatientSidebar() {
   const { signOut, profile } = useAuth();
+  const { t } = useLanguage();
   const { data: hasCaregiverRelationships } = useHasCaregiverRelationships();
 
+  const baseMenuItems = [
+    { title: t.dashboard.overview, url: "/dashboard", icon: LayoutDashboard },
+    { title: t.medications.title, url: "/dashboard/medications", icon: Pill },
+    { title: t.schedule.title, url: "/dashboard/schedule", icon: Calendar },
+    { title: t.symptoms.title, url: "/dashboard/symptoms", icon: ClipboardList },
+    { title: t.caregivers.title, url: "/dashboard/caregivers", icon: Users },
+    { title: t.notifications.title, url: "/dashboard/notifications", icon: Bell },
+    { title: t.angela.title, url: "/dashboard/angela", icon: Bot },
+  ];
+
+  const caregiverMenuItems = [
+    { title: "Caregiver View", url: "/dashboard/caregiver-view", icon: Heart },
+    { title: "Alert History", url: "/dashboard/caregiver-history", icon: History },
+  ];
+
   const menuItems = hasCaregiverRelationships
-    ? [...baseMenuItems.slice(0, 5), ...caregiverMenuItems, baseMenuItems[5]]
+    ? [...baseMenuItems.slice(0, 5), ...caregiverMenuItems, baseMenuItems[5], baseMenuItems[6]]
     : baseMenuItems;
 
   return (
@@ -62,7 +64,7 @@ export function PatientSidebar() {
             <span className="font-medium text-sm">
               {profile?.first_name} {profile?.last_name}
             </span>
-            <span className="text-xs text-muted-foreground">Patient</span>
+            <span className="text-xs text-muted-foreground">{t.auth.rolePatient}</span>
           </div>
         </div>
       </SidebarHeader>
@@ -73,7 +75,7 @@ export function PatientSidebar() {
           <SidebarGroupContent>
             <SidebarMenu>
               {menuItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
+                <SidebarMenuItem key={item.url}>
                   <SidebarMenuButton asChild>
                     <NavLink 
                       to={item.url} 
@@ -99,7 +101,7 @@ export function PatientSidebar() {
           activeClassName="bg-primary/10 text-primary font-medium"
         >
           <Settings className="h-4 w-4" />
-          <span>Settings</span>
+          <span>{t.nav.settings}</span>
         </NavLink>
         <Button 
           variant="ghost" 
@@ -107,7 +109,7 @@ export function PatientSidebar() {
           onClick={signOut}
         >
           <LogOut className="h-4 w-4" />
-          <span>Sign Out</span>
+          <span>{t.nav.signOut}</span>
         </Button>
       </SidebarFooter>
     </Sidebar>

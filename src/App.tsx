@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { LanguageProvider } from "@/i18n/LanguageContext";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
@@ -117,49 +118,51 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <AuthProvider>
-          <Routes>
-            <Route path="/" element={<Index />} />
-            <Route path="/auth" element={<Auth />} />
-            
-            {/* Protected Dashboard Routes */}
-            <Route
-              path="/dashboard"
-              element={
-                <ProtectedRoute>
-                  <DashboardRouter />
-                </ProtectedRoute>
-              }
-            >
-              <Route index element={<DashboardHome />} />
-              {/* Patient Routes */}
-              <Route path="medications" element={<MedicationsPage />} />
-              <Route path="schedule" element={<SchedulePage />} />
-              <Route path="symptoms" element={<SymptomsPage />} />
-              <Route path="caregivers" element={<CaregiversPage />} />
-              <Route path="caregiver-view" element={<CaregiverDashboardPage />} />
-              <Route path="caregiver-history" element={<CaregiverNotificationHistoryPage />} />
-              <Route path="angela" element={<AngelaPage />} />
-              <Route path="notifications" element={<NotificationHistoryPage />} />
-              {/* Clinician Routes */}
-              <Route path="patients" element={<PatientRosterPage />} />
-              <Route path="adherence" element={<AdherenceMonitorPage />} />
-              {/* Pharmacist Routes */}
-              <Route path="prescriptions" element={<PrescriptionsPage />} />
-              <Route path="inventory" element={<InventoryPage />} />
-              <Route path="refills" element={<RefillRequestsPage />} />
-              {/* Admin Routes */}
-              <Route path="users" element={<UserManagementPage />} />
-              <Route path="analytics" element={<SystemAnalyticsPage />} />
-              <Route path="notification-analytics" element={<NotificationAnalyticsPage />} />
-              <Route path="audit-logs" element={<AuditLogPage />} />
-              <Route path="admin-settings" element={<SettingsPage />} />
-              {/* Patient Settings */}
-              <Route path="settings" element={<PatientSettingsPage />} />
-            </Route>
-            
-            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-            <Route path="*" element={<NotFound />} />
-          </Routes>
+          <LanguageProvider>
+            <Routes>
+              <Route path="/" element={<Index />} />
+              <Route path="/auth" element={<Auth />} />
+              
+              {/* Protected Dashboard Routes */}
+              <Route
+                path="/dashboard"
+                element={
+                  <ProtectedRoute>
+                    <DashboardRouter />
+                  </ProtectedRoute>
+                }
+              >
+                <Route index element={<DashboardHome />} />
+                {/* Patient Routes */}
+                <Route path="medications" element={<MedicationsPage />} />
+                <Route path="schedule" element={<SchedulePage />} />
+                <Route path="symptoms" element={<SymptomsPage />} />
+                <Route path="caregivers" element={<CaregiversPage />} />
+                <Route path="caregiver-view" element={<CaregiverDashboardPage />} />
+                <Route path="caregiver-history" element={<CaregiverNotificationHistoryPage />} />
+                <Route path="angela" element={<AngelaPage />} />
+                <Route path="notifications" element={<NotificationHistoryPage />} />
+                {/* Clinician Routes */}
+                <Route path="patients" element={<PatientRosterPage />} />
+                <Route path="adherence" element={<AdherenceMonitorPage />} />
+                {/* Pharmacist Routes */}
+                <Route path="prescriptions" element={<PrescriptionsPage />} />
+                <Route path="inventory" element={<InventoryPage />} />
+                <Route path="refills" element={<RefillRequestsPage />} />
+                {/* Admin Routes */}
+                <Route path="users" element={<UserManagementPage />} />
+                <Route path="analytics" element={<SystemAnalyticsPage />} />
+                <Route path="notification-analytics" element={<NotificationAnalyticsPage />} />
+                <Route path="audit-logs" element={<AuditLogPage />} />
+                <Route path="admin-settings" element={<SettingsPage />} />
+                {/* Patient Settings */}
+                <Route path="settings" element={<PatientSettingsPage />} />
+              </Route>
+              
+              {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </LanguageProvider>
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
