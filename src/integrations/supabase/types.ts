@@ -341,10 +341,13 @@ export type Database = {
           created_at: string
           created_by: string | null
           current_stock: number
+          expiry_alert_sent: boolean
+          expiry_date: string | null
           form: string
           generic_name: string | null
           id: string
           is_active: boolean
+          lot_number: string | null
           manufacturer: string | null
           minimum_stock: number
           name: string
@@ -359,10 +362,13 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           current_stock?: number
+          expiry_alert_sent?: boolean
+          expiry_date?: string | null
           form?: string
           generic_name?: string | null
           id?: string
           is_active?: boolean
+          lot_number?: string | null
           manufacturer?: string | null
           minimum_stock?: number
           name: string
@@ -377,10 +383,13 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           current_stock?: number
+          expiry_alert_sent?: boolean
+          expiry_date?: string | null
           form?: string
           generic_name?: string | null
           id?: string
           is_active?: boolean
+          lot_number?: string | null
           manufacturer?: string | null
           minimum_stock?: number
           name?: string

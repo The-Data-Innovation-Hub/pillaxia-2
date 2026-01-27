@@ -8,3 +8,4 @@ export { ControlledDrugRegisterPage } from "./ControlledDrugRegisterPage";
 export { AddControlledDrugDialog } from "./AddControlledDrugDialog";
 export { DispenseControlledDrugDialog } from "./DispenseControlledDrugDialog";
 export { AdjustStockDialog } from "./AdjustStockDialog";
+export { ExpiryTrackingCard } from "./ExpiryTrackingCard";
