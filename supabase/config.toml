@@ -50,3 +50,12 @@ verify_jwt = false
 
 [functions.check-refill-alerts]
 verify_jwt = false
+
+[functions.send-sms-notification]
+verify_jwt = false
+
+[functions.check-red-flag-symptoms]
+verify_jwt = false
+
+[functions.check-polypharmacy]
+verify_jwt = false

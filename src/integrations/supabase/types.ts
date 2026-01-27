@@ -616,6 +616,39 @@ export type Database = {
         }
         Relationships: []
       }
+      polypharmacy_warnings: {
+        Row: {
+          acknowledged_at: string | null
+          acknowledged_by: string | null
+          created_at: string
+          id: string
+          is_acknowledged: boolean
+          medication_count: number
+          patient_user_id: string
+          updated_at: string
+        }
+        Insert: {
+          acknowledged_at?: string | null
+          acknowledged_by?: string | null
+          created_at?: string
+          id?: string
+          is_acknowledged?: boolean
+          medication_count: number
+          patient_user_id: string
+          updated_at?: string
+        }
+        Update: {
+          acknowledged_at?: string | null
+          acknowledged_by?: string | null
+          created_at?: string
+          id?: string
+          is_acknowledged?: boolean
+          medication_count?: number
+          patient_user_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -685,6 +718,98 @@ export type Database = {
           p256dh?: string
           updated_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      red_flag_alerts: {
+        Row: {
+          acknowledged_at: string | null
+          acknowledged_by: string | null
+          alert_type: string
+          clinician_user_id: string
+          created_at: string
+          description: string | null
+          id: string
+          is_acknowledged: boolean
+          patient_user_id: string
+          severity: number
+          symptom_entry_id: string | null
+          symptom_type: string
+        }
+        Insert: {
+          acknowledged_at?: string | null
+          acknowledged_by?: string | null
+          alert_type?: string
+          clinician_user_id: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_acknowledged?: boolean
+          patient_user_id: string
+          severity: number
+          symptom_entry_id?: string | null
+          symptom_type: string
+        }
+        Update: {
+          acknowledged_at?: string | null
+          acknowledged_by?: string | null
+          alert_type?: string
+          clinician_user_id?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_acknowledged?: boolean
+          patient_user_id?: string
+          severity?: number
+          symptom_entry_id?: string | null
+          symptom_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "red_flag_alerts_symptom_entry_id_fkey"
+            columns: ["symptom_entry_id"]
+            isOneToOne: false
+            referencedRelation: "symptom_entries"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      soap_notes: {
+        Row: {
+          assessment: string | null
+          clinician_user_id: string
+          created_at: string
+          id: string
+          objective: string | null
+          patient_user_id: string
+          plan: string | null
+          subjective: string | null
+          updated_at: string
+          visit_date: string
+        }
+        Insert: {
+          assessment?: string | null
+          clinician_user_id: string
+          created_at?: string
+          id?: string
+          objective?: string | null
+          patient_user_id: string
+          plan?: string | null
+          subjective?: string | null
+          updated_at?: string
+          visit_date?: string
+        }
+        Update: {
+          assessment?: string | null
+          clinician_user_id?: string
+          created_at?: string
+          id?: string
+          objective?: string | null
+          patient_user_id?: string
+          plan?: string | null
+          subjective?: string | null
+          updated_at?: string
+          visit_date?: string
         }
         Relationships: []
       }

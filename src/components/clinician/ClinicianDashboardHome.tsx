@@ -2,11 +2,12 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Users, Pill, Activity, AlertTriangle } from "lucide-react";
+import { Users, Pill, Activity, AlertTriangle, FileText } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-
+import { RedFlagAlertsCard } from "./RedFlagAlertsCard";
+import { PolypharmacyWarningsCard } from "./PolypharmacyWarningsCard";
 export function ClinicianDashboardHome() {
   const { user } = useAuth();
 
@@ -140,6 +141,12 @@ export function ClinicianDashboardHome() {
         ))}
       </div>
 
+      {/* Alert Cards */}
+      <div className="grid gap-4 md:grid-cols-2">
+        <RedFlagAlertsCard />
+        <PolypharmacyWarningsCard />
+      </div>
+
       {/* Quick Actions */}
       <Card>
         <CardHeader>
@@ -156,6 +163,12 @@ export function ClinicianDashboardHome() {
             <Button variant="outline" className="gap-2">
               <Activity className="h-4 w-4" />
               Check Adherence Reports
+            </Button>
+          </Link>
+          <Link to="/dashboard/soap-notes">
+            <Button variant="outline" className="gap-2">
+              <FileText className="h-4 w-4" />
+              Write SOAP Notes
             </Button>
           </Link>
         </CardContent>
