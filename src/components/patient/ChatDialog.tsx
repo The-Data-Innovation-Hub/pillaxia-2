@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useNotificationSettings } from "@/hooks/useNotificationSettings";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -7,7 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Send, Check, CheckCheck } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Send, Check, CheckCheck, BellOff } from "lucide-react";
 import { toast } from "sonner";
 import { format, isToday, isYesterday } from "date-fns";
 
@@ -36,11 +38,15 @@ const ChatDialog = ({
   patientId,
   viewerRole,
 }: ChatDialogProps) => {
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const queryClient = useQueryClient();
   const [newMessage, setNewMessage] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Check if notifications are enabled (only admins can see settings)
+  const { isEnabled } = useNotificationSettings();
+  const notificationsEnabled = isAdmin ? isEnabled("encouragement_messages") : true;
 
   // Fetch messages for this conversation
   const { data: messages = [], isLoading } = useQuery({
@@ -272,7 +278,15 @@ const ChatDialog = ({
         </ScrollArea>
 
         {/* Input Area */}
-        <div className="p-3 border-t bg-background">
+        <div className="p-3 border-t bg-background space-y-2">
+          {!notificationsEnabled && (
+            <Alert className="py-2 px-3 border-amber-500/50 bg-amber-500/10">
+              <BellOff className="h-3.5 w-3.5 text-amber-600" />
+              <AlertDescription className="text-xs text-amber-700">
+                Notifications disabled — messages saved but no alerts sent.
+              </AlertDescription>
+            </Alert>
+          )}
           <div className="flex items-center gap-2">
             <Input
               ref={inputRef}

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useNotificationSettings } from "@/hooks/useNotificationSettings";
 import { toast } from "@/hooks/use-toast";
 import {
   Dialog,
@@ -14,7 +15,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Heart, Loader2, Send } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Heart, Loader2, Send, AlertTriangle } from "lucide-react";
 
 interface SendEncouragementDialogProps {
   open: boolean;
@@ -38,9 +40,13 @@ export function SendEncouragementDialog({
   patientName,
   caregiverName,
 }: SendEncouragementDialogProps) {
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const queryClient = useQueryClient();
   const [message, setMessage] = useState("");
+  
+  // Check if notifications are enabled (only admins can see this)
+  const { isEnabled } = useNotificationSettings();
+  const notificationsEnabled = isAdmin ? isEnabled("encouragement_messages") : true;
 
   const sendMutation = useMutation({
     mutationFn: async (messageText: string) => {
@@ -109,6 +115,15 @@ export function SendEncouragementDialog({
             Send a supportive message to {patientName} to celebrate their good adherence.
           </DialogDescription>
         </DialogHeader>
+
+        {!notificationsEnabled && (
+          <Alert variant="destructive" className="border-amber-500/50 bg-amber-500/10">
+            <AlertTriangle className="h-4 w-4 text-amber-600" />
+            <AlertDescription className="text-amber-700">
+              Email notifications are currently disabled by an admin. Messages will be saved but no email/WhatsApp alerts will be sent.
+            </AlertDescription>
+          </Alert>
+        )}
 
         <div className="space-y-4 py-4">
           <div className="space-y-2">
