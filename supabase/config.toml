@@ -14,3 +14,6 @@ verify_jwt = false
 
 [functions.send-whatsapp-notification]
 verify_jwt = false
+
+[functions.send-missed-dose-alerts]
+verify_jwt = false
