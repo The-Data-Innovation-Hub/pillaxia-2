@@ -8,6 +8,7 @@ import { toast } from "@/hooks/use-toast";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { useOfflineStatus } from "@/hooks/useOfflineStatus";
 import { PushDebugPanel } from "@/components/patient/PushDebugPanel";
+import { AutoResolutionSettingsCard } from "@/components/patient/AutoResolutionSettingsCard";
 import { medicationCache } from "@/lib/medicationCache";
 import { scheduleCache } from "@/lib/scheduleCache";
 import { symptomCache } from "@/lib/symptomCache";
@@ -523,6 +524,9 @@ export function PatientSettingsPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Auto-Resolution Settings */}
+      <AutoResolutionSettingsCard />
 
       {/* Push Notifications */}
       <Card>

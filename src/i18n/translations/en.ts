@@ -264,6 +264,27 @@ export const en = {
     autoResolvedCount: "conflict(s) auto-resolved",
     autoResolutionEnabled: "Simple conflicts are automatically resolved",
   },
+  autoResolution: {
+    settingsTitle: "Auto-Resolution Settings",
+    settingsDescription: "Configure how sync conflicts are automatically resolved",
+    enableAuto: "Enable Auto-Resolution",
+    enableAutoDesc: "Automatically resolve simple conflicts without manual review",
+    preferredStrategy: "Preferred Strategy",
+    preferredStrategyDesc: "Default preference when resolving ambiguous conflicts",
+    strategyTooltip: "When there's no clear winner, this determines which version to prefer",
+    strategyLatest: "Latest",
+    strategyLocal: "Local",
+    strategyServer: "Server",
+    timeThreshold: "Time Difference Threshold",
+    timeThresholdDesc: "Minimum time difference (in seconds) to determine a clear winner",
+    singleField: "Single Field Differences",
+    singleFieldDesc: "Auto-resolve when only one field differs",
+    multiField: "Multiple Field Differences",
+    multiFieldDesc: "Auto-resolve when multiple fields differ with same strategy",
+    autoMerge: "Auto-Merge",
+    autoMergeDesc: "Automatically merge when result is unambiguous",
+    resetDefaults: "Reset to Defaults",
+  },
 };
 
 export type Translations = typeof en;
