@@ -8,3 +8,5 @@ export { SettingsPage } from "./SettingsPage";
 export { NotificationAnalyticsPage } from "./NotificationAnalyticsPage";
 export { ABTestingPage } from "./ABTestingPage";
 export { PatientEngagementPage } from "./PatientEngagementPage";
+export { PatientDetailDrawer } from "./PatientDetailDrawer";
+export { ClinicianEncouragementDialog } from "./ClinicianEncouragementDialog";
