@@ -1,4 +1,4 @@
-import { Users, Pill, Activity, LayoutDashboard, LogOut, Heart, History, Bell, RefreshCw, FileText, CalendarDays } from "lucide-react";
+import { Users, Pill, Activity, LayoutDashboard, LogOut, Heart, History, Bell, RefreshCw, FileText, CalendarDays, HelpCircle, Settings } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/i18n/LanguageContext";
@@ -113,6 +113,14 @@ export function ClinicianSidebar() {
             <p className="text-xs text-muted-foreground">{t.auth.roleClinician}</p>
           </div>
         </div>
+        <NavLink 
+          to="/dashboard/help"
+          className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-muted/50 transition-colors text-sm"
+          activeClassName="bg-primary/10 text-primary font-medium"
+        >
+          <HelpCircle className="h-4 w-4" />
+          <span>Help & Support</span>
+        </NavLink>
         <ThemeToggle />
         <Button
           variant="ghost"
