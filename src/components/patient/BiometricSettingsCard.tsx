@@ -17,9 +17,11 @@ import { useBiometricAuth } from "@/hooks/useBiometricAuth";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { useHaptics } from "@/hooks/useHaptics";
 
 export function BiometricSettingsCard() {
   const { user } = useAuth();
+  const haptics = useHaptics();
   const {
     isAvailable,
     isEnabled,
@@ -54,6 +56,7 @@ export function BiometricSettingsCard() {
   const handleEnableBiometric = async () => {
     if (!password || !user?.email) {
       toast.error("Please enter your password");
+      await haptics.error();
       return;
     }
 
@@ -62,10 +65,12 @@ export function BiometricSettingsCard() {
     setIsProcessing(false);
 
     if (success) {
+      await haptics.success();
       toast.success(`${biometryName} login enabled`);
       setShowPasswordDialog(false);
       setPassword("");
     } else {
+      await haptics.error();
       toast.error("Failed to enable biometric login. Verification cancelled or failed.");
     }
   };
