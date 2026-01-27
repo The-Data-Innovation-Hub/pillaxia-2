@@ -69,16 +69,29 @@ export function PatientSettingsPage() {
     
     setSendingTest(true);
     try {
-      const { error } = await supabase.functions.invoke("send-push-notification", {
+      const { data, error } = await supabase.functions.invoke("send-push-notification", {
         body: {
-          userId: user.id,
-          title: "🎉 Test Notification",
-          body: "Push notifications are working! You'll receive medication reminders here.",
-          data: { url: "/dashboard/settings" },
+          user_ids: [user.id],
+          payload: {
+            title: "🎉 Test Notification",
+            body: "Push notifications are working! You'll receive medication reminders here.",
+            tag: "patient-test",
+            data: { url: "/dashboard/settings" },
+          },
         },
       });
 
       if (error) throw error;
+
+      // If we couldn't find a saved subscription, show a helpful message
+      if (data?.sent === 0) {
+        toast({
+          title: "No active push subscription",
+          description: "Please click Enable (or re-enable) push notifications, then try again.",
+          variant: "destructive",
+        });
+        return;
+      }
 
       toast({
         title: "Test notification sent",
