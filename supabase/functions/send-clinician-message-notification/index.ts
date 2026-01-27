@@ -53,7 +53,7 @@ serve(async (req: Request): Promise<Response> => {
         .maybeSingle(),
       supabase
         .from("patient_notification_preferences")
-        .select("email_clinician_messages, push_clinician_messages, whatsapp_clinician_messages, sms_reminders")
+        .select("email_clinician_messages, push_clinician_messages, whatsapp_clinician_messages, sms_clinician_messages")
         .eq("user_id", recipientId)
         .maybeSingle(),
     ]);
@@ -70,7 +70,7 @@ serve(async (req: Request): Promise<Response> => {
     const emailEnabled = prefs?.email_clinician_messages ?? true;
     const pushEnabled = prefs?.push_clinician_messages ?? true;
     const whatsappEnabled = prefs?.whatsapp_clinician_messages ?? true;
-    const smsEnabled = prefs?.sms_reminders ?? true; // Use sms_reminders as general SMS toggle
+    const smsEnabled = prefs?.sms_clinician_messages ?? true;
 
     const recipientName = profile?.first_name || "there";
     const deliveryStatus: DeliveryStatusMap = {};

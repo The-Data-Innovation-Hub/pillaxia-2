@@ -67,6 +67,7 @@ interface NotificationPreferences {
   email_clinician_messages: boolean;
   push_clinician_messages: boolean;
   whatsapp_clinician_messages: boolean;
+  sms_clinician_messages: boolean;
   quiet_hours_enabled: boolean;
   quiet_hours_start: string;
   quiet_hours_end: string;
@@ -83,6 +84,7 @@ const DEFAULT_PREFERENCES: Omit<NotificationPreferences, "id" | "user_id"> = {
   email_clinician_messages: true,
   push_clinician_messages: true,
   whatsapp_clinician_messages: true,
+  sms_clinician_messages: true,
   quiet_hours_enabled: false,
   quiet_hours_start: "22:00",
   quiet_hours_end: "07:00",
@@ -902,6 +904,28 @@ export function PatientSettingsPage() {
               id="whatsapp_clinician_messages"
               checked={prefs.whatsapp_clinician_messages}
               onCheckedChange={(checked) => handleToggle("whatsapp_clinician_messages", checked)}
+              disabled={updatePreferenceMutation.isPending}
+            />
+          </div>
+
+          <Separator />
+
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <MessageCircle className="h-4 w-4 text-muted-foreground" />
+              <div>
+                <Label htmlFor="sms_clinician_messages" className="font-medium">
+                  SMS Notifications
+                </Label>
+                <p className="text-sm text-muted-foreground">
+                  Receive text messages for clinician communications
+                </p>
+              </div>
+            </div>
+            <Switch
+              id="sms_clinician_messages"
+              checked={prefs.sms_clinician_messages}
+              onCheckedChange={(checked) => handleToggle("sms_clinician_messages", checked)}
               disabled={updatePreferenceMutation.isPending}
             />
           </div>

@@ -574,6 +574,7 @@ export type Database = {
           quiet_hours_enabled: boolean
           quiet_hours_end: string | null
           quiet_hours_start: string | null
+          sms_clinician_messages: boolean
           sms_reminders: boolean
           updated_at: string
           user_id: string
@@ -593,6 +594,7 @@ export type Database = {
           quiet_hours_enabled?: boolean
           quiet_hours_end?: string | null
           quiet_hours_start?: string | null
+          sms_clinician_messages?: boolean
           sms_reminders?: boolean
           updated_at?: string
           user_id: string
@@ -612,6 +614,7 @@ export type Database = {
           quiet_hours_enabled?: boolean
           quiet_hours_end?: string | null
           quiet_hours_start?: string | null
+          sms_clinician_messages?: boolean
           sms_reminders?: boolean
           updated_at?: string
           user_id?: string
