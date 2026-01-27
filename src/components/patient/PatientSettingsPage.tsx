@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/hooks/use-toast";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
+import { PushDebugPanel } from "@/components/patient/PushDebugPanel";
 import {
   Card,
   CardContent,
@@ -60,12 +62,38 @@ const DEFAULT_PREFERENCES: Omit<NotificationPreferences, "id" | "user_id"> = {
 
 export function PatientSettingsPage() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const pushNotifications = usePushNotifications();
   const [sendingTest, setSendingTest] = useState(false);
+  const [lastPushTest, setLastPushTest] = useState<
+    { at: string; ok: boolean; summary: string } | null
+  >(null);
+
+  const formatUnknownError = (err: unknown): string => {
+    const anyErr = err as any;
+    const name = typeof anyErr?.name === "string" ? anyErr.name : undefined;
+    const message =
+      typeof anyErr?.message === "string"
+        ? anyErr.message
+        : typeof err === "string"
+          ? err
+          : "Unknown error";
+    const status = anyErr?.context?.status ?? anyErr?.status;
+    const statusPart = typeof status === "number" ? `HTTP ${status}` : undefined;
+    return [name, statusPart, message].filter(Boolean).join(" — ");
+  };
 
   const handleSendTestNotification = async () => {
-    if (!user) return;
+    if (!user) {
+      toast({
+        title: "Please sign in",
+        description: "Your session ended. Sign in again to send a test notification.",
+        variant: "destructive",
+      });
+      navigate("/auth");
+      return;
+    }
     
     setSendingTest(true);
     try {
@@ -85,6 +113,11 @@ export function PatientSettingsPage() {
 
       // If we couldn't find a saved subscription, show a helpful message
       if (data?.sent === 0) {
+        setLastPushTest({
+          at: new Date().toLocaleString(),
+          ok: false,
+          summary: "No active subscription found in backend",
+        });
         toast({
           title: "No active push subscription",
           description: "Please click Enable (or re-enable) push notifications, then try again.",
@@ -93,15 +126,22 @@ export function PatientSettingsPage() {
         return;
       }
 
+      setLastPushTest({
+        at: new Date().toLocaleString(),
+        ok: true,
+        summary: `Sent to ${data?.sent ?? 0} device(s)`,
+      });
       toast({
         title: "Test notification sent",
         description: "Check your browser for the notification.",
       });
     } catch (error) {
+      const summary = formatUnknownError(error);
       console.error("Failed to send test notification:", error);
+      setLastPushTest({ at: new Date().toLocaleString(), ok: false, summary });
       toast({
         title: "Failed to send test",
-        description: "Could not send test notification. Please try again.",
+        description: summary,
         variant: "destructive",
       });
     } finally {
@@ -279,6 +319,13 @@ export function PatientSettingsPage() {
                   </Button>
                 )}
               </div>
+
+              <PushDebugPanel
+                userId={user?.id}
+                isSupported={pushNotifications.isSupported}
+                permission={pushNotifications.permission}
+                lastTestResult={lastPushTest}
+              />
               
               {pushNotifications.isSubscribed && (
                 <>
