@@ -238,6 +238,11 @@ export const en = {
     syncNow: "Sync Now",
     doseTakenOffline: "Dose recorded offline",
     doseSkippedOffline: "Dose skipped (offline)",
+    online: "Online",
+    offlineMode: "Offline Mode",
+    changesWaiting: "changes waiting to sync",
+    lastSynced: "Last synced",
+    neverSynced: "Never synced",
   },
 };
 

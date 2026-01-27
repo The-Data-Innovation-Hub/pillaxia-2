@@ -240,5 +240,10 @@ export const ig: Translations = {
     syncNow: "Mekọrịta Ugbu a",
     doseTakenOffline: "Edekọtara oke ọgwụ offline",
     doseSkippedOffline: "Mafere oke ọgwụ (offline)",
+    online: "N'ịntanetị",
+    offlineMode: "Ọnọdụ Offline",
+    changesWaiting: "mgbanwe na-echere imekọrịta",
+    lastSynced: "Emekọrịtara ikpeazụ",
+    neverSynced: "Emekọrịtaghị mbụ",
   },
 };

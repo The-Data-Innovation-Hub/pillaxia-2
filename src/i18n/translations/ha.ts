@@ -240,5 +240,10 @@ export const ha: Translations = {
     syncNow: "Daidaita Yanzu",
     doseTakenOffline: "An rubuta kashi offline",
     doseSkippedOffline: "An tsallake kashi (offline)",
+    online: "Kan layi",
+    offlineMode: "Yanayin Offline",
+    changesWaiting: "canje-canje suna jiran daidaitawa",
+    lastSynced: "Daidaita na ƙarshe",
+    neverSynced: "Ba a taɓa daidaitawa ba",
   },
 };
