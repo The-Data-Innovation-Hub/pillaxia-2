@@ -5,3 +5,4 @@ export { UserManagementPage } from "./UserManagementPage";
 export { SystemAnalyticsPage } from "./SystemAnalyticsPage";
 export { AuditLogPage } from "./AuditLogPage";
 export { SettingsPage } from "./SettingsPage";
+export { NotificationAnalyticsPage } from "./NotificationAnalyticsPage";
