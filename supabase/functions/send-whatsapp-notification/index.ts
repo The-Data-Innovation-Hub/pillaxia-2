@@ -30,6 +30,32 @@ serve(async (req: Request): Promise<Response> => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
+    // Check if encouragement messages are enabled (WhatsApp is used for encouragement messages)
+    const { data: settingData, error: settingError } = await supabase
+      .from("notification_settings")
+      .select("is_enabled")
+      .eq("setting_key", "encouragement_messages")
+      .maybeSingle();
+
+    if (settingError) {
+      console.error("Error checking notification settings:", settingError);
+    }
+
+    if (settingData && !settingData.is_enabled) {
+      console.log("Encouragement messages are disabled, skipping WhatsApp notification...");
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          reason: "disabled",
+          message: "Encouragement messages are disabled in settings" 
+        }),
+        { 
+          status: 200, 
+          headers: { "Content-Type": "application/json", ...corsHeaders } 
+        }
+      );
+    }
+
     // Get recipient profile to check for phone number
     const { data: profile, error: profileError } = await supabase
       .from("profiles")

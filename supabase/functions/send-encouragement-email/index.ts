@@ -58,6 +58,31 @@ serve(async (req: Request): Promise<Response> => {
       );
     }
 
+    // Create service client to check notification settings
+    const serviceClient = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+    );
+
+    // Check if encouragement messages are enabled
+    const { data: settingData, error: settingError } = await serviceClient
+      .from("notification_settings")
+      .select("is_enabled")
+      .eq("setting_key", "encouragement_messages")
+      .maybeSingle();
+
+    if (settingError) {
+      console.error("Error checking notification settings:", settingError);
+    }
+
+    if (settingData && !settingData.is_enabled) {
+      console.log("Encouragement messages are disabled, skipping email...");
+      return new Response(
+        JSON.stringify({ success: true, message: "Encouragement messages are disabled" }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // Get patient's email from profiles
     const { data: patientProfile, error: profileError } = await supabase
       .from("profiles")
