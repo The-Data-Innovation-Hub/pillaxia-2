@@ -32,6 +32,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 export function PatientSidebar() {
   const { signOut, profile } = useAuth();
@@ -125,6 +126,7 @@ export function PatientSidebar() {
           <Settings className="h-4 w-4" />
           <span>{t.nav.settings}</span>
         </NavLink>
+        <ThemeToggle />
         <Button 
           variant="ghost" 
           className="w-full justify-start gap-3 text-destructive hover:text-destructive hover:bg-destructive/10"

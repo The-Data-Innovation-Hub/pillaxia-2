@@ -3,6 +3,7 @@ import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import {
   Sidebar,
   SidebarContent,
@@ -85,6 +86,7 @@ export function AdminSidebar() {
             <p className="text-xs text-muted-foreground">Administrator</p>
           </div>
         </div>
+        <ThemeToggle />
         <Button
           variant="ghost"
           size="sm"
