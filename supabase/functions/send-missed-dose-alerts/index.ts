@@ -166,9 +166,10 @@ serve(async (req) => {
       hour12: true,
     });
 
-    const notificationResults: { email: number; whatsapp: number; failed: number; skipped: number } = {
+    const notificationResults: { email: number; whatsapp: number; sms: number; failed: number; skipped: number } = {
       email: 0,
       whatsapp: 0,
+      sms: 0,
       failed: 0,
       skipped: 0,
     };
@@ -325,6 +326,43 @@ serve(async (req) => {
           });
         }
       }
+
+      // Send SMS if configured
+      if (caregiver.phone) {
+        try {
+          const smsMessage = `MISSED DOSE ALERT: ${patientName} missed ${medicationName} scheduled for ${formattedTime}. Please check in with them. — Pillaxia`;
+
+          const { data: smsResult, error: smsError } = await supabase.functions.invoke("send-sms-notification", {
+            body: {
+              user_id: caregiver.user_id,
+              phone_number: caregiver.phone,
+              message: smsMessage,
+              notification_type: "missed_dose_alert",
+              metadata: { 
+                patient_name: patientName, 
+                medication_name: medicationName 
+              },
+            },
+          });
+
+          if (smsError) {
+            throw smsError;
+          }
+
+          if (smsResult?.success) {
+            notificationResults.sms++;
+            console.log("SMS sent to caregiver " + caregiver.user_id);
+          } else if (smsResult?.skipped) {
+            console.log("SMS skipped for caregiver " + caregiver.user_id + ": " + (smsResult?.error || "not configured"));
+            notificationResults.skipped++;
+          } else {
+            throw new Error(smsResult?.error || "SMS send failed");
+          }
+        } catch (smsError) {
+          console.error("Failed to send SMS to " + caregiver.phone + ":", smsError);
+          notificationResults.failed++;
+        }
+      }
     }
 
     console.log("Notification results:", notificationResults);
@@ -353,7 +391,7 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({
         success: true,
-        notified: notificationResults.email + notificationResults.whatsapp,
+        notified: notificationResults.email + notificationResults.whatsapp + notificationResults.sms,
         details: notificationResults,
       }),
       { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
