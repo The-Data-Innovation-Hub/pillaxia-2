@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -29,6 +29,7 @@ import {
   Heart,
   Pill,
   Loader2,
+  Send,
 } from "lucide-react";
 
 interface NotificationPreferences {
@@ -61,6 +62,39 @@ export function PatientSettingsPage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const pushNotifications = usePushNotifications();
+  const [sendingTest, setSendingTest] = useState(false);
+
+  const handleSendTestNotification = async () => {
+    if (!user) return;
+    
+    setSendingTest(true);
+    try {
+      const { error } = await supabase.functions.invoke("send-push-notification", {
+        body: {
+          userId: user.id,
+          title: "🎉 Test Notification",
+          body: "Push notifications are working! You'll receive medication reminders here.",
+          data: { url: "/dashboard/settings" },
+        },
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Test notification sent",
+        description: "Check your browser for the notification.",
+      });
+    } catch (error) {
+      console.error("Failed to send test notification:", error);
+      toast({
+        title: "Failed to send test",
+        description: "Could not send test notification. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setSendingTest(false);
+    }
+  };
 
   const { data: preferences, isLoading } = useQuery({
     queryKey: ["patient-notification-preferences", user?.id],
@@ -201,34 +235,66 @@ export function PatientSettingsPage() {
               </AlertDescription>
             </Alert>
           ) : (
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <Bell className="h-4 w-4 text-muted-foreground" />
-                <div>
-                  <Label className="font-medium">
-                    Enable Push Notifications
-                  </Label>
-                  <p className="text-sm text-muted-foreground">
-                    {pushNotifications.isSubscribed
-                      ? "You'll receive push notifications for important alerts"
-                      : "Get notified even when you're not using the app"}
-                  </p>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <Bell className="h-4 w-4 text-muted-foreground" />
+                  <div>
+                    <Label className="font-medium">
+                      Enable Push Notifications
+                    </Label>
+                    <p className="text-sm text-muted-foreground">
+                      {pushNotifications.isSubscribed
+                        ? "You'll receive push notifications for important alerts"
+                        : "Get notified even when you're not using the app"}
+                    </p>
+                  </div>
                 </div>
+                {pushNotifications.isLoading ? (
+                  <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                ) : (
+                  <Button
+                    variant={pushNotifications.isSubscribed ? "outline" : "default"}
+                    size="sm"
+                    onClick={() =>
+                      pushNotifications.isSubscribed
+                        ? pushNotifications.unsubscribe()
+                        : pushNotifications.subscribe()
+                    }
+                  >
+                    {pushNotifications.isSubscribed ? "Disable" : "Enable"}
+                  </Button>
+                )}
               </div>
-              {pushNotifications.isLoading ? (
-                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-              ) : (
-                <Button
-                  variant={pushNotifications.isSubscribed ? "outline" : "default"}
-                  size="sm"
-                  onClick={() =>
-                    pushNotifications.isSubscribed
-                      ? pushNotifications.unsubscribe()
-                      : pushNotifications.subscribe()
-                  }
-                >
-                  {pushNotifications.isSubscribed ? "Disable" : "Enable"}
-                </Button>
+              
+              {pushNotifications.isSubscribed && (
+                <>
+                  <Separator />
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <Send className="h-4 w-4 text-muted-foreground" />
+                      <div>
+                        <Label className="font-medium">Test Notifications</Label>
+                        <p className="text-sm text-muted-foreground">
+                          Send a test notification to verify it's working
+                        </p>
+                      </div>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleSendTestNotification}
+                      disabled={sendingTest}
+                    >
+                      {sendingTest ? (
+                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                      ) : (
+                        <Send className="h-4 w-4 mr-2" />
+                      )}
+                      Send Test
+                    </Button>
+                  </div>
+                </>
               )}
             </div>
           )}
