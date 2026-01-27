@@ -51,6 +51,32 @@ interface MedicationDose {
   medication_schedules: ScheduleInfo | ScheduleInfo[] | null;
 }
 
+interface PatientPreferences {
+  email_reminders: boolean;
+  in_app_reminders: boolean;
+  quiet_hours_enabled: boolean;
+  quiet_hours_start: string | null;
+  quiet_hours_end: string | null;
+}
+
+function isInQuietHours(prefs: PatientPreferences): boolean {
+  if (!prefs.quiet_hours_enabled || !prefs.quiet_hours_start || !prefs.quiet_hours_end) {
+    return false;
+  }
+
+  const now = new Date();
+  const currentTime = now.toTimeString().slice(0, 5); // HH:MM format
+  const start = prefs.quiet_hours_start.slice(0, 5);
+  const end = prefs.quiet_hours_end.slice(0, 5);
+
+  // Handle overnight quiet hours (e.g., 22:00 to 07:00)
+  if (start > end) {
+    return currentTime >= start || currentTime < end;
+  }
+  
+  return currentTime >= start && currentTime < end;
+}
+
 Deno.serve(async (req: Request) => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
@@ -65,7 +91,7 @@ Deno.serve(async (req: Request) => {
     
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Check if medication reminders are enabled
+    // Check if medication reminders are enabled globally
     const { data: settingData, error: settingError } = await supabase
       .from("notification_settings")
       .select("is_enabled")
@@ -77,7 +103,7 @@ Deno.serve(async (req: Request) => {
     }
 
     if (settingData && !settingData.is_enabled) {
-      console.log("Medication reminders are disabled, skipping...");
+      console.log("Medication reminders are disabled globally, skipping...");
       return new Response(
         JSON.stringify({ message: "Medication reminders are disabled" }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -128,11 +154,52 @@ Deno.serve(async (req: Request) => {
       dosesByUser.set(dose.user_id, existing);
     }
 
+    // Get all user IDs to fetch their preferences
+    const userIds = Array.from(dosesByUser.keys());
+
+    // Fetch patient notification preferences for all users
+    const { data: allPreferences, error: prefsError } = await supabase
+      .from("patient_notification_preferences")
+      .select("user_id, email_reminders, in_app_reminders, quiet_hours_enabled, quiet_hours_start, quiet_hours_end")
+      .in("user_id", userIds);
+
+    if (prefsError) {
+      console.error("Error fetching patient preferences:", prefsError);
+    }
+
+    // Create a map of user preferences
+    const preferencesMap = new Map<string, PatientPreferences>();
+    if (allPreferences) {
+      for (const pref of allPreferences) {
+        preferencesMap.set(pref.user_id, pref);
+      }
+    }
+
     console.log(`Sending reminders to ${dosesByUser.size} users`);
 
-    const emailResults: { userId: string; email: string; success: boolean; result?: unknown; error?: string }[] = [];
+    const emailResults: { userId: string; email: string; success: boolean; result?: unknown; error?: string; skipped?: string }[] = [];
 
     for (const [userId, userDoses] of dosesByUser) {
+      // Check patient notification preferences
+      const prefs = preferencesMap.get(userId);
+      
+      // Default to sending if no preferences exist
+      if (prefs) {
+        // Check if email reminders are disabled
+        if (!prefs.email_reminders) {
+          console.log(`User ${userId} has email reminders disabled, skipping...`);
+          emailResults.push({ userId, email: "", success: true, skipped: "email_reminders_disabled" });
+          continue;
+        }
+
+        // Check quiet hours
+        if (isInQuietHours(prefs)) {
+          console.log(`User ${userId} is in quiet hours, skipping...`);
+          emailResults.push({ userId, email: "", success: true, skipped: "quiet_hours" });
+          continue;
+        }
+      }
+
       // Get user's profile for email
       const { data: profile, error: profileError } = await supabase
         .from("profiles")
@@ -249,12 +316,13 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    const successCount = emailResults.filter((r) => r.success).length;
-    console.log(`Sent ${successCount}/${emailResults.length} reminder emails`);
+    const successCount = emailResults.filter((r) => r.success && !r.skipped).length;
+    const skippedCount = emailResults.filter((r) => r.skipped).length;
+    console.log(`Sent ${successCount}/${emailResults.length} reminder emails, ${skippedCount} skipped due to preferences`);
 
     return new Response(
       JSON.stringify({
-        message: `Processed ${doses.length} doses, sent ${successCount} emails`,
+        message: `Processed ${doses.length} doses, sent ${successCount} emails, ${skippedCount} skipped`,
         results: emailResults,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }

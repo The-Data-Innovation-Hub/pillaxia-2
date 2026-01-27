@@ -15,6 +15,32 @@ interface EncouragementEmailRequest {
   message: string;
 }
 
+interface PatientPreferences {
+  email_encouragements: boolean;
+  in_app_encouragements: boolean;
+  quiet_hours_enabled: boolean;
+  quiet_hours_start: string | null;
+  quiet_hours_end: string | null;
+}
+
+function isInQuietHours(prefs: PatientPreferences): boolean {
+  if (!prefs.quiet_hours_enabled || !prefs.quiet_hours_start || !prefs.quiet_hours_end) {
+    return false;
+  }
+
+  const now = new Date();
+  const currentTime = now.toTimeString().slice(0, 5); // HH:MM format
+  const start = prefs.quiet_hours_start.slice(0, 5);
+  const end = prefs.quiet_hours_end.slice(0, 5);
+
+  // Handle overnight quiet hours (e.g., 22:00 to 07:00)
+  if (start > end) {
+    return currentTime >= start || currentTime < end;
+  }
+  
+  return currentTime >= start && currentTime < end;
+}
+
 serve(async (req: Request): Promise<Response> => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
@@ -64,7 +90,7 @@ serve(async (req: Request): Promise<Response> => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    // Check if encouragement messages are enabled
+    // Check if encouragement messages are enabled globally
     const { data: settingData, error: settingError } = await serviceClient
       .from("notification_settings")
       .select("is_enabled")
@@ -76,9 +102,38 @@ serve(async (req: Request): Promise<Response> => {
     }
 
     if (settingData && !settingData.is_enabled) {
-      console.log("Encouragement messages are disabled, skipping email...");
+      console.log("Encouragement messages are disabled globally, skipping email...");
       return new Response(
-        JSON.stringify({ success: true, message: "Encouragement messages are disabled" }),
+        JSON.stringify({ success: true, message: "Encouragement messages are disabled globally" }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Check patient notification preferences
+    const { data: patientPrefs, error: prefsError } = await serviceClient
+      .from("patient_notification_preferences")
+      .select("email_encouragements, in_app_encouragements, quiet_hours_enabled, quiet_hours_start, quiet_hours_end")
+      .eq("user_id", patient_user_id)
+      .maybeSingle();
+
+    if (prefsError) {
+      console.error("Error fetching patient preferences:", prefsError);
+    }
+
+    // Check if patient has email encouragements disabled
+    if (patientPrefs && !patientPrefs.email_encouragements) {
+      console.log("Patient " + patient_user_id + " has email encouragements disabled, skipping...");
+      return new Response(
+        JSON.stringify({ success: true, message: "Patient has email encouragements disabled" }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Check if patient is in quiet hours
+    if (patientPrefs && isInQuietHours(patientPrefs)) {
+      console.log("Patient " + patient_user_id + " is in quiet hours, skipping email...");
+      return new Response(
+        JSON.stringify({ success: true, message: "Patient is in quiet hours" }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
