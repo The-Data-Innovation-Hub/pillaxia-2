@@ -1,4 +1,4 @@
-// Force clean module refresh - v2
+// Force clean module refresh - v3
 import React from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
