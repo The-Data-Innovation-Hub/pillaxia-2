@@ -1,4 +1,4 @@
-import { LayoutDashboard, FileText, Package, RefreshCw, LogOut, Bell } from "lucide-react";
+import { LayoutDashboard, FileText, Package, RefreshCw, LogOut, Bell, HelpCircle } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -82,6 +82,14 @@ export function PharmacistSidebar() {
             <p className="text-xs text-muted-foreground">Pharmacist</p>
           </div>
         </div>
+        <NavLink 
+          to="/dashboard/help"
+          className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-muted/50 transition-colors text-sm"
+          activeClassName="bg-emerald-50 text-emerald-700 font-medium"
+        >
+          <HelpCircle className="h-4 w-4" />
+          <span>Help & Support</span>
+        </NavLink>
         <ThemeToggle />
         <Button
           variant="ghost"

@@ -52,6 +52,7 @@ import {
   ABTestingPage,
   PatientEngagementPage,
 } from "@/components/admin";
+import { HelpPage } from "@/components/shared";
 
 const queryClient = new QueryClient();
 
@@ -170,9 +171,10 @@ const App = () => (
                 <Route path="admin-settings" element={<SettingsPage />} />
                 <Route path="ab-testing" element={<ABTestingPage />} />
                 <Route path="patient-engagement" element={<PatientEngagementPage />} />
-                {/* Patient Settings */}
+                {/* Shared Routes */}
                 <Route path="settings" element={<PatientSettingsPage />} />
                 <Route path="sync-status" element={<SyncStatusPage />} />
+                <Route path="help" element={<HelpPage />} />
               </Route>
               
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
