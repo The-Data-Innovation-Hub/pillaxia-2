@@ -15,6 +15,7 @@ import {
   SidebarHeader,
   SidebarFooter,
 } from "@/components/ui/sidebar";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { 
   LayoutDashboard, 
   Pill, 
@@ -62,9 +63,12 @@ export function PatientSidebar() {
     <Sidebar className="border-r">
       <SidebarHeader className="border-b p-4">
         <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-full bg-primary flex items-center justify-center text-primary-foreground font-semibold">
-            {profile?.first_name?.[0] || "P"}
-          </div>
+          <Avatar className="h-10 w-10">
+            <AvatarImage src={profile?.avatar_url || undefined} alt={profile?.first_name || "User"} />
+            <AvatarFallback className="bg-primary text-primary-foreground font-semibold">
+              {profile?.first_name?.[0] || "P"}
+            </AvatarFallback>
+          </Avatar>
           <div className="flex flex-col">
             <span className="font-medium text-sm">
               {profile?.first_name} {profile?.last_name}
