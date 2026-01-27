@@ -65,6 +65,25 @@ Deno.serve(async (req: Request) => {
     
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+    // Check if medication reminders are enabled
+    const { data: settingData, error: settingError } = await supabase
+      .from("notification_settings")
+      .select("is_enabled")
+      .eq("setting_key", "medication_reminders")
+      .maybeSingle();
+
+    if (settingError) {
+      console.error("Error checking notification settings:", settingError);
+    }
+
+    if (settingData && !settingData.is_enabled) {
+      console.log("Medication reminders are disabled, skipping...");
+      return new Response(
+        JSON.stringify({ message: "Medication reminders are disabled" }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // Get current time and look 30 minutes ahead for upcoming doses
     const now = new Date();
     const thirtyMinutesLater = new Date(now.getTime() + 30 * 60 * 1000);
