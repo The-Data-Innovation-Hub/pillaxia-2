@@ -6,24 +6,33 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Bell, Mail, Smartphone, MessageCircle, RefreshCw, CheckCircle, XCircle, Clock, Send, RotateCcw, Timer, AlertTriangle } from "lucide-react";
+import { Bell, Mail, Smartphone, MessageCircle, RefreshCw, CheckCircle, XCircle, Clock, Send, RotateCcw, Timer, AlertTriangle, Eye, MousePointer } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { format } from "date-fns";
 import { toast } from "@/hooks/use-toast";
 
 interface NotificationRecord {
   id: string;
-  channel: "push" | "email" | "in_app" | "whatsapp";
+  channel: "push" | "email" | "in_app" | "whatsapp" | "sms";
   notification_type: string;
   title: string;
   body: string | null;
   status: "sent" | "delivered" | "failed" | "pending";
   error_message: string | null;
   created_at: string;
+  delivered_at: string | null;
+  opened_at: string | null;
+  clicked_at: string | null;
   retry_count: number;
   max_retries: number;
   next_retry_at: string | null;
   last_retry_at: string | null;
+  metadata: {
+    last_event?: string;
+    last_event_at?: string;
+    delivery_events?: string[];
+    provider?: string;
+  } | null;
 }
 
 const channelIcons = {
@@ -31,6 +40,7 @@ const channelIcons = {
   email: Mail,
   in_app: Bell,
   whatsapp: MessageCircle,
+  sms: MessageCircle,
 };
 
 const channelLabels = {
@@ -38,6 +48,7 @@ const channelLabels = {
   email: "Email",
   in_app: "In-App",
   whatsapp: "WhatsApp",
+  sms: "SMS",
 };
 
 const statusConfig = {
@@ -233,13 +244,74 @@ export function NotificationHistoryPage() {
                               )}
                             </div>
                           </div>
-                          <div className="mt-2 flex items-center gap-3 text-xs text-muted-foreground">
-                            <span>
-                              {format(new Date(notification.created_at), "h:mm a")}
+                          {/* Delivery Tracking */}
+                          <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                            <span className="flex items-center gap-1">
+                              <Send className="h-3 w-3" />
+                              Sent {format(new Date(notification.created_at), "h:mm a")}
                             </span>
+                            
+                            {notification.delivered_at && (
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <span className="flex items-center gap-1 text-primary">
+                                      <CheckCircle className="h-3 w-3" />
+                                      Delivered
+                                    </span>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p>Delivered at {format(new Date(notification.delivered_at), "MMM d, h:mm a")}</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            )}
+                            
+                            {notification.opened_at && (
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <span className="flex items-center gap-1 text-primary">
+                                      <Eye className="h-3 w-3" />
+                                      Opened
+                                    </span>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p>Opened at {format(new Date(notification.opened_at), "MMM d, h:mm a")}</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            )}
+                            
+                            {notification.clicked_at && (
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <span className="flex items-center gap-1 text-primary">
+                                      <MousePointer className="h-3 w-3" />
+                                      Clicked
+                                    </span>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p>Clicked at {format(new Date(notification.clicked_at), "MMM d, h:mm a")}</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            )}
+                            
+                            <span className="text-muted-foreground/70">•</span>
                             <span className="capitalize">
                               {notification.notification_type.replace(/_/g, " ")}
                             </span>
+                            
+                            {notification.metadata?.provider && (
+                              <>
+                                <span className="text-muted-foreground/70">•</span>
+                                <span className="capitalize text-muted-foreground/70">
+                                  via {notification.metadata.provider}
+                                </span>
+                              </>
+                            )}
                           </div>
                           {/* Retry Status Indicator */}
                           {notification.status === "failed" && notification.retry_count > 0 && (

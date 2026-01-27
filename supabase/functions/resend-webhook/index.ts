@@ -207,13 +207,25 @@ serve(async (req: Request): Promise<Response> => {
         last_event_at: event.created_at,
       };
 
+      // Build update object with delivery tracking timestamps
+      const updateData: Record<string, unknown> = {
+        status: newStatus,
+        error_message: errorMessage,
+        metadata: updatedMetadata,
+      };
+
+      // Set delivery timestamps based on event type
+      if (event.type === "email.delivered") {
+        updateData.delivered_at = event.created_at;
+      } else if (event.type === "email.opened") {
+        updateData.opened_at = event.created_at;
+      } else if (event.type === "email.clicked") {
+        updateData.clicked_at = event.created_at;
+      }
+
       const { error: updateError } = await supabase
         .from("notification_history")
-        .update({
-          status: newStatus,
-          error_message: errorMessage,
-          metadata: updatedMetadata,
-        })
+        .update(updateData)
         .eq("id", notification.id);
 
       if (updateError) {
