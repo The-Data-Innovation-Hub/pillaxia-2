@@ -36,11 +36,47 @@ if [ -d "ios/App/App/Assets.xcassets" ]; then
     cp public/ios-icons/icon-40.png "$ICON_DIR/AppIcon-40.png" 2>/dev/null || true
     cp public/ios-icons/icon-29.png "$ICON_DIR/AppIcon-29.png" 2>/dev/null || true
     
-    # Create Contents.json for AppIcon
+    # Create Contents.json for AppIcon - Complete iOS icon set
     echo "  Creating AppIcon Contents.json..."
     cat > "$ICON_DIR/Contents.json" << 'EOF'
 {
   "images": [
+    {
+      "filename": "AppIcon-20@2x.png",
+      "idiom": "iphone",
+      "scale": "2x",
+      "size": "20x20"
+    },
+    {
+      "filename": "AppIcon-20@3x.png",
+      "idiom": "iphone",
+      "scale": "3x",
+      "size": "20x20"
+    },
+    {
+      "filename": "AppIcon-29@2x.png",
+      "idiom": "iphone",
+      "scale": "2x",
+      "size": "29x29"
+    },
+    {
+      "filename": "AppIcon-29@3x.png",
+      "idiom": "iphone",
+      "scale": "3x",
+      "size": "29x29"
+    },
+    {
+      "filename": "AppIcon-40@2x.png",
+      "idiom": "iphone",
+      "scale": "2x",
+      "size": "40x40"
+    },
+    {
+      "filename": "AppIcon-40@3x.png",
+      "idiom": "iphone",
+      "scale": "3x",
+      "size": "40x40"
+    },
     {
       "filename": "AppIcon-60@2x.png",
       "idiom": "iphone",
@@ -52,6 +88,42 @@ if [ -d "ios/App/App/Assets.xcassets" ]; then
       "idiom": "iphone",
       "scale": "3x",
       "size": "60x60"
+    },
+    {
+      "filename": "AppIcon-20.png",
+      "idiom": "ipad",
+      "scale": "1x",
+      "size": "20x20"
+    },
+    {
+      "filename": "AppIcon-20@2x-ipad.png",
+      "idiom": "ipad",
+      "scale": "2x",
+      "size": "20x20"
+    },
+    {
+      "filename": "AppIcon-29.png",
+      "idiom": "ipad",
+      "scale": "1x",
+      "size": "29x29"
+    },
+    {
+      "filename": "AppIcon-29@2x-ipad.png",
+      "idiom": "ipad",
+      "scale": "2x",
+      "size": "29x29"
+    },
+    {
+      "filename": "AppIcon-40.png",
+      "idiom": "ipad",
+      "scale": "1x",
+      "size": "40x40"
+    },
+    {
+      "filename": "AppIcon-40@2x-ipad.png",
+      "idiom": "ipad",
+      "scale": "2x",
+      "size": "40x40"
     },
     {
       "filename": "AppIcon-76.png",
@@ -72,40 +144,10 @@ if [ -d "ios/App/App/Assets.xcassets" ]; then
       "size": "83.5x83.5"
     },
     {
-      "filename": "AppIcon-512@2x.png",
+      "filename": "AppIcon-1024.png",
       "idiom": "ios-marketing",
       "scale": "1x",
       "size": "1024x1024"
-    },
-    {
-      "filename": "AppIcon-29.png",
-      "idiom": "iphone",
-      "scale": "1x",
-      "size": "29x29"
-    },
-    {
-      "filename": "AppIcon-29@2x.png",
-      "idiom": "iphone",
-      "scale": "2x",
-      "size": "29x29"
-    },
-    {
-      "filename": "AppIcon-29@3x.png",
-      "idiom": "iphone",
-      "scale": "3x",
-      "size": "29x29"
-    },
-    {
-      "filename": "AppIcon-40.png",
-      "idiom": "iphone",
-      "scale": "1x",
-      "size": "40x40"
-    },
-    {
-      "filename": "AppIcon-40@2x.png",
-      "idiom": "iphone",
-      "scale": "2x",
-      "size": "40x40"
     }
   ],
   "info": {
@@ -114,6 +156,27 @@ if [ -d "ios/App/App/Assets.xcassets" ]; then
   }
 }
 EOF
+
+    # Copy all required iOS icon sizes with correct names
+    echo "  Copying iOS app icons with correct filenames..."
+    cp public/ios-icons/icon-1024.png "$ICON_DIR/AppIcon-1024.png" 2>/dev/null || true
+    cp public/ios-icons/icon-180.png "$ICON_DIR/AppIcon-60@3x.png" 2>/dev/null || true
+    cp public/ios-icons/icon-167.png "$ICON_DIR/AppIcon-83.5@2x.png" 2>/dev/null || true
+    cp public/ios-icons/icon-152.png "$ICON_DIR/AppIcon-76@2x.png" 2>/dev/null || true
+    cp public/ios-icons/icon-120.png "$ICON_DIR/AppIcon-60@2x.png" 2>/dev/null || true
+    cp public/ios-icons/icon-120.png "$ICON_DIR/AppIcon-40@3x.png" 2>/dev/null || true
+    cp public/ios-icons/icon-87.png "$ICON_DIR/AppIcon-29@3x.png" 2>/dev/null || true
+    cp public/ios-icons/icon-80.png "$ICON_DIR/AppIcon-40@2x.png" 2>/dev/null || true
+    cp public/ios-icons/icon-80.png "$ICON_DIR/AppIcon-40@2x-ipad.png" 2>/dev/null || true
+    cp public/ios-icons/icon-76.png "$ICON_DIR/AppIcon-76.png" 2>/dev/null || true
+    cp public/ios-icons/icon-60.png "$ICON_DIR/AppIcon-20@3x.png" 2>/dev/null || true
+    cp public/ios-icons/icon-58.png "$ICON_DIR/AppIcon-29@2x.png" 2>/dev/null || true
+    cp public/ios-icons/icon-58.png "$ICON_DIR/AppIcon-29@2x-ipad.png" 2>/dev/null || true
+    cp public/ios-icons/icon-40.png "$ICON_DIR/AppIcon-40.png" 2>/dev/null || true
+    cp public/ios-icons/icon-40.png "$ICON_DIR/AppIcon-20@2x.png" 2>/dev/null || true
+    cp public/ios-icons/icon-40.png "$ICON_DIR/AppIcon-20@2x-ipad.png" 2>/dev/null || true
+    cp public/ios-icons/icon-29.png "$ICON_DIR/AppIcon-29.png" 2>/dev/null || true
+    cp public/ios-icons/icon-29.png "$ICON_DIR/AppIcon-20.png" 2>/dev/null || true
 
     # Create Splash screen imageset
     SPLASH_DIR="ios/App/App/Assets.xcassets/Splash.imageset"
