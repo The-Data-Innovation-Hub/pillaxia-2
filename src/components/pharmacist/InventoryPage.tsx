@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
 import {
@@ -13,7 +14,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Search, Package, AlertTriangle, CheckCircle, TrendingDown } from "lucide-react";
+import { Search, Package, AlertTriangle, CheckCircle, TrendingDown, Bell, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 
 interface InventoryItem {
   name: string;
@@ -29,6 +31,37 @@ interface InventoryItem {
 export function InventoryPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [stockFilter, setStockFilter] = useState<string>("all");
+  const [isCheckingExpiry, setIsCheckingExpiry] = useState(false);
+
+  const handleExpiryCheck = async () => {
+    setIsCheckingExpiry(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("check-medication-expiry", {
+        body: { manual: true },
+      });
+
+      if (error) throw error;
+
+      const summary = data?.summary;
+      if (summary) {
+        if (summary.expired > 0 || summary.critical > 0 || summary.warning > 0) {
+          toast.warning(
+            `Expiry Check Complete: ${summary.expired} expired, ${summary.critical} critical, ${summary.warning} warning`,
+            { duration: 5000 }
+          );
+        } else {
+          toast.success("No medications expiring within 30 days!", { duration: 3000 });
+        }
+      } else {
+        toast.success("Expiry check completed successfully");
+      }
+    } catch (error: any) {
+      console.error("Expiry check error:", error);
+      toast.error(error.message || "Failed to run expiry check");
+    } finally {
+      setIsCheckingExpiry(false);
+    }
+  };
 
   const { data: inventory, isLoading } = useQuery({
     queryKey: ["pharmacy-inventory"],
@@ -126,9 +159,24 @@ export function InventoryPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Inventory Tracking</h1>
-        <p className="text-muted-foreground">Monitor medication stock levels and refill needs</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">Inventory Tracking</h1>
+          <p className="text-muted-foreground">Monitor medication stock levels and refill needs</p>
+        </div>
+        <Button
+          onClick={handleExpiryCheck}
+          disabled={isCheckingExpiry}
+          variant="outline"
+          className="gap-2"
+        >
+          {isCheckingExpiry ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Bell className="h-4 w-4" />
+          )}
+          Check Expiry & Notify
+        </Button>
       </div>
 
       {/* Stats */}
