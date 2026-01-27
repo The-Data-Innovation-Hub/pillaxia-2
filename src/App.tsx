@@ -52,6 +52,7 @@ import {
   NotificationAnalyticsPage,
   ABTestingPage,
   PatientEngagementPage,
+  LicenseCompliancePage,
 } from "@/components/admin";
 import { HelpPage } from "@/components/shared";
 
@@ -119,6 +120,7 @@ function AppRoutes() {
         <Route path="refills" element={<RefillRequestsPage />} />
         {/* Admin Routes */}
         <Route path="users" element={<UserManagementPage />} />
+        <Route path="license-compliance" element={<LicenseCompliancePage />} />
         <Route path="analytics" element={<SystemAnalyticsPage />} />
         <Route path="notification-analytics" element={<NotificationAnalyticsPage />} />
         <Route path="audit-logs" element={<AuditLogPage />} />
