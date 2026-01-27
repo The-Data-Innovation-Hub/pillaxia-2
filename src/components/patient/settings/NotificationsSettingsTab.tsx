@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/hooks/use-toast";
-import { usePushNotifications } from "@/hooks/usePushNotifications";
+import { useUnifiedPushNotifications } from "@/hooks/useUnifiedPushNotifications";
 import { PushDebugPanel } from "@/components/patient/PushDebugPanel";
 import {
   Card,
@@ -77,7 +77,7 @@ export function NotificationsSettingsTab() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const pushNotifications = usePushNotifications();
+  const pushNotifications = useUnifiedPushNotifications();
   
   const [sendingTest, setSendingTest] = useState(false);
   const [sendingAllChannelsTest, setSendingAllChannelsTest] = useState(false);
