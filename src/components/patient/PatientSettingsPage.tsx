@@ -98,6 +98,7 @@ export function PatientSettingsPage() {
   const pushNotifications = usePushNotifications();
   const { isOnline } = useOfflineStatus();
   const [sendingTest, setSendingTest] = useState(false);
+  const [sendingAllChannelsTest, setSendingAllChannelsTest] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [lastSyncResult, setLastSyncResult] = useState<{
     at: Date;
@@ -109,6 +110,10 @@ export function PatientSettingsPage() {
   const [lastPushTest, setLastPushTest] = useState<
     { at: string; ok: boolean; summary: string } | null
   >(null);
+  const [allChannelsTestResult, setAllChannelsTestResult] = useState<{
+    at: string;
+    results: Array<{ channel: string; success: boolean; message: string; provider?: string }>;
+  } | null>(null);
 
   // Manual sync function to refresh all cached data
   const handleManualSync = useCallback(async () => {
@@ -303,6 +308,62 @@ export function PatientSettingsPage() {
       });
     } finally {
       setSendingTest(false);
+    }
+  };
+
+  const handleSendAllChannelsTest = async () => {
+    if (!user) {
+      toast({
+        title: "Please sign in",
+        description: "Your session ended. Sign in again to send test notifications.",
+        variant: "destructive",
+      });
+      navigate("/auth");
+      return;
+    }
+
+    setSendingAllChannelsTest(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("send-test-notifications", {
+        body: { user_id: user.id },
+      });
+
+      if (error) throw error;
+
+      const results = data?.results || [];
+      setAllChannelsTestResult({
+        at: new Date().toLocaleString(),
+        results,
+      });
+
+      const successCount = results.filter((r: any) => r.success).length;
+      
+      if (successCount === results.length) {
+        toast({
+          title: "All tests passed!",
+          description: `Successfully sent ${successCount} test notification(s).`,
+        });
+      } else if (successCount > 0) {
+        toast({
+          title: "Partial success",
+          description: `${successCount} of ${results.length} channels worked. Check results below.`,
+        });
+      } else {
+        toast({
+          title: "Tests failed",
+          description: "No test notifications were sent. Check your settings.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error("Failed to send test notifications:", error);
+      toast({
+        title: "Test failed",
+        description: "Could not send test notifications. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setSendingAllChannelsTest(false);
     }
   };
 
@@ -638,6 +699,86 @@ export function PatientSettingsPage() {
                 </>
               )}
             </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Test All Notification Channels */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Send className="h-5 w-5 text-primary" />
+            Test All Notification Channels
+          </CardTitle>
+          <CardDescription>
+            Send a test message to all enabled channels to verify they're working
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex -space-x-2">
+                <Mail className="h-4 w-4 text-muted-foreground" />
+                <MessageCircle className="h-4 w-4 text-muted-foreground" />
+                <Smartphone className="h-4 w-4 text-muted-foreground" />
+                <Bell className="h-4 w-4 text-muted-foreground" />
+              </div>
+              <div>
+                <Label className="font-medium">Test All Channels</Label>
+                <p className="text-sm text-muted-foreground">
+                  Email, SMS, WhatsApp, and Push notifications
+                </p>
+              </div>
+            </div>
+            <Button
+              variant="default"
+              size="sm"
+              onClick={handleSendAllChannelsTest}
+              disabled={sendingAllChannelsTest}
+            >
+              {sendingAllChannelsTest ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              ) : (
+                <Send className="h-4 w-4 mr-2" />
+              )}
+              {sendingAllChannelsTest ? "Sending..." : "Test All"}
+            </Button>
+          </div>
+
+          {allChannelsTestResult && (
+            <>
+              <Separator />
+              <div className="space-y-2">
+                <p className="text-sm font-medium">
+                  Results from {allChannelsTestResult.at}
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {allChannelsTestResult.results.map((result, idx) => (
+                    <div
+                      key={idx}
+                      className={`flex items-center gap-2 p-2 rounded-md text-sm ${
+                        result.success
+                          ? "bg-primary/10 text-primary"
+                          : "bg-destructive/10 text-destructive"
+                      }`}
+                    >
+                      {result.success ? (
+                        <CheckCircle className="h-4 w-4 shrink-0" />
+                      ) : (
+                        <AlertTriangle className="h-4 w-4 shrink-0" />
+                      )}
+                      <div className="min-w-0">
+                        <span className="font-medium capitalize">{result.channel}</span>
+                        {result.provider && (
+                          <span className="text-xs opacity-70"> ({result.provider})</span>
+                        )}
+                        <p className="text-xs truncate opacity-80">{result.message}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </>
           )}
         </CardContent>
       </Card>
