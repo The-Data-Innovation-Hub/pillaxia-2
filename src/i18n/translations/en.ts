@@ -219,6 +219,13 @@ export const en = {
     terms: "Terms of Service",
     contact: "Contact Us",
   },
+  offline: {
+    banner: "You're offline. Some features may be limited.",
+    reconnected: "You're back online!",
+    slowConnection: "Slow connection detected. Data may load slowly.",
+    pendingSync: "Changes will sync when you're back online.",
+    syncComplete: "All changes have been synced.",
+  },
 };
 
 export type Translations = typeof en;
