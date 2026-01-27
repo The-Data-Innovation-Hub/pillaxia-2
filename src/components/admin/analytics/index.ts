@@ -3,3 +3,4 @@ export { EngagementFunnelChart } from './EngagementFunnelChart';
 export { ChannelEngagementTable } from './ChannelEngagementTable';
 export { DeliveryTrendChart } from './DeliveryTrendChart';
 export { AnalyticsExport } from './AnalyticsExport';
+export { EngagementTrendsChart } from './EngagementTrendsChart';
