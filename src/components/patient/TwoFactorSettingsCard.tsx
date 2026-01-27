@@ -31,6 +31,9 @@ import {
   AlertTriangle,
   Smartphone,
   Phone,
+  Download,
+  Key,
+  RefreshCw,
 } from "lucide-react";
 
 interface MFAFactor {
@@ -43,6 +46,24 @@ interface MFAFactor {
 
 type MFAMethod = "totp" | "phone";
 
+const generateRecoveryCode = (): string => {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let code = "";
+  for (let i = 0; i < 10; i++) {
+    if (i === 5) code += "-";
+    code += chars[Math.floor(Math.random() * chars.length)];
+  }
+  return code;
+};
+
+const hashCode = async (code: string): Promise<string> => {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(code);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
+};
+
 export function TwoFactorSettingsCard() {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
@@ -53,21 +74,25 @@ export function TwoFactorSettingsCard() {
   const [showEnrollDialog, setShowEnrollDialog] = useState(false);
   const [showDisableDialog, setShowDisableDialog] = useState(false);
   const [showMethodSelect, setShowMethodSelect] = useState(false);
+  const [showRecoveryCodesDialog, setShowRecoveryCodesDialog] = useState(false);
+  const [showRegenerateDialog, setShowRegenerateDialog] = useState(false);
   
-  // TOTP state
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [secret, setSecret] = useState<string | null>(null);
   
-  // Common state
   const [factorId, setFactorId] = useState<string | null>(null);
   const [verificationCode, setVerificationCode] = useState("");
   const [disableCode, setDisableCode] = useState("");
   const [copied, setCopied] = useState(false);
   const [selectedMethod, setSelectedMethod] = useState<MFAMethod>("totp");
   
-  // Phone state
   const [phoneNumber, setPhoneNumber] = useState("");
   const [phoneEnrollStep, setPhoneEnrollStep] = useState<"input" | "verify">("input");
+
+  const [recoveryCodes, setRecoveryCodes] = useState<string[]>([]);
+  const [hasRecoveryCodes, setHasRecoveryCodes] = useState(false);
+  const [regenerateCode, setRegenerateCode] = useState("");
+  const [regenerating, setRegenerating] = useState(false);
 
   const fetchFactors = async () => {
     if (!user) return;
@@ -82,6 +107,14 @@ export function TwoFactorSettingsCard() {
         ...(data.phone || []),
       ];
       setFactors(allFactors);
+
+      const { count } = await supabase
+        .from("mfa_recovery_codes")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", user.id)
+        .is("used_at", null);
+      
+      setHasRecoveryCodes((count || 0) > 0);
     } catch (error) {
       console.error("Error fetching MFA factors:", error);
     } finally {
@@ -95,6 +128,33 @@ export function TwoFactorSettingsCard() {
 
   const enabledFactors = factors.filter((f) => f.status === "verified");
   const hasEnabledFactor = enabledFactors.length > 0;
+
+  const generateAndStoreRecoveryCodes = async (): Promise<string[]> => {
+    if (!user) return [];
+
+    const codes: string[] = [];
+    for (let i = 0; i < 10; i++) {
+      codes.push(generateRecoveryCode());
+    }
+
+    await supabase.from("mfa_recovery_codes").delete().eq("user_id", user.id);
+
+    const hashedCodes = await Promise.all(
+      codes.map(async (code) => ({
+        user_id: user.id,
+        code_hash: await hashCode(code.replace("-", "")),
+      }))
+    );
+
+    const { error } = await supabase.from("mfa_recovery_codes").insert(hashedCodes);
+
+    if (error) {
+      console.error("Error storing recovery codes:", error);
+      throw error;
+    }
+
+    return codes;
+  };
 
   const handleSelectMethod = (method: MFAMethod) => {
     setSelectedMethod(method);
@@ -156,7 +216,6 @@ export function TwoFactorSettingsCard() {
 
       setFactorId(data.id);
       
-      // Challenge immediately to send SMS
       const { error: challengeError } = await supabase.auth.mfa.challenge({
         factorId: data.id,
       });
@@ -185,39 +244,21 @@ export function TwoFactorSettingsCard() {
 
     setVerifying(true);
     try {
-      if (selectedMethod === "totp") {
-        const { data: challengeData, error: challengeError } = 
-          await supabase.auth.mfa.challenge({ factorId });
+      const { data: challengeData, error: challengeError } = 
+        await supabase.auth.mfa.challenge({ factorId });
 
-        if (challengeError) throw challengeError;
+      if (challengeError) throw challengeError;
 
-        const { error: verifyError } = await supabase.auth.mfa.verify({
-          factorId,
-          challengeId: challengeData.id,
-          code: verificationCode,
-        });
+      const { error: verifyError } = await supabase.auth.mfa.verify({
+        factorId,
+        challengeId: challengeData.id,
+        code: verificationCode,
+      });
 
-        if (verifyError) throw verifyError;
-      } else {
-        // For phone, we already sent the challenge during enrollment
-        const { data: factorData } = await supabase.auth.mfa.listFactors();
-        const phoneFactor = factorData?.phone?.find(f => f.id === factorId);
-        
-        if (phoneFactor) {
-          const { data: challengeData, error: challengeError } = 
-            await supabase.auth.mfa.challenge({ factorId });
+      if (verifyError) throw verifyError;
 
-          if (challengeError) throw challengeError;
-
-          const { error: verifyError } = await supabase.auth.mfa.verify({
-            factorId,
-            challengeId: challengeData.id,
-            code: verificationCode,
-          });
-
-          if (verifyError) throw verifyError;
-        }
-      }
+      const codes = await generateAndStoreRecoveryCodes();
+      setRecoveryCodes(codes);
 
       toast({
         title: "Two-factor authentication enabled",
@@ -225,6 +266,7 @@ export function TwoFactorSettingsCard() {
       });
 
       resetEnrollState();
+      setShowRecoveryCodesDialog(true);
       fetchFactors();
     } catch (error: any) {
       console.error("Error verifying MFA:", error);
@@ -283,9 +325,19 @@ export function TwoFactorSettingsCard() {
 
       if (unenrollError) throw unenrollError;
 
+      const { data: remainingFactors } = await supabase.auth.mfa.listFactors();
+      const verified = [
+        ...(remainingFactors?.totp?.filter(f => f.status === "verified" && f.id !== factor.id) || []),
+        ...(remainingFactors?.phone?.filter(f => f.status === "verified" && f.id !== factor.id) || []),
+      ];
+
+      if (verified.length === 0 && user) {
+        await supabase.from("mfa_recovery_codes").delete().eq("user_id", user.id);
+      }
+
       toast({
         title: "Two-factor authentication disabled",
-        description: `${factor.factor_type === "totp" ? "Authenticator app" : "SMS"} 2FA has been removed from your account.`,
+        description: `${factor.factor_type === "totp" ? "Authenticator app" : "SMS"} 2FA has been removed.`,
       });
 
       setShowDisableDialog(false);
@@ -301,6 +353,90 @@ export function TwoFactorSettingsCard() {
       });
     } finally {
       setDisabling(false);
+    }
+  };
+
+  const handleRegenerateRecoveryCodes = async () => {
+    if (!user || regenerateCode.length !== 6) return;
+
+    setRegenerating(true);
+    try {
+      const factor = enabledFactors[0];
+      if (!factor) throw new Error("No 2FA factor found");
+
+      const { data: challengeData, error: challengeError } = 
+        await supabase.auth.mfa.challenge({ factorId: factor.id });
+
+      if (challengeError) throw challengeError;
+
+      const { error: verifyError } = await supabase.auth.mfa.verify({
+        factorId: factor.id,
+        challengeId: challengeData.id,
+        code: regenerateCode,
+      });
+
+      if (verifyError) throw verifyError;
+
+      const codes = await generateAndStoreRecoveryCodes();
+      setRecoveryCodes(codes);
+
+      toast({
+        title: "Recovery codes regenerated",
+        description: "Your old recovery codes are no longer valid.",
+      });
+
+      setShowRegenerateDialog(false);
+      setRegenerateCode("");
+      setShowRecoveryCodesDialog(true);
+      fetchFactors();
+    } catch (error: any) {
+      console.error("Error regenerating recovery codes:", error);
+      toast({
+        title: "Failed to regenerate codes",
+        description: error.message || "Invalid verification code.",
+        variant: "destructive",
+      });
+    } finally {
+      setRegenerating(false);
+    }
+  };
+
+  const downloadRecoveryCodes = () => {
+    const content = [
+      "Pillaxia 2FA Recovery Codes",
+      "===========================",
+      "",
+      "Keep these codes in a safe place. Each code can only be used once.",
+      "",
+      ...recoveryCodes.map((code, i) => `${i + 1}. ${code}`),
+      "",
+      `Generated: ${new Date().toLocaleString()}`,
+    ].join("\n");
+
+    const blob = new Blob([content], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "pillaxia-recovery-codes.txt";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    toast({
+      title: "Recovery codes downloaded",
+      description: "Store them safely - they can only be used once each.",
+    });
+  };
+
+  const copyRecoveryCodes = async () => {
+    try {
+      await navigator.clipboard.writeText(recoveryCodes.join("\n"));
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+      toast({ title: "Copied to clipboard" });
+    } catch {
+      toast({ title: "Failed to copy", variant: "destructive" });
     }
   };
 
@@ -321,17 +457,8 @@ export function TwoFactorSettingsCard() {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      toast({
-        title: "Failed to copy",
-        description: "Could not copy to clipboard.",
-        variant: "destructive",
-      });
+      toast({ title: "Failed to copy", variant: "destructive" });
     }
-  };
-
-  const openDisableDialog = (factor: MFAFactor) => {
-    setFactorId(factor.id);
-    setShowDisableDialog(true);
   };
 
   if (loading) {
@@ -395,23 +522,43 @@ export function TwoFactorSettingsCard() {
                     <Button
                       variant="destructive"
                       size="sm"
-                      onClick={() => openDisableDialog(factor)}
+                      onClick={() => {
+                        setFactorId(factor.id);
+                        setShowDisableDialog(true);
+                      }}
                     >
                       <ShieldOff className="h-4 w-4 mr-2" />
                       Disable
                     </Button>
                   </div>
                 ))}
-              </div>
 
-              {/* Option to add another method */}
-              {enabledFactors.length === 1 && (
-                <div className="pt-2">
+                <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/50">
+                  <div className="flex items-center gap-3">
+                    <Key className="h-4 w-4 text-muted-foreground" />
+                    <div>
+                      <Label className="font-medium">Recovery Codes</Label>
+                      <p className="text-sm text-muted-foreground">
+                        {hasRecoveryCodes 
+                          ? "Backup codes available for account recovery"
+                          : "No recovery codes generated"}
+                      </p>
+                    </div>
+                  </div>
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => setShowMethodSelect(true)}
+                    onClick={() => setShowRegenerateDialog(true)}
                   >
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    Regenerate
+                  </Button>
+                </div>
+              </div>
+
+              {enabledFactors.length === 1 && (
+                <div className="pt-2">
+                  <Button variant="outline" size="sm" onClick={() => setShowMethodSelect(true)}>
                     Add another method
                   </Button>
                 </div>
@@ -437,11 +584,7 @@ export function TwoFactorSettingsCard() {
                       </p>
                     </div>
                   </div>
-                  <Button
-                    onClick={() => handleSelectMethod("totp")}
-                    disabled={enrolling}
-                    size="sm"
-                  >
+                  <Button onClick={() => handleSelectMethod("totp")} disabled={enrolling} size="sm">
                     {enrolling && selectedMethod === "totp" ? (
                       <Loader2 className="h-4 w-4 animate-spin mr-2" />
                     ) : (
@@ -456,16 +599,10 @@ export function TwoFactorSettingsCard() {
                     <Phone className="h-4 w-4 text-muted-foreground" />
                     <div>
                       <Label className="font-medium">SMS</Label>
-                      <p className="text-sm text-muted-foreground">
-                        Receive codes via text message
-                      </p>
+                      <p className="text-sm text-muted-foreground">Receive codes via text message</p>
                     </div>
                   </div>
-                  <Button
-                    onClick={() => handleSelectMethod("phone")}
-                    disabled={enrolling}
-                    size="sm"
-                  >
+                  <Button onClick={() => handleSelectMethod("phone")} disabled={enrolling} size="sm">
                     {enrolling && selectedMethod === "phone" ? (
                       <Loader2 className="h-4 w-4 animate-spin mr-2" />
                     ) : (
@@ -480,23 +617,16 @@ export function TwoFactorSettingsCard() {
         </CardContent>
       </Card>
 
-      {/* Method Selection Dialog (for adding second method) */}
+      {/* Method Selection Dialog */}
       <Dialog open={showMethodSelect} onOpenChange={setShowMethodSelect}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Add Another 2FA Method</DialogTitle>
-            <DialogDescription>
-              Choose an additional authentication method for backup
-            </DialogDescription>
+            <DialogDescription>Choose an additional authentication method for backup</DialogDescription>
           </DialogHeader>
-
           <div className="space-y-3 pt-4">
             {!enabledFactors.some(f => f.factor_type === "totp") && (
-              <Button
-                variant="outline"
-                className="w-full justify-start gap-3 h-auto py-3"
-                onClick={() => handleSelectMethod("totp")}
-              >
+              <Button variant="outline" className="w-full justify-start gap-3 h-auto py-3" onClick={() => handleSelectMethod("totp")}>
                 <QrCode className="h-5 w-5" />
                 <div className="text-left">
                   <div className="font-medium">Authenticator App</div>
@@ -504,13 +634,8 @@ export function TwoFactorSettingsCard() {
                 </div>
               </Button>
             )}
-            
             {!enabledFactors.some(f => f.factor_type === "phone") && (
-              <Button
-                variant="outline"
-                className="w-full justify-start gap-3 h-auto py-3"
-                onClick={() => handleSelectMethod("phone")}
-              >
+              <Button variant="outline" className="w-full justify-start gap-3 h-auto py-3" onClick={() => handleSelectMethod("phone")}>
                 <Phone className="h-5 w-5" />
                 <div className="text-left">
                   <div className="font-medium">SMS</div>
@@ -527,9 +652,7 @@ export function TwoFactorSettingsCard() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>
-              {selectedMethod === "totp" 
-                ? "Set Up Authenticator App" 
-                : "Set Up SMS Verification"}
+              {selectedMethod === "totp" ? "Set Up Authenticator App" : "Set Up SMS Verification"}
             </DialogTitle>
             <DialogDescription>
               {selectedMethod === "totp"
@@ -539,7 +662,6 @@ export function TwoFactorSettingsCard() {
                   : "Enter the 6-digit code sent to your phone"}
             </DialogDescription>
           </DialogHeader>
-
           <div className="space-y-4">
             {selectedMethod === "totp" && qrCode && (
               <>
@@ -547,30 +669,16 @@ export function TwoFactorSettingsCard() {
                   <div className="p-4 bg-background border rounded-lg">
                     <img src={qrCode} alt="2FA QR Code" className="w-48 h-48" />
                   </div>
-
                   <div className="w-full space-y-2">
-                    <Label className="text-sm text-muted-foreground">
-                      Or enter this code manually:
-                    </Label>
+                    <Label className="text-sm text-muted-foreground">Or enter this code manually:</Label>
                     <div className="flex items-center gap-2">
-                      <code className="flex-1 p-2 bg-muted rounded text-xs font-mono break-all">
-                        {secret}
-                      </code>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={copySecret}
-                      >
-                        {copied ? (
-                          <CheckCircle className="h-4 w-4 text-primary" />
-                        ) : (
-                          <Copy className="h-4 w-4" />
-                        )}
+                      <code className="flex-1 p-2 bg-muted rounded text-xs font-mono break-all">{secret}</code>
+                      <Button variant="outline" size="icon" onClick={copySecret}>
+                        {copied ? <CheckCircle className="h-4 w-4 text-primary" /> : <Copy className="h-4 w-4" />}
                       </Button>
                     </div>
                   </div>
                 </div>
-
                 <div className="space-y-2">
                   <Label htmlFor="verification-code">Verification Code</Label>
                   <Input
@@ -582,20 +690,9 @@ export function TwoFactorSettingsCard() {
                     className="text-center text-lg tracking-widest font-mono"
                   />
                 </div>
-
                 <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    onClick={resetEnrollState}
-                    className="flex-1"
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    onClick={handleVerifyEnrollment}
-                    disabled={verifying || verificationCode.length !== 6}
-                    className="flex-1"
-                  >
+                  <Button variant="outline" onClick={resetEnrollState} className="flex-1">Cancel</Button>
+                  <Button onClick={handleVerifyEnrollment} disabled={verifying || verificationCode.length !== 6} className="flex-1">
                     {verifying && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
                     Verify & Enable
                   </Button>
@@ -615,24 +712,11 @@ export function TwoFactorSettingsCard() {
                     onChange={(e) => setPhoneNumber(e.target.value)}
                     className="text-lg"
                   />
-                  <p className="text-xs text-muted-foreground">
-                    Include country code (e.g., +234 for Nigeria)
-                  </p>
+                  <p className="text-xs text-muted-foreground">Include country code (e.g., +234 for Nigeria)</p>
                 </div>
-
                 <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    onClick={resetEnrollState}
-                    className="flex-1"
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    onClick={handleStartPhoneEnroll}
-                    disabled={enrolling || !phoneNumber.trim()}
-                    className="flex-1"
-                  >
+                  <Button variant="outline" onClick={resetEnrollState} className="flex-1">Cancel</Button>
+                  <Button onClick={handleStartPhoneEnroll} disabled={enrolling || !phoneNumber.trim()} className="flex-1">
                     {enrolling && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
                     Send Code
                   </Button>
@@ -648,7 +732,6 @@ export function TwoFactorSettingsCard() {
                     Code sent to <span className="font-medium">{phoneNumber}</span>
                   </p>
                 </div>
-
                 <div className="space-y-2">
                   <Label htmlFor="sms-code">Verification Code</Label>
                   <Input
@@ -660,33 +743,13 @@ export function TwoFactorSettingsCard() {
                     className="text-center text-lg tracking-widest font-mono"
                   />
                 </div>
-
-                <Button
-                  variant="link"
-                  size="sm"
-                  onClick={handleResendSmsCode}
-                  disabled={enrolling}
-                  className="w-full"
-                >
-                  {enrolling ? (
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  ) : null}
+                <Button variant="link" size="sm" onClick={handleResendSmsCode} disabled={enrolling} className="w-full">
+                  {enrolling && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
                   Resend code
                 </Button>
-
                 <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    onClick={resetEnrollState}
-                    className="flex-1"
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    onClick={handleVerifyEnrollment}
-                    disabled={verifying || verificationCode.length !== 6}
-                    className="flex-1"
-                  >
+                  <Button variant="outline" onClick={resetEnrollState} className="flex-1">Cancel</Button>
+                  <Button onClick={handleVerifyEnrollment} disabled={verifying || verificationCode.length !== 6} className="flex-1">
                     {verifying && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
                     Verify & Enable
                   </Button>
@@ -697,24 +760,95 @@ export function TwoFactorSettingsCard() {
         </DialogContent>
       </Dialog>
 
+      {/* Recovery Codes Dialog */}
+      <Dialog open={showRecoveryCodesDialog} onOpenChange={setShowRecoveryCodesDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Key className="h-5 w-5 text-primary" />
+              Save Your Recovery Codes
+            </DialogTitle>
+            <DialogDescription>
+              Store these codes safely. Each code can only be used once to recover your account.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <Alert>
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>These codes won't be shown again. Download or copy them now!</AlertDescription>
+            </Alert>
+            <div className="grid grid-cols-2 gap-2 p-4 bg-muted rounded-lg font-mono text-sm">
+              {recoveryCodes.map((code, i) => (
+                <div key={i} className="py-1">{code}</div>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={copyRecoveryCodes} className="flex-1">
+                {copied ? <CheckCircle className="h-4 w-4 mr-2 text-primary" /> : <Copy className="h-4 w-4 mr-2" />}
+                Copy
+              </Button>
+              <Button onClick={downloadRecoveryCodes} className="flex-1">
+                <Download className="h-4 w-4 mr-2" />
+                Download
+              </Button>
+            </div>
+            <Button variant="outline" onClick={() => setShowRecoveryCodesDialog(false)} className="w-full">
+              I've saved my codes
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Regenerate Recovery Codes Dialog */}
+      <Dialog open={showRegenerateDialog} onOpenChange={setShowRegenerateDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Regenerate Recovery Codes</DialogTitle>
+            <DialogDescription>
+              Enter your current 2FA code to generate new recovery codes. Your old codes will be invalidated.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <Alert>
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>This will invalidate all existing recovery codes.</AlertDescription>
+            </Alert>
+            <div className="space-y-2">
+              <Label htmlFor="regenerate-code">Verification Code</Label>
+              <Input
+                id="regenerate-code"
+                placeholder="Enter 6-digit code"
+                value={regenerateCode}
+                onChange={(e) => setRegenerateCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                maxLength={6}
+                className="text-center text-lg tracking-widest font-mono"
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => { setShowRegenerateDialog(false); setRegenerateCode(""); }} className="flex-1">
+                Cancel
+              </Button>
+              <Button onClick={handleRegenerateRecoveryCodes} disabled={regenerating || regenerateCode.length !== 6} className="flex-1">
+                {regenerating && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                Regenerate
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Disable Confirmation Dialog */}
       <Dialog open={showDisableDialog} onOpenChange={setShowDisableDialog}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Disable Two-Factor Authentication</DialogTitle>
-            <DialogDescription>
-              Enter your current verification code to confirm disabling 2FA
-            </DialogDescription>
+            <DialogDescription>Enter your current verification code to confirm disabling 2FA</DialogDescription>
           </DialogHeader>
-
           <div className="space-y-4">
             <Alert variant="destructive">
               <AlertTriangle className="h-4 w-4" />
-              <AlertDescription>
-                Disabling 2FA will make your account less secure. Only proceed if necessary.
-              </AlertDescription>
+              <AlertDescription>Disabling 2FA will make your account less secure.</AlertDescription>
             </Alert>
-
             <div className="space-y-2">
               <Label htmlFor="disable-code">Verification Code</Label>
               <Input
@@ -726,17 +860,8 @@ export function TwoFactorSettingsCard() {
                 className="text-center text-lg tracking-widest font-mono"
               />
             </div>
-
             <div className="flex gap-2">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setShowDisableDialog(false);
-                  setDisableCode("");
-                  setFactorId(null);
-                }}
-                className="flex-1"
-              >
+              <Button variant="outline" onClick={() => { setShowDisableDialog(false); setDisableCode(""); setFactorId(null); }} className="flex-1">
                 Cancel
               </Button>
               <Button
