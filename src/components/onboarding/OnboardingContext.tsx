@@ -107,6 +107,8 @@ const adminOnboarding: OnboardingConfig = {
   ],
 };
 
+const ONBOARDING_DISABLED_KEY = "progressive_onboarding_disabled";
+
 export function OnboardingProvider({ children }: { children: ReactNode }) {
   const { isPatient, isClinician, isPharmacist, isAdmin, isManager, user } = useAuth();
   
@@ -116,10 +118,34 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
   const [showChecklist, setShowChecklist] = useState(false);
   const [currentTourStep, setCurrentTourStep] = useState(0);
   const [isOnboardingComplete, setIsOnboardingComplete] = useState(false);
+  const [isOnboardingDisabled, setIsOnboardingDisabled] = useState(false);
+
+  // Listen for changes to the onboarding disabled preference
+  useEffect(() => {
+    const checkDisabled = () => {
+      const disabled = localStorage.getItem(ONBOARDING_DISABLED_KEY) === "true";
+      setIsOnboardingDisabled(disabled);
+      if (disabled) {
+        setShowTour(false);
+        setShowChecklist(false);
+      }
+    };
+
+    checkDisabled();
+
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === ONBOARDING_DISABLED_KEY) {
+        checkDisabled();
+      }
+    };
+
+    window.addEventListener("storage", handleStorageChange);
+    return () => window.removeEventListener("storage", handleStorageChange);
+  }, []);
 
   // Load onboarding state from localStorage
   useEffect(() => {
-    if (!user) return;
+    if (!user || isOnboardingDisabled) return;
 
     const storageKey = `onboarding_${user.id}`;
     const saved = localStorage.getItem(storageKey);
@@ -154,7 +180,7 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
     }
     
     setTourSteps(config.tourSteps);
-  }, [user, isAdmin, isManager, isPharmacist, isClinician, isPatient]);
+  }, [user, isAdmin, isManager, isPharmacist, isClinician, isPatient, isOnboardingDisabled]);
 
   // Save state to localStorage
   useEffect(() => {
