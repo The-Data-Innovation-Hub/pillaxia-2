@@ -33,7 +33,6 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ThemeToggle } from "@/components/ThemeToggle";
 
 export function PatientSidebar() {
   const { signOut, profile } = useAuth();
@@ -135,7 +134,6 @@ export function PatientSidebar() {
           <HelpCircle className="h-4 w-4" />
           <span>Help & Support</span>
         </NavLink>
-        <ThemeToggle />
         <Button 
           variant="outline"
           className="w-full justify-start gap-3 mt-2 border-destructive/30 text-destructive hover:bg-destructive hover:text-destructive-foreground hover:border-destructive transition-all duration-200 group"
