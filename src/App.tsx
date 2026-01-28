@@ -33,6 +33,7 @@ import {
   AdherenceMonitorPage,
   SOAPNotesPage,
   AppointmentsPage,
+  EPrescribingPage,
 } from "@/components/clinician";
 import {
   PharmacistLayout,
@@ -44,6 +45,7 @@ import {
   MedicationAvailabilityPage,
   DrugRecallsPage,
   DrugTransfersPage,
+  PharmacyPrescriptionsPage,
 } from "@/components/pharmacist";
 import {
   AdminLayout,
@@ -117,10 +119,12 @@ function AppRoutes() {
         <Route path="health-profile" element={<HealthProfilePage />} />
         {/* Clinician Routes */}
         <Route path="patients" element={<PatientRosterPage />} />
+        <Route path="e-prescribing" element={<EPrescribingPage />} />
         <Route path="adherence" element={<AdherenceMonitorPage />} />
         <Route path="soap-notes" element={<SOAPNotesPage />} />
         <Route path="appointments" element={<AppointmentsPage />} />
         {/* Pharmacist Routes */}
+        <Route path="e-prescriptions" element={<PharmacyPrescriptionsPage />} />
         <Route path="prescriptions" element={<PrescriptionsPage />} />
         <Route path="inventory" element={<InventoryPage />} />
         <Route path="availability" element={<MedicationAvailabilityPage />} />

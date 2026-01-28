@@ -1566,6 +1566,145 @@ export type Database = {
         }
         Relationships: []
       }
+      prescription_status_history: {
+        Row: {
+          changed_by: string
+          created_at: string
+          id: string
+          new_status: string
+          notes: string | null
+          prescription_id: string
+          previous_status: string | null
+        }
+        Insert: {
+          changed_by: string
+          created_at?: string
+          id?: string
+          new_status: string
+          notes?: string | null
+          prescription_id: string
+          previous_status?: string | null
+        }
+        Update: {
+          changed_by?: string
+          created_at?: string
+          id?: string
+          new_status?: string
+          notes?: string | null
+          prescription_id?: string
+          previous_status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "prescription_status_history_prescription_id_fkey"
+            columns: ["prescription_id"]
+            isOneToOne: false
+            referencedRelation: "prescriptions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      prescriptions: {
+        Row: {
+          clinician_user_id: string
+          created_at: string
+          date_expires: string | null
+          date_written: string
+          dea_schedule: string | null
+          diagnosis_code: string | null
+          diagnosis_description: string | null
+          dispense_as_written: boolean
+          dispensed_at: string | null
+          dosage: string
+          dosage_unit: string
+          form: string
+          generic_name: string | null
+          id: string
+          instructions: string | null
+          is_controlled_substance: boolean
+          medication_name: string
+          patient_user_id: string
+          pharmacy_id: string | null
+          prescription_number: string
+          quantity: number
+          received_at: string | null
+          refills_authorized: number
+          refills_remaining: number
+          sent_at: string | null
+          sig: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          clinician_user_id: string
+          created_at?: string
+          date_expires?: string | null
+          date_written?: string
+          dea_schedule?: string | null
+          diagnosis_code?: string | null
+          diagnosis_description?: string | null
+          dispense_as_written?: boolean
+          dispensed_at?: string | null
+          dosage: string
+          dosage_unit?: string
+          form?: string
+          generic_name?: string | null
+          id?: string
+          instructions?: string | null
+          is_controlled_substance?: boolean
+          medication_name: string
+          patient_user_id: string
+          pharmacy_id?: string | null
+          prescription_number: string
+          quantity: number
+          received_at?: string | null
+          refills_authorized?: number
+          refills_remaining?: number
+          sent_at?: string | null
+          sig: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          clinician_user_id?: string
+          created_at?: string
+          date_expires?: string | null
+          date_written?: string
+          dea_schedule?: string | null
+          diagnosis_code?: string | null
+          diagnosis_description?: string | null
+          dispense_as_written?: boolean
+          dispensed_at?: string | null
+          dosage?: string
+          dosage_unit?: string
+          form?: string
+          generic_name?: string | null
+          id?: string
+          instructions?: string | null
+          is_controlled_substance?: boolean
+          medication_name?: string
+          patient_user_id?: string
+          pharmacy_id?: string | null
+          prescription_number?: string
+          quantity?: number
+          received_at?: string | null
+          refills_authorized?: number
+          refills_remaining?: number
+          sent_at?: string | null
+          sig?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "prescriptions_pharmacy_id_fkey"
+            columns: ["pharmacy_id"]
+            isOneToOne: false
+            referencedRelation: "pharmacy_locations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           address_line1: string | null
@@ -2076,6 +2215,7 @@ export type Database = {
     Functions: {
       check_account_locked: { Args: { p_email: string }; Returns: Json }
       check_session_limits: { Args: { p_user_id: string }; Returns: boolean }
+      generate_prescription_number: { Args: never; Returns: string }
       get_user_roles: {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["app_role"][]

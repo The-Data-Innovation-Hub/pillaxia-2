@@ -39,3 +39,4 @@ export { NotificationCenterCard } from "./NotificationCenterCard";
 export { PharmacyPreferencesCard } from "./PharmacyPreferencesCard";
 export { BiometricSettingsCard } from "./BiometricSettingsCard";
 export { SecurityNotificationPreferencesCard } from "./SecurityNotificationPreferencesCard";
+export { PatientPrescriptionsCard } from "./PatientPrescriptionsCard";

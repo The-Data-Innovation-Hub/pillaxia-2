@@ -30,6 +30,7 @@ export function ClinicianSidebar() {
   const baseMenuItems = [
     { title: t.dashboard.overview, url: "/dashboard", icon: LayoutDashboard },
     { title: "Patient Roster", url: "/dashboard/patients", icon: Users },
+    { title: "E-Prescribing", url: "/dashboard/e-prescribing", icon: FileText },
     { title: "Medication Review", url: "/dashboard/medications", icon: Pill },
     { title: "Adherence Monitor", url: "/dashboard/adherence", icon: Activity },
     { title: "Appointments", url: "/dashboard/appointments", icon: CalendarDays },

@@ -12,3 +12,5 @@ export { RedFlagAlertsCard } from "./RedFlagAlertsCard";
 export { PolypharmacyWarningsCard } from "./PolypharmacyWarningsCard";
 export { AppointmentsPage } from "./AppointmentsPage";
 export { CreateAppointmentDialog } from "./CreateAppointmentDialog";
+export { EPrescribingPage } from "./EPrescribingPage";
+export { CreatePrescriptionDialog } from "./CreatePrescriptionDialog";
