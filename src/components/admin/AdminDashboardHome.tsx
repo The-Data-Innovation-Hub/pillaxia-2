@@ -5,6 +5,7 @@ import { Users, Pill, Activity, Shield, FileText, Building2 } from "lucide-react
 import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/contexts/AuthContext";
 
 export function AdminDashboardHome() {
   const { data: stats, isLoading } = useQuery({
@@ -101,12 +102,16 @@ export function AdminDashboardHome() {
     { role: "Admins", count: stats?.roleCounts?.admin || 0, icon: Shield },
   ];
 
+  const { isAdmin, isManager } = useAuth();
+  
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Admin Dashboard</h1>
+        <h1 className="text-2xl font-bold">
+          {isManager && !isAdmin ? "Manager Dashboard" : "Admin Dashboard"}
+        </h1>
         <p className="text-muted-foreground">
-          System overview and management
+          {isManager && !isAdmin ? "Organization overview and management" : "System overview and management"}
         </p>
       </div>
 

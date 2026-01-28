@@ -31,9 +31,11 @@ import {
   Clock,
   BellRing,
   Send,
+  User,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
+import { AdminProfileTab } from "./AdminProfileTab";
 
 interface IntegrationStatus {
   whatsapp: boolean;
@@ -234,12 +236,17 @@ export function SettingsPage() {
         </p>
       </div>
 
-      <Tabs defaultValue="integrations" className="space-y-4">
+      <Tabs defaultValue="profile" className="space-y-4">
         <TabsList>
+          <TabsTrigger value="profile">Profile</TabsTrigger>
           <TabsTrigger value="integrations">Integrations</TabsTrigger>
           <TabsTrigger value="notifications">Notifications</TabsTrigger>
           <TabsTrigger value="security">Security</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="profile">
+          <AdminProfileTab />
+        </TabsContent>
 
         <TabsContent value="integrations" className="space-y-4">
           {/* WhatsApp Integration */}
