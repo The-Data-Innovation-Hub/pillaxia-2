@@ -19,6 +19,7 @@ import {
 
 const menuItems = [
   { title: "Overview", url: "/dashboard", icon: LayoutDashboard },
+  { title: "E-Prescriptions", url: "/dashboard/e-prescriptions", icon: FileText },
   { title: "Prescriptions", url: "/dashboard/prescriptions", icon: FileText },
   { title: "Inventory", url: "/dashboard/inventory", icon: Package },
   { title: "Availability", url: "/dashboard/availability", icon: MapPin },

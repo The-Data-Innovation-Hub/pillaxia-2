@@ -12,3 +12,4 @@ export { ExpiryTrackingCard } from "./ExpiryTrackingCard";
 export { MedicationAvailabilityPage } from "./MedicationAvailabilityPage";
 export { DrugRecallsPage } from "./DrugRecallsPage";
 export { DrugTransfersPage } from "./DrugTransfersPage";
+export { PharmacyPrescriptionsPage } from "./PharmacyPrescriptionsPage";
