@@ -50,9 +50,21 @@ export function initSentry() {
     
     // Before sending events
     beforeSend(event, hint) {
-      // Don't send events in development unless explicitly enabled
-      if (!import.meta.env.PROD && !import.meta.env.VITE_SENTRY_DEV_ENABLED) {
-        console.log("[Sentry] Event captured in dev mode:", event);
+      // Don't send events in development unless explicitly enabled.
+      // In Lovable preview/dev, we allow opt-in via env OR (session/local) storage.
+      const devEnabledByEnv = import.meta.env.VITE_SENTRY_DEV_ENABLED === "true";
+      const devEnabledByStorage = (() => {
+        try {
+          const sessionFlag = window.sessionStorage?.getItem("sentry_dev_enabled") === "true";
+          const localFlag = window.localStorage?.getItem("sentry_dev_enabled") === "true";
+          return sessionFlag || localFlag;
+        } catch {
+          return false;
+        }
+      })();
+
+      if (!import.meta.env.PROD && !devEnabledByEnv && !devEnabledByStorage) {
+        console.log("[Sentry] Event captured in dev mode (suppressed):", event);
         return null;
       }
       
