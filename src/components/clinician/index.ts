@@ -14,3 +14,4 @@ export { AppointmentsPage } from "./AppointmentsPage";
 export { CreateAppointmentDialog } from "./CreateAppointmentDialog";
 export { EPrescribingPage } from "./EPrescribingPage";
 export { CreatePrescriptionDialog } from "./CreatePrescriptionDialog";
+export { ClinicianSettingsPage } from "./ClinicianSettingsPage";
