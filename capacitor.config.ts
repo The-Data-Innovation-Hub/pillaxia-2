@@ -26,7 +26,13 @@ const config: CapacitorConfig = {
     allowsLinkPreview: false
   },
   android: {
-    allowMixedContent: true
+    allowMixedContent: true,
+    backgroundColor: '#8B5CF6',
+    webContentsDebuggingEnabled: true,
+    initialFocus: false,
+    overrideUserAgent: undefined,
+    appendUserAgent: undefined,
+    useLegacyBridge: false
   }
 };
 
