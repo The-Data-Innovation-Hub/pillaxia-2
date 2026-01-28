@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/hooks/use-toast";
+import { useSecurityEvents } from "@/hooks/useSecurityEvents";
 import {
   Card,
   CardContent,
@@ -56,6 +57,7 @@ interface ProfileData {
 export function ProfileSettingsTab() {
   const { user, profile, refreshProfile } = useAuth();
   const queryClient = useQueryClient();
+  const { logSecurityEvent } = useSecurityEvents();
   
   const [profileData, setProfileData] = useState<ProfileData>({
     first_name: "",
@@ -334,6 +336,18 @@ export function ProfileSettingsTab() {
       });
       
       if (error) throw error;
+      
+      // Log password change security event - this will trigger an email notification
+      await logSecurityEvent({
+        eventType: "password_change",
+        category: "authentication",
+        severity: "warning",
+        description: "Password was changed successfully",
+        metadata: {
+          action: "password_change",
+          initiated_by: "user",
+        },
+      });
       
       toast({
         title: "Password updated",
