@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Building2, Palette, Users, Settings, Plus, Upload, Save, Loader2 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -47,6 +47,37 @@ export function OrganizationManagementPage() {
     city: organization?.city || "",
     state: organization?.state || "",
   });
+
+  // Sync form state when branding data changes from context
+  useEffect(() => {
+    if (branding) {
+      setBrandingForm({
+        app_name: branding.app_name || "Pillaxia",
+        primary_color: branding.primary_color || "244 69% 31%",
+        secondary_color: branding.secondary_color || "280 100% 70%",
+        accent_color: branding.accent_color || "174 72% 40%",
+        support_email: branding.support_email || "",
+        support_phone: branding.support_phone || "",
+        terms_url: branding.terms_url || "",
+        privacy_url: branding.privacy_url || "",
+      });
+    }
+  }, [branding]);
+
+  // Sync form state when organization data changes from context
+  useEffect(() => {
+    if (organization) {
+      setOrgForm({
+        name: organization.name || "",
+        description: organization.description || "",
+        contact_email: organization.contact_email || "",
+        contact_phone: organization.contact_phone || "",
+        address: organization.address || "",
+        city: organization.city || "",
+        state: organization.state || "",
+      });
+    }
+  }, [organization]);
 
   if (!organization) {
     return (
