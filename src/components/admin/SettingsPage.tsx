@@ -84,24 +84,28 @@ export function SettingsPage() {
   const [testingEmail, setTestingEmail] = useState(false);
   const [testingPush, setTestingPush] = useState(false);
   const [pushTestUserId, setPushTestUserId] = useState("");
-  const [onboardingEnabled, setOnboardingEnabled] = useState(true);
+  const [onboardingEnabled, setOnboardingEnabled] = useState(false);
   const [shouldThrowError, setShouldThrowError] = useState(false);
   const queryClient = useQueryClient();
   const { user, isManager, isAdmin } = useAuth();
 
-  // Load onboarding preference
+  // Load onboarding preference - default is OFF (disabled)
   useEffect(() => {
-    const disabled = localStorage.getItem(ONBOARDING_DISABLED_KEY) === "true";
+    const storedValue = localStorage.getItem(ONBOARDING_DISABLED_KEY);
+    // Default to disabled (off) if not explicitly set to "false"
+    const disabled = storedValue !== "false";
     setOnboardingEnabled(!disabled);
   }, []);
 
   const handleToggleOnboarding = (enabled: boolean) => {
     setOnboardingEnabled(enabled);
-    localStorage.setItem(ONBOARDING_DISABLED_KEY, (!enabled).toString());
+    // Store "false" when enabled (not disabled), "true" when disabled
+    const newValue = enabled ? "false" : "true";
+    localStorage.setItem(ONBOARDING_DISABLED_KEY, newValue);
     // Dispatch storage event so other tabs/components can react
     window.dispatchEvent(new StorageEvent("storage", {
       key: ONBOARDING_DISABLED_KEY,
-      newValue: (!enabled).toString(),
+      newValue: newValue,
     }));
     toast.success(enabled ? "Progressive onboarding enabled" : "Progressive onboarding disabled");
   };

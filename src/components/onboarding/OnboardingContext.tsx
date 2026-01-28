@@ -121,9 +121,12 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
   const [isOnboardingDisabled, setIsOnboardingDisabled] = useState(false);
 
   // Listen for changes to the onboarding disabled preference
+  // Default is OFF (disabled = true) unless explicitly set to "false"
   useEffect(() => {
     const checkDisabled = () => {
-      const disabled = localStorage.getItem(ONBOARDING_DISABLED_KEY) === "true";
+      const storedValue = localStorage.getItem(ONBOARDING_DISABLED_KEY);
+      // Default to disabled (off) if not explicitly set to "false"
+      const disabled = storedValue !== "false";
       setIsOnboardingDisabled(disabled);
       if (disabled) {
         setShowTour(false);
