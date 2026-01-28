@@ -46,3 +46,4 @@ export { PatientPrescriptionsCard } from "./PatientPrescriptionsCard";
 export { default as VitalsPage } from "./VitalsPage";
 export { default as LabResultsPage } from "./LabResultsPage";
 export { AppointmentsCalendarPage } from "./AppointmentsCalendarPage";
+export { TrustedDevicesCard } from "./TrustedDevicesCard";

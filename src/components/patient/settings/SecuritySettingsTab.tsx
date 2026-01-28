@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { TwoFactorSettingsCard } from "@/components/patient/TwoFactorSettingsCard";
+import { TrustedDevicesCard } from "@/components/patient/TrustedDevicesCard";
 import { BiometricSettingsCard } from "@/components/patient/BiometricSettingsCard";
 import { SecurityNotificationPreferencesCard } from "@/components/patient/SecurityNotificationPreferencesCard";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -63,6 +64,9 @@ export function SecuritySettingsTab() {
 
       {/* Two-Factor Authentication */}
       <TwoFactorSettingsCard />
+
+      {/* Trusted Devices */}
+      <TrustedDevicesCard />
 
       {/* Delete Account */}
       <Card className="border-destructive/50">
