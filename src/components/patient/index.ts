@@ -40,3 +40,5 @@ export { PharmacyPreferencesCard } from "./PharmacyPreferencesCard";
 export { BiometricSettingsCard } from "./BiometricSettingsCard";
 export { SecurityNotificationPreferencesCard } from "./SecurityNotificationPreferencesCard";
 export { PatientPrescriptionsCard } from "./PatientPrescriptionsCard";
+export { default as VitalsPage } from "./VitalsPage";
+export { default as LabResultsPage } from "./LabResultsPage";

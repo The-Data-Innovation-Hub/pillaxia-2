@@ -884,6 +884,75 @@ export type Database = {
         }
         Relationships: []
       }
+      lab_results: {
+        Row: {
+          abnormal_flag: string | null
+          attachment_url: string | null
+          category: string
+          collected_at: string | null
+          created_at: string
+          id: string
+          is_abnormal: boolean | null
+          lab_name: string | null
+          notes: string | null
+          ordered_at: string
+          ordered_by: string | null
+          reference_range: string | null
+          result_unit: string | null
+          result_value: string
+          resulted_at: string | null
+          status: string
+          test_code: string | null
+          test_name: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          abnormal_flag?: string | null
+          attachment_url?: string | null
+          category?: string
+          collected_at?: string | null
+          created_at?: string
+          id?: string
+          is_abnormal?: boolean | null
+          lab_name?: string | null
+          notes?: string | null
+          ordered_at?: string
+          ordered_by?: string | null
+          reference_range?: string | null
+          result_unit?: string | null
+          result_value: string
+          resulted_at?: string | null
+          status?: string
+          test_code?: string | null
+          test_name: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          abnormal_flag?: string | null
+          attachment_url?: string | null
+          category?: string
+          collected_at?: string | null
+          created_at?: string
+          id?: string
+          is_abnormal?: boolean | null
+          lab_name?: string | null
+          notes?: string | null
+          ordered_at?: string
+          ordered_by?: string | null
+          reference_range?: string | null
+          result_unit?: string | null
+          result_value?: string
+          resulted_at?: string | null
+          status?: string
+          test_code?: string | null
+          test_name?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       login_attempts: {
         Row: {
           created_at: string
@@ -1583,6 +1652,72 @@ export type Database = {
           resolved_by?: string | null
           severity?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      patient_vitals: {
+        Row: {
+          blood_glucose: number | null
+          blood_pressure_diastolic: number | null
+          blood_pressure_systolic: number | null
+          bmi: number | null
+          created_at: string
+          heart_rate: number | null
+          height: number | null
+          id: string
+          is_fasting: boolean | null
+          measurement_location: string | null
+          notes: string | null
+          oxygen_saturation: number | null
+          recorded_at: string
+          recorded_by: string | null
+          respiratory_rate: number | null
+          temperature: number | null
+          updated_at: string
+          user_id: string
+          weight: number | null
+        }
+        Insert: {
+          blood_glucose?: number | null
+          blood_pressure_diastolic?: number | null
+          blood_pressure_systolic?: number | null
+          bmi?: number | null
+          created_at?: string
+          heart_rate?: number | null
+          height?: number | null
+          id?: string
+          is_fasting?: boolean | null
+          measurement_location?: string | null
+          notes?: string | null
+          oxygen_saturation?: number | null
+          recorded_at?: string
+          recorded_by?: string | null
+          respiratory_rate?: number | null
+          temperature?: number | null
+          updated_at?: string
+          user_id: string
+          weight?: number | null
+        }
+        Update: {
+          blood_glucose?: number | null
+          blood_pressure_diastolic?: number | null
+          blood_pressure_systolic?: number | null
+          bmi?: number | null
+          created_at?: string
+          heart_rate?: number | null
+          height?: number | null
+          id?: string
+          is_fasting?: boolean | null
+          measurement_location?: string | null
+          notes?: string | null
+          oxygen_saturation?: number | null
+          recorded_at?: string
+          recorded_by?: string | null
+          respiratory_rate?: number | null
+          temperature?: number | null
+          updated_at?: string
+          user_id?: string
+          weight?: number | null
         }
         Relationships: []
       }
@@ -2577,6 +2712,53 @@ export type Database = {
             columns: ["appointment_id"]
             isOneToOne: false
             referencedRelation: "appointments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vitals_alerts: {
+        Row: {
+          acknowledged_at: string | null
+          acknowledged_by: string | null
+          alert_type: string
+          created_at: string
+          id: string
+          is_acknowledged: boolean | null
+          message: string
+          severity: string
+          user_id: string
+          vital_id: string | null
+        }
+        Insert: {
+          acknowledged_at?: string | null
+          acknowledged_by?: string | null
+          alert_type: string
+          created_at?: string
+          id?: string
+          is_acknowledged?: boolean | null
+          message: string
+          severity?: string
+          user_id: string
+          vital_id?: string | null
+        }
+        Update: {
+          acknowledged_at?: string | null
+          acknowledged_by?: string | null
+          alert_type?: string
+          created_at?: string
+          id?: string
+          is_acknowledged?: boolean | null
+          message?: string
+          severity?: string
+          user_id?: string
+          vital_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vitals_alerts_vital_id_fkey"
+            columns: ["vital_id"]
+            isOneToOne: false
+            referencedRelation: "patient_vitals"
             referencedColumns: ["id"]
           },
         ]
