@@ -110,3 +110,9 @@ verify_jwt = false
 
 [functions.send-security-alert]
 verify_jwt = false
+
+[functions.twilio-video-token]
+verify_jwt = false
+
+[functions.fhir-api]
+verify_jwt = false
