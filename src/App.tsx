@@ -34,6 +34,7 @@ import {
   SOAPNotesPage,
   AppointmentsPage,
   EPrescribingPage,
+  ClinicianSettingsPage,
 } from "@/components/clinician";
 import { TelemedicinePage, VideoRoom } from "@/components/telemedicine";
 import {
@@ -124,6 +125,7 @@ function AppRoutes() {
         <Route path="adherence" element={<AdherenceMonitorPage />} />
         <Route path="soap-notes" element={<SOAPNotesPage />} />
         <Route path="appointments" element={<AppointmentsPage />} />
+        <Route path="clinician-settings" element={<ClinicianSettingsPage />} />
         <Route path="telemedicine" element={<TelemedicinePage />} />
         <Route path="telemedicine/room/:roomId" element={<VideoRoom />} />
         {/* Pharmacist Routes */}

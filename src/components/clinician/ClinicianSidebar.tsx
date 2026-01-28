@@ -1,11 +1,9 @@
-import { Users, Pill, Activity, LayoutDashboard, LogOut, Heart, History, Bell, RefreshCw, FileText, CalendarDays, HelpCircle, Settings, Video } from "lucide-react";
+import { Users, Pill, Activity, LayoutDashboard, LogOut, Heart, History, FileText, CalendarDays, HelpCircle, Settings, Video } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { useHasCaregiverRelationships } from "@/hooks/useHasCaregiverRelationships";
-import { useOfflineSync } from "@/hooks/useOfflineSync";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import {
@@ -25,7 +23,6 @@ export function ClinicianSidebar() {
   const { signOut, profile } = useAuth();
   const { t } = useLanguage();
   const { data: hasCaregiverRelationships } = useHasCaregiverRelationships();
-  const { conflictCount } = useOfflineSync();
 
   const baseMenuItems = [
     { title: t.dashboard.overview, url: "/dashboard", icon: LayoutDashboard },
@@ -36,7 +33,7 @@ export function ClinicianSidebar() {
     { title: "Adherence Monitor", url: "/dashboard/adherence", icon: Activity },
     { title: "Appointments", url: "/dashboard/appointments", icon: CalendarDays },
     { title: "SOAP Notes", url: "/dashboard/soap-notes", icon: FileText },
-    { title: t.notifications.title, url: "/dashboard/notifications", icon: Bell },
+    { title: "Settings", url: "/dashboard/clinician-settings", icon: Settings },
   ];
 
   const caregiverMenuItems = [
@@ -88,19 +85,6 @@ export function ClinicianSidebar() {
       </SidebarContent>
 
       <SidebarFooter className="p-4 border-t space-y-2">
-        <NavLink 
-          to="/dashboard/sync-status"
-          className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-muted/50 transition-colors text-sm"
-          activeClassName="bg-primary/10 text-primary font-medium"
-        >
-          <RefreshCw className="h-4 w-4" />
-          <span className="flex-1">Sync Status</span>
-          {conflictCount > 0 && (
-            <Badge variant="destructive" className="h-5 min-w-5 px-1.5 text-xs font-medium">
-              {conflictCount > 99 ? "99+" : conflictCount}
-            </Badge>
-          )}
-        </NavLink>
         <div className="flex items-center gap-3 mb-3">
           <Avatar className="h-8 w-8">
             <AvatarImage src={profile?.avatar_url || undefined} alt={profile?.first_name || "User"} />
