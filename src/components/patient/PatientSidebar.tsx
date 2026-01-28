@@ -17,7 +17,8 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import {
   LayoutDashboard, 
   Pill, 
-  Calendar, 
+  Calendar,
+  CalendarCheck,
   Settings,
   LogOut,
   Bot,
@@ -36,6 +37,7 @@ export function PatientSidebar() {
     { title: t.dashboard.overview, url: "/dashboard", icon: LayoutDashboard },
     { title: t.medications.title, url: "/dashboard/medications", icon: Pill },
     { title: t.schedule.title, url: "/dashboard/schedule", icon: Calendar },
+    { title: "Appointments", url: "/dashboard/appointments", icon: CalendarCheck },
     { title: "Health Hub", url: "/dashboard/health", icon: Heart },
     { title: t.caregivers.title, url: "/dashboard/caregivers", icon: Users },
     { title: t.notifications.title, url: "/dashboard/notifications", icon: Bell },

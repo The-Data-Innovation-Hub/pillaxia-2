@@ -21,6 +21,7 @@ import {
   CaregiverNotificationHistoryPage,
   PatientSettingsPage,
   NotificationsHubPage,
+  AppointmentsCalendarPage,
 } from "@/components/patient";
 import {
   ClinicianLayout,
@@ -107,6 +108,7 @@ function AppRoutes() {
         {/* Patient Routes */}
         <Route path="medications" element={<MedicationsPage />} />
         <Route path="schedule" element={<SchedulePage />} />
+        <Route path="appointments" element={<AppointmentsCalendarPage />} />
         <Route path="health" element={<HealthHubPage />} />
         <Route path="symptoms" element={<Navigate to="/dashboard/health" replace />} />
         <Route path="vitals" element={<Navigate to="/dashboard/health" replace />} />
