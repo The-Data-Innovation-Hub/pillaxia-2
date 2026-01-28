@@ -119,20 +119,20 @@ export function PatientSidebar() {
           )}
         </NavLink>
         <NavLink 
-          to="/dashboard/settings"
-          className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-muted/50 transition-colors text-sm"
-          activeClassName="bg-primary/10 text-primary font-medium"
-        >
-          <Settings className="h-4 w-4" />
-          <span>{t.nav.settings}</span>
-        </NavLink>
-        <NavLink 
           to="/dashboard/help"
           className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-muted/50 transition-colors text-sm"
           activeClassName="bg-primary/10 text-primary font-medium"
         >
           <HelpCircle className="h-4 w-4" />
           <span>Help & Support</span>
+        </NavLink>
+        <NavLink 
+          to="/dashboard/settings"
+          className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-muted/50 transition-colors text-sm"
+          activeClassName="bg-primary/10 text-primary font-medium"
+        >
+          <Settings className="h-4 w-4" />
+          <span>{t.nav.settings}</span>
         </NavLink>
         <Button 
           variant="outline"
