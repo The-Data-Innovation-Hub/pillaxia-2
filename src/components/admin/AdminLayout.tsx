@@ -2,6 +2,7 @@ import { Outlet } from "react-router-dom";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AdminSidebar } from "./AdminSidebar";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { VersionBadge } from "@/components/VersionBadge";
 import pillaxiaLogo from "@/assets/pillaxia-logo.png";
 
 export function AdminLayout() {
@@ -14,6 +15,7 @@ export function AdminLayout() {
             <div className="flex items-center gap-4">
               <SidebarTrigger aria-label="Toggle sidebar" />
               <img src={pillaxiaLogo} alt="Pillaxia" className="h-7" />
+              <VersionBadge />
             </div>
             <ThemeToggle />
           </header>
