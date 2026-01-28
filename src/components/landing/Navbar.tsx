@@ -5,7 +5,6 @@ import { useNavigate } from "react-router-dom";
 import pillaxiaLogo from "@/assets/pillaxia-logo.png";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { useLanguage } from "@/i18n/LanguageContext";
-import { VersionBadge } from "@/components/VersionBadge";
 
 interface NavbarProps {
   onSignupClick?: () => void;
@@ -31,7 +30,6 @@ const Navbar = ({
         {/* Logo */}
         <div className="flex items-center gap-3">
           <img src={pillaxiaLogo} alt="Pillaxia" className="h-8" />
-          <VersionBadge />
         </div>
 
         {/* Desktop Navigation */}

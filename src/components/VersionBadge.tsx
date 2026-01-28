@@ -8,13 +8,25 @@ import {
 import { ChangelogDialog } from "@/components/ChangelogDialog";
 
 interface VersionBadgeProps {
-  variant?: "default" | "minimal" | "detailed" | "full";
+  variant?: "default" | "minimal" | "detailed" | "full" | "hero";
   className?: string;
 }
 
 export function VersionBadge({ variant = "default", className = "" }: VersionBadgeProps) {
   const shortVersion = getVersionDisplay();
   const fullVersion = getFullVersion();
+
+  if (variant === "hero") {
+    return (
+      <ChangelogDialog>
+        <span 
+          className={`inline-flex items-center px-4 py-1.5 rounded-full text-sm font-semibold bg-gradient-to-r from-pillaxia-cyan/20 to-primary/20 text-pillaxia-cyan border border-pillaxia-cyan/30 hover:border-pillaxia-cyan/50 transition-all cursor-pointer shadow-sm ${className}`}
+        >
+          🚀 {shortVersion} — Click to see what's new
+        </span>
+      </ChangelogDialog>
+    );
+  }
   
   if (variant === "minimal") {
     return (
