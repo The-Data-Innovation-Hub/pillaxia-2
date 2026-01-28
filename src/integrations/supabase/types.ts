@@ -62,12 +62,14 @@ export type Database = {
           description: string | null
           duration_minutes: number
           id: string
+          is_video_call: boolean
           location: string | null
           patient_user_id: string
           reminder_sent: boolean
           status: string
           title: string
           updated_at: string
+          video_room_id: string | null
         }
         Insert: {
           appointment_date: string
@@ -77,12 +79,14 @@ export type Database = {
           description?: string | null
           duration_minutes?: number
           id?: string
+          is_video_call?: boolean
           location?: string | null
           patient_user_id: string
           reminder_sent?: boolean
           status?: string
           title: string
           updated_at?: string
+          video_room_id?: string | null
         }
         Update: {
           appointment_date?: string
@@ -92,14 +96,24 @@ export type Database = {
           description?: string | null
           duration_minutes?: number
           id?: string
+          is_video_call?: boolean
           location?: string | null
           patient_user_id?: string
           reminder_sent?: boolean
           status?: string
           title?: string
           updated_at?: string
+          video_room_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "appointments_video_room_id_fkey"
+            columns: ["video_room_id"]
+            isOneToOne: false
+            referencedRelation: "video_rooms"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       audit_log: {
         Row: {
@@ -1566,6 +1580,56 @@ export type Database = {
         }
         Relationships: []
       }
+      post_call_summaries: {
+        Row: {
+          clinician_user_id: string
+          created_at: string
+          follow_up_date: string | null
+          id: string
+          patient_user_id: string
+          prescriptions_written: Json | null
+          recommendations: string | null
+          room_id: string
+          sent_at: string | null
+          sent_to_patient: boolean
+          summary: string
+        }
+        Insert: {
+          clinician_user_id: string
+          created_at?: string
+          follow_up_date?: string | null
+          id?: string
+          patient_user_id: string
+          prescriptions_written?: Json | null
+          recommendations?: string | null
+          room_id: string
+          sent_at?: string | null
+          sent_to_patient?: boolean
+          summary: string
+        }
+        Update: {
+          clinician_user_id?: string
+          created_at?: string
+          follow_up_date?: string | null
+          id?: string
+          patient_user_id?: string
+          prescriptions_written?: Json | null
+          recommendations?: string | null
+          room_id?: string
+          sent_at?: string | null
+          sent_to_patient?: boolean
+          summary?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "post_call_summaries_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "video_rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       prescription_status_history: {
         Row: {
           changed_by: string
@@ -2207,6 +2271,224 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      video_call_notes: {
+        Row: {
+          assessment: string | null
+          clinician_user_id: string
+          created_at: string
+          id: string
+          is_draft: boolean
+          objective: string | null
+          patient_user_id: string
+          plan: string | null
+          room_id: string
+          subjective: string | null
+          updated_at: string
+        }
+        Insert: {
+          assessment?: string | null
+          clinician_user_id: string
+          created_at?: string
+          id?: string
+          is_draft?: boolean
+          objective?: string | null
+          patient_user_id: string
+          plan?: string | null
+          room_id: string
+          subjective?: string | null
+          updated_at?: string
+        }
+        Update: {
+          assessment?: string | null
+          clinician_user_id?: string
+          created_at?: string
+          id?: string
+          is_draft?: boolean
+          objective?: string | null
+          patient_user_id?: string
+          plan?: string | null
+          room_id?: string
+          subjective?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "video_call_notes_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "video_rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      video_room_participants: {
+        Row: {
+          admitted_at: string | null
+          admitted_by: string | null
+          connection_quality: string | null
+          created_at: string
+          id: string
+          is_in_waiting_room: boolean
+          joined_at: string | null
+          left_at: string | null
+          participant_type: string
+          room_id: string
+          user_id: string
+        }
+        Insert: {
+          admitted_at?: string | null
+          admitted_by?: string | null
+          connection_quality?: string | null
+          created_at?: string
+          id?: string
+          is_in_waiting_room?: boolean
+          joined_at?: string | null
+          left_at?: string | null
+          participant_type?: string
+          room_id: string
+          user_id: string
+        }
+        Update: {
+          admitted_at?: string | null
+          admitted_by?: string | null
+          connection_quality?: string | null
+          created_at?: string
+          id?: string
+          is_in_waiting_room?: boolean
+          joined_at?: string | null
+          left_at?: string | null
+          participant_type?: string
+          room_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "video_room_participants_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "video_rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      video_rooms: {
+        Row: {
+          actual_end: string | null
+          actual_start: string | null
+          appointment_id: string | null
+          clinician_user_id: string
+          created_at: string
+          id: string
+          is_group_call: boolean
+          patient_user_id: string
+          recording_enabled: boolean
+          recording_sid: string | null
+          recording_url: string | null
+          room_name: string
+          room_sid: string | null
+          scheduled_start: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          actual_end?: string | null
+          actual_start?: string | null
+          appointment_id?: string | null
+          clinician_user_id: string
+          created_at?: string
+          id?: string
+          is_group_call?: boolean
+          patient_user_id: string
+          recording_enabled?: boolean
+          recording_sid?: string | null
+          recording_url?: string | null
+          room_name: string
+          room_sid?: string | null
+          scheduled_start: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          actual_end?: string | null
+          actual_start?: string | null
+          appointment_id?: string | null
+          clinician_user_id?: string
+          created_at?: string
+          id?: string
+          is_group_call?: boolean
+          patient_user_id?: string
+          recording_enabled?: boolean
+          recording_sid?: string | null
+          recording_url?: string | null
+          room_name?: string
+          room_sid?: string | null
+          scheduled_start?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "video_rooms_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "appointments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      waiting_room_queue: {
+        Row: {
+          called_at: string | null
+          clinician_user_id: string
+          created_at: string
+          entered_at: string
+          estimated_wait_minutes: number | null
+          id: string
+          patient_user_id: string
+          priority: string
+          queue_position: number
+          reason_for_visit: string | null
+          room_id: string | null
+          status: string
+        }
+        Insert: {
+          called_at?: string | null
+          clinician_user_id: string
+          created_at?: string
+          entered_at?: string
+          estimated_wait_minutes?: number | null
+          id?: string
+          patient_user_id: string
+          priority?: string
+          queue_position?: number
+          reason_for_visit?: string | null
+          room_id?: string | null
+          status?: string
+        }
+        Update: {
+          called_at?: string | null
+          clinician_user_id?: string
+          created_at?: string
+          entered_at?: string
+          estimated_wait_minutes?: number | null
+          id?: string
+          patient_user_id?: string
+          priority?: string
+          queue_position?: number
+          reason_for_visit?: string | null
+          room_id?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waiting_room_queue_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "video_rooms"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
