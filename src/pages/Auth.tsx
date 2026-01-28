@@ -7,10 +7,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
 import { z } from "zod";
-import { Loader2, User, Stethoscope, Pill, Shield, Home, ShieldCheck, Key, Fingerprint } from "lucide-react";
+import { Loader2, User, Stethoscope, Pill, Shield, Home, ShieldCheck, Key, Fingerprint, AlertTriangle } from "lucide-react";
 import { useBiometricAuth } from "@/hooks/useBiometricAuth";
+import { useLoginAttempts } from "@/hooks/useLoginAttempts";
+import { useSecurityEvents } from "@/hooks/useSecurityEvents";
 
 type AppRole = "patient" | "clinician" | "pharmacist" | "admin";
 
@@ -31,6 +34,8 @@ const Auth = () => {
   const navigate = useNavigate();
   const { user, loading: authLoading, signIn, signUp } = useAuth();
   const { isAvailable, isEnabled, biometryName, getCredentials, isLoading: biometricLoading } = useBiometricAuth();
+  const { checkAccountLocked, recordLoginAttempt, formatLockoutMessage } = useLoginAttempts();
+  const { logSecurityEvent } = useSecurityEvents();
   
   const [isLogin, setIsLogin] = useState(true);
   const [loading, setLoading] = useState(false);
@@ -41,6 +46,7 @@ const Auth = () => {
   const [lastName, setLastName] = useState("");
   const [selectedRole, setSelectedRole] = useState<AppRole>("patient");
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [lockoutMessage, setLockoutMessage] = useState<string>("");
 
   // MFA state
   const [showMfaChallenge, setShowMfaChallenge] = useState(false);
@@ -145,17 +151,62 @@ const Auth = () => {
     if (!validateForm()) return;
 
     setLoading(true);
+    setLockoutMessage("");
 
     try {
       if (isLogin) {
+        // Check if account is locked before attempting login
+        const lockoutStatus = await checkAccountLocked(email);
+        if (lockoutStatus.locked) {
+          setLockoutMessage(formatLockoutMessage(lockoutStatus));
+          setLoading(false);
+          return;
+        }
+
         const { error } = await signIn(email, password);
         if (error) {
-          if (error.message.includes("Invalid login credentials")) {
-            toast.error("Invalid email or password");
+          // Record failed login attempt
+          const attemptResult = await recordLoginAttempt(email, false);
+          
+          if (attemptResult.locked) {
+            setLockoutMessage(formatLockoutMessage({
+              locked: true,
+              minutes_remaining: 30,
+            }));
+            
+            // Log security event for account lockout
+            logSecurityEvent({
+              eventType: "account_locked",
+              category: "authentication",
+              severity: "critical",
+              description: `Account locked after ${attemptResult.failed_attempts} failed login attempts`,
+              metadata: { email, failed_attempts: attemptResult.failed_attempts },
+            });
+            
+            toast.error("Account locked due to too many failed attempts");
+          } else if (attemptResult.remaining_attempts !== undefined) {
+            const remaining = attemptResult.remaining_attempts;
+            if (remaining <= 2) {
+              toast.error(`Invalid credentials. ${remaining} attempt${remaining === 1 ? '' : 's'} remaining before lockout.`);
+            } else {
+              toast.error("Invalid email or password");
+            }
+            
+            // Log failed login attempt
+            logSecurityEvent({
+              eventType: "login_failure",
+              category: "authentication",
+              severity: remaining <= 2 ? "warning" : "info",
+              description: "Failed login attempt",
+              metadata: { email, remaining_attempts: remaining },
+            });
           } else {
             toast.error(error.message);
           }
         } else {
+          // Record successful login
+          await recordLoginAttempt(email, true);
+          
           // Check if MFA is required
           const { data: factorsData } = await supabase.auth.mfa.listFactors();
           const verifiedFactors = factorsData?.totp?.filter(f => f.status === "verified") || [];
@@ -513,6 +564,12 @@ const Auth = () => {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
+              {lockoutMessage && (
+                <Alert variant="destructive">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertDescription>{lockoutMessage}</AlertDescription>
+                </Alert>
+              )}
               {!isLogin && (
                 <>
                   <div className="grid grid-cols-2 gap-4">
@@ -594,7 +651,7 @@ const Auth = () => {
               <Button
                 type="submit"
                 className="w-full bg-primary hover:bg-pillaxia-navy-dark"
-                disabled={loading}
+                disabled={loading || !!lockoutMessage}
               >
                 {loading ? (
                   <>

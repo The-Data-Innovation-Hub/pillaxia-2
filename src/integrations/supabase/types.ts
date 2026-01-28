@@ -14,6 +14,45 @@ export type Database = {
   }
   public: {
     Tables: {
+      account_lockouts: {
+        Row: {
+          created_at: string
+          email: string
+          failed_attempts: number
+          id: string
+          locked_at: string
+          locked_until: string
+          unlock_token: string | null
+          unlocked_at: string | null
+          unlocked_by: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          failed_attempts?: number
+          id?: string
+          locked_at?: string
+          locked_until: string
+          unlock_token?: string | null
+          unlocked_at?: string | null
+          unlocked_by?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          failed_attempts?: number
+          id?: string
+          locked_at?: string
+          locked_until?: string
+          unlock_token?: string | null
+          unlocked_at?: string | null
+          unlocked_by?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       appointments: {
         Row: {
           appointment_date: string
@@ -743,6 +782,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      login_attempts: {
+        Row: {
+          created_at: string
+          email: string
+          id: string
+          ip_address: string | null
+          success: boolean
+          user_agent: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          id?: string
+          ip_address?: string | null
+          success?: boolean
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: string
+          ip_address?: string | null
+          success?: boolean
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
       }
       medication_availability: {
         Row: {
@@ -1945,6 +2014,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      check_account_locked: { Args: { p_email: string }; Returns: Json }
       check_session_limits: { Args: { p_user_id: string }; Returns: boolean }
       get_user_roles: {
         Args: { _user_id: string }
@@ -1994,6 +2064,16 @@ export type Database = {
         }
         Returns: string
       }
+      record_login_attempt: {
+        Args: {
+          p_email: string
+          p_ip_address?: string
+          p_success: boolean
+          p_user_agent?: string
+        }
+        Returns: Json
+      }
+      unlock_account: { Args: { p_email: string }; Returns: boolean }
     }
     Enums: {
       app_role: "patient" | "clinician" | "pharmacist" | "admin"

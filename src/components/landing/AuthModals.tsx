@@ -14,7 +14,10 @@ import { Card } from "@/components/ui/card";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { z } from "zod";
-import { Loader2 } from "lucide-react";
+import { Loader2, AlertTriangle } from "lucide-react";
+import { useLoginAttempts } from "@/hooks/useLoginAttempts";
+import { useSecurityEvents } from "@/hooks/useSecurityEvents";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface AuthModalsProps {
   isOpen?: boolean;
@@ -38,14 +41,19 @@ const AuthModals = ({
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [lockoutMessage, setLockoutMessage] = useState<string>("");
 
   // Signup form state
   const [name, setName] = useState("");
   const [signupEmail, setSignupEmail] = useState("");
   const [organization, setOrganization] = useState("");
 
+  const { checkAccountLocked, recordLoginAttempt, formatLockoutMessage } = useLoginAttempts();
+  const { logSecurityEvent } = useSecurityEvents();
+
   useEffect(() => {
     setView(defaultView);
+    setLockoutMessage("");
   }, [defaultView]);
 
   const validateLogin = () => {
@@ -77,20 +85,65 @@ const AuthModals = ({
     if (!validateLogin()) return;
     
     setLoading(true);
+    setLockoutMessage("");
 
     try {
+      // Check if account is locked before attempting login
+      const lockoutStatus = await checkAccountLocked(email);
+      if (lockoutStatus.locked) {
+        setLockoutMessage(formatLockoutMessage(lockoutStatus));
+        setLoading(false);
+        return;
+      }
+
       const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
       if (error) {
-        if (error.message.includes("Invalid login credentials")) {
-          toast.error("Invalid email or password");
+        // Record failed login attempt
+        const attemptResult = await recordLoginAttempt(email, false);
+        
+        if (attemptResult.locked) {
+          setLockoutMessage(formatLockoutMessage({
+            locked: true,
+            minutes_remaining: 30,
+          }));
+          
+          // Log security event for account lockout
+          logSecurityEvent({
+            eventType: "account_locked",
+            category: "authentication",
+            severity: "critical",
+            description: `Account locked after ${attemptResult.failed_attempts} failed login attempts`,
+            metadata: { email, failed_attempts: attemptResult.failed_attempts },
+          });
+          
+          toast.error("Account locked due to too many failed attempts");
+        } else if (attemptResult.remaining_attempts !== undefined) {
+          const remaining = attemptResult.remaining_attempts;
+          if (remaining <= 2) {
+            toast.error(`Invalid credentials. ${remaining} attempt${remaining === 1 ? '' : 's'} remaining before lockout.`);
+          } else {
+            toast.error("Invalid email or password");
+          }
+          
+          // Log failed login attempt
+          logSecurityEvent({
+            eventType: "login_failure",
+            category: "authentication",
+            severity: remaining <= 2 ? "warning" : "info",
+            description: "Failed login attempt",
+            metadata: { email, remaining_attempts: remaining },
+          });
         } else {
           toast.error(error.message);
         }
       } else {
+        // Record successful login
+        await recordLoginAttempt(email, true);
+        
         toast.success("Welcome back!");
         if (onOpenChange) onOpenChange(false);
         navigate("/dashboard");
@@ -149,6 +202,13 @@ const AuthModals = ({
           {view === "login" ? (
             <>
               <form onSubmit={handleLogin} className="space-y-4 mt-4">
+                {lockoutMessage && (
+                  <Alert variant="destructive">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertDescription>{lockoutMessage}</AlertDescription>
+                  </Alert>
+                )}
+                
                 {errors.form && (
                   <p className="text-destructive text-sm text-center">{errors.form}</p>
                 )}
@@ -185,7 +245,7 @@ const AuthModals = ({
                 
                 <Button
                   type="submit"
-                  disabled={loading}
+                  disabled={loading || !!lockoutMessage}
                   className="w-full bg-primary hover:bg-pillaxia-navy-dark"
                 >
                   {loading ? (
