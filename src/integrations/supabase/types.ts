@@ -3099,7 +3099,15 @@ export type Database = {
         Returns: boolean
       }
       is_manager: { Args: { _user_id: string }; Returns: boolean }
+      is_manager_for_org: {
+        Args: { p_org_id: string; p_user_id: string }
+        Returns: boolean
+      }
       is_org_admin: { Args: { p_user_id: string }; Returns: boolean }
+      is_org_admin_for: {
+        Args: { p_org_id: string; p_user_id: string }
+        Returns: boolean
+      }
       is_org_manager: {
         Args: { _org_id: string; _user_id: string }
         Returns: boolean
@@ -3166,6 +3174,10 @@ export type Database = {
         Returns: string
       }
       unlock_account: { Args: { p_email: string }; Returns: boolean }
+      user_belongs_to_org: {
+        Args: { p_org_id: string; p_user_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
       app_role: "patient" | "clinician" | "pharmacist" | "admin" | "manager"
