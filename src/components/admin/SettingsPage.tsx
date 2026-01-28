@@ -78,8 +78,14 @@ export function SettingsPage() {
   const [testingPush, setTestingPush] = useState(false);
   const [pushTestUserId, setPushTestUserId] = useState("");
   const [onboardingEnabled, setOnboardingEnabled] = useState(true);
+  const [shouldThrowError, setShouldThrowError] = useState(false);
   const queryClient = useQueryClient();
   const { user, isManager, isAdmin } = useAuth();
+
+  // This will trigger during render and be caught by error boundary
+  if (shouldThrowError) {
+    throw new Error("This is your first Sentry test error!");
+  }
 
   // Load onboarding preference
   useEffect(() => {
@@ -656,9 +662,7 @@ export function SettingsPage() {
                 <Button
                   variant="destructive"
                   size="sm"
-                  onClick={() => {
-                    throw new Error("This is your first Sentry test error!");
-                  }}
+                  onClick={() => setShouldThrowError(true)}
                 >
                   <Bug className="h-4 w-4 mr-2" />
                   Break the World
