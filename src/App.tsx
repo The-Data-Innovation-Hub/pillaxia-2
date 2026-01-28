@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { OrganizationProvider } from "@/contexts/OrganizationContext";
 import { LanguageProvider } from "@/i18n/LanguageContext";
 import { OfflineBanner } from "@/components/OfflineBanner";
 import { ThemeProvider } from "next-themes";
@@ -58,6 +59,7 @@ import {
   PatientEngagementPage,
   LicenseCompliancePage,
   SecurityPage,
+  OrganizationManagementPage,
 } from "@/components/admin";
 import { HelpPage } from "@/components/shared";
 import { SessionTimeoutWarning } from "@/components/SessionTimeoutWarning";
@@ -75,11 +77,13 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <AuthProvider>
-            <LanguageProvider>
-              <OfflineBanner />
-              <SessionTimeoutWarning />
-              <AppRoutes />
-            </LanguageProvider>
+            <OrganizationProvider>
+              <LanguageProvider>
+                <OfflineBanner />
+                <SessionTimeoutWarning />
+                <AppRoutes />
+              </LanguageProvider>
+            </OrganizationProvider>
           </AuthProvider>
         </BrowserRouter>
       </TooltipProvider>
@@ -145,6 +149,7 @@ function AppRoutes() {
         <Route path="ab-testing" element={<ABTestingPage />} />
         <Route path="patient-engagement" element={<PatientEngagementPage />} />
         <Route path="security" element={<SecurityPage />} />
+        <Route path="organization" element={<OrganizationManagementPage />} />
         {/* Shared Routes */}
         <Route path="settings" element={<PatientSettingsPage />} />
         <Route path="sync-status" element={<Navigate to="/dashboard/notifications" replace />} />

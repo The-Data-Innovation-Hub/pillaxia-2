@@ -1344,6 +1344,181 @@ export type Database = {
         }
         Relationships: []
       }
+      organization_branding: {
+        Row: {
+          accent_color: string | null
+          app_name: string
+          border_radius: string | null
+          created_at: string
+          email_footer_text: string | null
+          email_header_color: string | null
+          favicon_url: string | null
+          font_family: string | null
+          id: string
+          logo_dark_url: string | null
+          logo_url: string | null
+          organization_id: string
+          primary_color: string | null
+          privacy_url: string | null
+          secondary_color: string | null
+          support_email: string | null
+          support_phone: string | null
+          terms_url: string | null
+          updated_at: string
+        }
+        Insert: {
+          accent_color?: string | null
+          app_name?: string
+          border_radius?: string | null
+          created_at?: string
+          email_footer_text?: string | null
+          email_header_color?: string | null
+          favicon_url?: string | null
+          font_family?: string | null
+          id?: string
+          logo_dark_url?: string | null
+          logo_url?: string | null
+          organization_id: string
+          primary_color?: string | null
+          privacy_url?: string | null
+          secondary_color?: string | null
+          support_email?: string | null
+          support_phone?: string | null
+          terms_url?: string | null
+          updated_at?: string
+        }
+        Update: {
+          accent_color?: string | null
+          app_name?: string
+          border_radius?: string | null
+          created_at?: string
+          email_footer_text?: string | null
+          email_header_color?: string | null
+          favicon_url?: string | null
+          font_family?: string | null
+          id?: string
+          logo_dark_url?: string | null
+          logo_url?: string | null
+          organization_id?: string
+          primary_color?: string | null
+          privacy_url?: string | null
+          secondary_color?: string | null
+          support_email?: string | null
+          support_phone?: string | null
+          terms_url?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organization_branding_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      organization_members: {
+        Row: {
+          created_at: string
+          id: string
+          invited_at: string | null
+          invited_by: string | null
+          is_active: boolean
+          joined_at: string | null
+          org_role: Database["public"]["Enums"]["organization_role"]
+          organization_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          invited_at?: string | null
+          invited_by?: string | null
+          is_active?: boolean
+          joined_at?: string | null
+          org_role?: Database["public"]["Enums"]["organization_role"]
+          organization_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          invited_at?: string | null
+          invited_by?: string | null
+          is_active?: boolean
+          joined_at?: string | null
+          org_role?: Database["public"]["Enums"]["organization_role"]
+          organization_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organization_members_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      organizations: {
+        Row: {
+          address: string | null
+          city: string | null
+          contact_email: string | null
+          contact_phone: string | null
+          country: string | null
+          created_at: string
+          description: string | null
+          id: string
+          license_type: string | null
+          max_users: number | null
+          name: string
+          slug: string
+          state: string | null
+          status: Database["public"]["Enums"]["organization_status"]
+          updated_at: string
+        }
+        Insert: {
+          address?: string | null
+          city?: string | null
+          contact_email?: string | null
+          contact_phone?: string | null
+          country?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          license_type?: string | null
+          max_users?: number | null
+          name: string
+          slug: string
+          state?: string | null
+          status?: Database["public"]["Enums"]["organization_status"]
+          updated_at?: string
+        }
+        Update: {
+          address?: string | null
+          city?: string | null
+          contact_email?: string | null
+          contact_phone?: string | null
+          country?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          license_type?: string | null
+          max_users?: number | null
+          name?: string
+          slug?: string
+          state?: string | null
+          status?: Database["public"]["Enums"]["organization_status"]
+          updated_at?: string
+        }
+        Relationships: []
+      }
       patient_activity_log: {
         Row: {
           activity_data: Json | null
@@ -2011,6 +2186,7 @@ export type Database = {
           license_expiration_date: string | null
           license_number: string | null
           organization: string | null
+          organization_id: string | null
           phone: string | null
           postal_code: string | null
           state: string | null
@@ -2034,6 +2210,7 @@ export type Database = {
           license_expiration_date?: string | null
           license_number?: string | null
           organization?: string | null
+          organization_id?: string | null
           phone?: string | null
           postal_code?: string | null
           state?: string | null
@@ -2057,6 +2234,7 @@ export type Database = {
           license_expiration_date?: string | null
           license_number?: string | null
           organization?: string | null
+          organization_id?: string | null
           phone?: string | null
           postal_code?: string | null
           state?: string | null
@@ -2064,7 +2242,15 @@ export type Database = {
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "profiles_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       push_subscriptions: {
         Row: {
@@ -2872,12 +3058,24 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      can_access_organization: {
+        Args: { p_org_id: string; p_user_id: string }
+        Returns: boolean
+      }
       check_account_locked: { Args: { p_email: string }; Returns: Json }
       check_session_limits: { Args: { p_user_id: string }; Returns: boolean }
       generate_prescription_number: { Args: never; Returns: string }
+      get_user_organization_id: { Args: { p_user_id: string }; Returns: string }
       get_user_roles: {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["app_role"][]
+      }
+      has_org_role: {
+        Args: {
+          p_role: Database["public"]["Enums"]["organization_role"]
+          p_user_id: string
+        }
+        Returns: boolean
       }
       has_role: {
         Args: {
@@ -2900,8 +3098,13 @@ export type Database = {
         Args: { p_device_token_hash: string; p_user_id: string }
         Returns: boolean
       }
+      is_org_admin: { Args: { p_user_id: string }; Returns: boolean }
       is_patient: { Args: { _user_id: string }; Returns: boolean }
       is_pharmacist: { Args: { _user_id: string }; Returns: boolean }
+      is_same_organization: {
+        Args: { p_user_id_a: string; p_user_id_b: string }
+        Returns: boolean
+      }
       log_data_access: {
         Args: {
           p_access_type: string
@@ -2958,6 +3161,8 @@ export type Database = {
     Enums: {
       app_role: "patient" | "clinician" | "pharmacist" | "admin"
       drug_schedule: "II" | "III" | "IV" | "V"
+      organization_role: "owner" | "admin" | "member"
+      organization_status: "active" | "suspended" | "trial" | "cancelled"
       security_event_type:
         | "login_success"
         | "login_failure"
@@ -3104,6 +3309,8 @@ export const Constants = {
     Enums: {
       app_role: ["patient", "clinician", "pharmacist", "admin"],
       drug_schedule: ["II", "III", "IV", "V"],
+      organization_role: ["owner", "admin", "member"],
+      organization_status: ["active", "suspended", "trial", "cancelled"],
       security_event_type: [
         "login_success",
         "login_failure",
