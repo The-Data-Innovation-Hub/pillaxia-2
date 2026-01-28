@@ -24,7 +24,7 @@ const HeroSection = ({ onGetStarted }: HeroSectionProps) => {
               transition={{ duration: 0.5 }}
               className="mb-4"
             >
-              <VersionBadge />
+              <VersionBadge variant="hero" />
             </motion.div>
             
             <motion.p
