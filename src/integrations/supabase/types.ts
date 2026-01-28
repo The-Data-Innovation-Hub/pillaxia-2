@@ -196,6 +196,7 @@ export type Database = {
       caregiver_invitations: {
         Row: {
           caregiver_email: string
+          caregiver_name: string | null
           caregiver_user_id: string | null
           created_at: string
           id: string
@@ -206,6 +207,7 @@ export type Database = {
         }
         Insert: {
           caregiver_email: string
+          caregiver_name?: string | null
           caregiver_user_id?: string | null
           created_at?: string
           id?: string
@@ -216,6 +218,7 @@ export type Database = {
         }
         Update: {
           caregiver_email?: string
+          caregiver_name?: string | null
           caregiver_user_id?: string | null
           created_at?: string
           id?: string
