@@ -1,16 +1,25 @@
 import * as Sentry from "@sentry/react";
+import { forwardRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { AlertTriangle, RefreshCw, Home } from "lucide-react";
 
-interface FallbackProps {
-  error: Error;
+type FallbackProps = {
+  error: unknown;
   resetError: () => void;
-}
+  eventId?: string;
+  componentStack?: string;
+};
 
-function ErrorFallback({ error, resetError }: FallbackProps) {
+const ErrorFallback = forwardRef<HTMLDivElement, FallbackProps>(function ErrorFallback(
+  { error, resetError, eventId }: FallbackProps,
+  ref
+) {
+  const safeError = error instanceof Error ? error : new Error(String(error));
+  const dsnConfigured = Boolean(import.meta.env.VITE_SENTRY_DSN);
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+    <div ref={ref} className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="max-w-md w-full">
         <CardHeader className="text-center">
           <div className="mx-auto mb-4 w-12 h-12 rounded-full bg-destructive/10 flex items-center justify-center">
@@ -25,7 +34,7 @@ function ErrorFallback({ error, resetError }: FallbackProps) {
           {import.meta.env.DEV && (
             <div className="bg-muted p-3 rounded-md overflow-auto max-h-32">
               <code className="text-xs text-muted-foreground">
-                {error.message}
+                {safeError.message}
               </code>
             </div>
           )}
@@ -46,13 +55,15 @@ function ErrorFallback({ error, resetError }: FallbackProps) {
           </div>
           
           <p className="text-xs text-center text-muted-foreground">
-            Error ID: {Sentry.lastEventId() || "Unknown"}
+            {dsnConfigured
+              ? `Error ID: ${eventId || "Unknown"}`
+              : "Sentry DSN not configured (no Error ID)"}
           </p>
         </CardContent>
       </Card>
     </div>
   );
-}
+});
 
 interface SentryErrorBoundaryProps {
   children: React.ReactNode;
@@ -60,11 +71,13 @@ interface SentryErrorBoundaryProps {
 
 export function SentryErrorBoundary({ children }: SentryErrorBoundaryProps) {
   return (
-    <Sentry.ErrorBoundary 
-      fallback={({ error, resetError }) => (
-        <ErrorFallback 
-          error={error instanceof Error ? error : new Error(String(error))} 
-          resetError={resetError} 
+    <Sentry.ErrorBoundary
+      fallback={({ error, resetError, eventId, componentStack }) => (
+        <ErrorFallback
+          error={error}
+          resetError={resetError}
+          eventId={eventId}
+          componentStack={componentStack}
         />
       )}
       showDialog
