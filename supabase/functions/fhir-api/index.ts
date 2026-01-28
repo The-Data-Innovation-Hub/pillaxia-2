@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -27,30 +27,128 @@ interface FHIRResource {
   [key: string]: unknown;
 }
 
+// Authorization context
+interface AuthContext {
+  userId: string;
+  roles: string[];
+  isAdmin: boolean;
+  isClinician: boolean;
+  isPharmacist: boolean;
+  isPatient: boolean;
+}
+
+// Helper function to check if user can access patient data
+async function canAccessPatientData(
+  supabase: SupabaseClient,
+  authContext: AuthContext,
+  patientId: string
+): Promise<boolean> {
+  // Admins can access all patient data
+  if (authContext.isAdmin) {
+    return true;
+  }
+
+  // Patients can only access their own data
+  if (authContext.isPatient && authContext.userId === patientId) {
+    return true;
+  }
+
+  // Clinicians can access data for patients they are assigned to
+  if (authContext.isClinician) {
+    const { data: assignment, error } = await supabase
+      .from("clinician_patient_assignments")
+      .select("id")
+      .eq("clinician_user_id", authContext.userId)
+      .eq("patient_user_id", patientId)
+      .maybeSingle();
+    
+    if (!error && assignment) {
+      return true;
+    }
+  }
+
+  // Check if user is an accepted caregiver for this patient
+  const { data: caregiverRelation, error: caregiverError } = await supabase
+    .from("caregiver_invitations")
+    .select("id")
+    .eq("caregiver_user_id", authContext.userId)
+    .eq("patient_user_id", patientId)
+    .eq("status", "accepted")
+    .maybeSingle();
+
+  if (!caregiverError && caregiverRelation) {
+    return true;
+  }
+
+  return false;
+}
+
+// Helper function to get authorized patient IDs for current user
+async function getAuthorizedPatientIds(
+  supabase: SupabaseClient,
+  authContext: AuthContext
+): Promise<string[]> {
+  const patientIds: string[] = [];
+
+  // Patients can access their own data
+  if (authContext.isPatient) {
+    patientIds.push(authContext.userId);
+  }
+
+  // Clinicians can access their assigned patients
+  if (authContext.isClinician) {
+    const { data: assignments } = await supabase
+      .from("clinician_patient_assignments")
+      .select("patient_user_id")
+      .eq("clinician_user_id", authContext.userId);
+    
+    if (assignments && Array.isArray(assignments)) {
+      for (const a of assignments) {
+        if (a.patient_user_id) patientIds.push(a.patient_user_id);
+      }
+    }
+  }
+
+  // Caregivers can access their patients' data
+  const { data: caregiverRelations } = await supabase
+    .from("caregiver_invitations")
+    .select("patient_user_id")
+    .eq("caregiver_user_id", authContext.userId)
+    .eq("status", "accepted");
+
+  if (caregiverRelations && Array.isArray(caregiverRelations)) {
+    for (const r of caregiverRelations) {
+      if (r.patient_user_id) patientIds.push(r.patient_user_id);
+    }
+  }
+
+  return [...new Set(patientIds)]; // Remove duplicates
+}
+
 // Convert internal medication to FHIR MedicationRequest
-function toFHIRMedicationRequest(prescription: any): FHIRResource {
+function toFHIRMedicationRequest(prescription: Record<string, unknown>): FHIRResource {
   return {
     resourceType: "MedicationRequest",
-    id: prescription.id,
+    id: prescription.id as string,
     meta: {
-      lastUpdated: prescription.updated_at,
+      lastUpdated: prescription.updated_at as string,
     },
     identifier: [
       {
         system: "urn:pillaxia:prescription",
-        value: prescription.prescription_number,
+        value: prescription.prescription_number as string,
       },
     ],
-    status: mapPrescriptionStatus(prescription.status),
+    status: mapPrescriptionStatus(prescription.status as string),
     intent: "order",
     medicationCodeableConcept: {
       coding: [
         {
           system: "http://www.nlm.nih.gov/research/umls/rxnorm",
-          display: prescription.medication_name,
+          display: prescription.medication_name as string,
         },
       ],
-      text: prescription.medication_name,
+      text: prescription.medication_name as string,
     },
     subject: {
       reference: `Patient/${prescription.patient_user_id}`,
@@ -58,15 +156,15 @@ function toFHIRMedicationRequest(prescription: any): FHIRResource {
     requester: {
       reference: `Practitioner/${prescription.clinician_user_id}`,
     },
-    authoredOn: prescription.date_written,
+    authoredOn: prescription.date_written as string,
     dosageInstruction: [
       {
-        text: prescription.sig,
+        text: prescription.sig as string,
         doseAndRate: [
           {
             doseQuantity: {
-              value: parseFloat(prescription.dosage) || 0,
-              unit: prescription.dosage_unit,
+              value: parseFloat(prescription.dosage as string) || 0,
+              unit: prescription.dosage_unit as string,
             },
           },
         ],
@@ -74,10 +172,10 @@ function toFHIRMedicationRequest(prescription: any): FHIRResource {
     ],
     dispenseRequest: {
       quantity: {
-        value: prescription.quantity,
-        unit: prescription.form,
+        value: prescription.quantity as number,
+        unit: prescription.form as string,
       },
-      numberOfRepeatsAllowed: prescription.refills_authorized,
+      numberOfRepeatsAllowed: prescription.refills_authorized as number,
     },
     substitution: {
       allowedBoolean: !prescription.dispense_as_written,
@@ -86,43 +184,43 @@ function toFHIRMedicationRequest(prescription: any): FHIRResource {
 }
 
 // Convert internal patient profile to FHIR Patient
-function toFHIRPatient(profile: any): FHIRResource {
+function toFHIRPatient(profile: Record<string, unknown>): FHIRResource {
   return {
     resourceType: "Patient",
-    id: profile.user_id,
+    id: profile.user_id as string,
     meta: {
-      lastUpdated: profile.updated_at,
+      lastUpdated: profile.updated_at as string,
     },
     identifier: [
       {
         system: "urn:pillaxia:user",
-        value: profile.user_id,
+        value: profile.user_id as string,
       },
     ],
     name: [
       {
         use: "official",
-        family: profile.last_name || "",
-        given: profile.first_name ? [profile.first_name] : [],
+        family: (profile.last_name as string) || "",
+        given: profile.first_name ? [profile.first_name as string] : [],
       },
     ],
     telecom: [
       ...(profile.email
-        ? [{ system: "email", value: profile.email, use: "home" }]
+        ? [{ system: "email", value: profile.email as string, use: "home" }]
         : []),
       ...(profile.phone
-        ? [{ system: "phone", value: profile.phone, use: "mobile" }]
+        ? [{ system: "phone", value: profile.phone as string, use: "mobile" }]
         : []),
     ],
     address: profile.address_line1
       ? [
           {
             use: "home",
-            line: [profile.address_line1, profile.address_line2].filter(Boolean),
-            city: profile.city,
-            state: profile.state,
-            postalCode: profile.postal_code,
-            country: profile.country,
+            line: [profile.address_line1, profile.address_line2].filter(Boolean) as string[],
+            city: profile.city as string,
+            state: profile.state as string,
+            postalCode: profile.postal_code as string,
+            country: profile.country as string,
           },
         ]
       : [],
@@ -130,32 +228,32 @@ function toFHIRPatient(profile: any): FHIRResource {
 }
 
 // Convert internal medication log to FHIR MedicationAdministration
-function toFHIRMedicationAdministration(log: any, medication: any): FHIRResource {
+function toFHIRMedicationAdministration(log: Record<string, unknown>, medication: Record<string, unknown> | null): FHIRResource {
   return {
     resourceType: "MedicationAdministration",
-    id: log.id,
+    id: log.id as string,
     meta: {
-      lastUpdated: log.created_at,
+      lastUpdated: log.created_at as string,
     },
     status: log.status === "taken" ? "completed" : log.status === "missed" ? "not-done" : "in-progress",
     medicationCodeableConcept: {
-      text: medication?.name || "Unknown",
+      text: (medication?.name as string) || "Unknown",
     },
     subject: {
       reference: `Patient/${log.user_id}`,
     },
-    effectiveDateTime: log.taken_at || log.scheduled_time,
-    note: log.notes ? [{ text: log.notes }] : undefined,
+    effectiveDateTime: (log.taken_at || log.scheduled_time) as string,
+    note: log.notes ? [{ text: log.notes as string }] : undefined,
   };
 }
 
 // Convert allergy to FHIR AllergyIntolerance
-function toFHIRAllergyIntolerance(allergy: any): FHIRResource {
+function toFHIRAllergyIntolerance(allergy: Record<string, unknown>): FHIRResource {
   return {
     resourceType: "AllergyIntolerance",
-    id: allergy.id,
+    id: allergy.id as string,
     meta: {
-      lastUpdated: allergy.updated_at,
+      lastUpdated: allergy.updated_at as string,
     },
     clinicalStatus: {
       coding: [
@@ -168,7 +266,7 @@ function toFHIRAllergyIntolerance(allergy: any): FHIRResource {
     type: allergy.is_drug_allergy ? "allergy" : "intolerance",
     category: allergy.is_drug_allergy ? ["medication"] : ["environment"],
     code: {
-      text: allergy.allergen,
+      text: allergy.allergen as string,
     },
     patient: {
       reference: `Patient/${allergy.user_id}`,
@@ -176,8 +274,8 @@ function toFHIRAllergyIntolerance(allergy: any): FHIRResource {
     reaction: allergy.reaction_description
       ? [
           {
-            description: allergy.reaction_description,
-            severity: mapReactionSeverity(allergy.reaction_type),
+            description: allergy.reaction_description as string,
+            severity: mapReactionSeverity(allergy.reaction_type as string | null),
           },
         ]
       : undefined,
@@ -185,12 +283,12 @@ function toFHIRAllergyIntolerance(allergy: any): FHIRResource {
 }
 
 // Convert condition to FHIR Condition
-function toFHIRCondition(condition: any): FHIRResource {
+function toFHIRCondition(condition: Record<string, unknown>): FHIRResource {
   return {
     resourceType: "Condition",
-    id: condition.id,
+    id: condition.id as string,
     meta: {
-      lastUpdated: condition.updated_at,
+      lastUpdated: condition.updated_at as string,
     },
     clinicalStatus: {
       coding: [
@@ -201,13 +299,13 @@ function toFHIRCondition(condition: any): FHIRResource {
       ],
     },
     code: {
-      text: condition.condition_name,
+      text: condition.condition_name as string,
     },
     subject: {
       reference: `Patient/${condition.user_id}`,
     },
-    onsetDateTime: condition.diagnosed_date,
-    note: condition.notes ? [{ text: condition.notes }] : undefined,
+    onsetDateTime: condition.diagnosed_date as string,
+    note: condition.notes ? [{ text: condition.notes as string }] : undefined,
   };
 }
 
@@ -245,22 +343,9 @@ serve(async (req: Request): Promise<Response> => {
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
 
-    const url = new URL(req.url);
-    const pathParts = url.pathname.split("/").filter(Boolean);
-    
-    // Expected paths: /fhir-api/{resourceType} or /fhir-api/{resourceType}/{id}
-    // Remove 'fhir-api' from path
-    const fhirPath = pathParts.slice(pathParts.indexOf("fhir-api") + 1);
-    const resourceType = fhirPath[0];
-    const resourceId = fhirPath[1];
-
-    // Extract patient ID from query params for scoped queries
-    const patientId = url.searchParams.get("patient") || url.searchParams.get("subject");
-
-    // Validate authorization (simplified - in production use proper OAuth2/SMART)
+    // Validate authorization header
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
       return new Response(
@@ -281,11 +366,104 @@ serve(async (req: Request): Promise<Response> => {
       );
     }
 
+    // Create client with user's token for proper authorization
+    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } },
+    });
+
+    // Validate the JWT token and get user claims
+    const token = authHeader.replace("Bearer ", "");
+    const { data: claimsData, error: claimsError } = await supabase.auth.getClaims(token);
+
+    if (claimsError || !claimsData?.claims) {
+      console.error("JWT validation failed:", claimsError);
+      return new Response(
+        JSON.stringify({
+          resourceType: "OperationOutcome",
+          issue: [
+            {
+              severity: "error",
+              code: "security",
+              diagnostics: "Invalid or expired authentication token",
+            },
+          ],
+        }),
+        {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/fhir+json" },
+        }
+      );
+    }
+
+    const userId = claimsData.claims.sub as string;
+
+    // Fetch user roles to determine access permissions
+    const { data: userRoles, error: rolesError } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", userId);
+
+    if (rolesError) {
+      console.error("Failed to fetch user roles:", rolesError);
+      return new Response(
+        JSON.stringify({
+          resourceType: "OperationOutcome",
+          issue: [
+            {
+              severity: "error",
+              code: "exception",
+              diagnostics: "Failed to verify user permissions",
+            },
+          ],
+        }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/fhir+json" },
+        }
+      );
+    }
+
+    const roles = userRoles?.map((r: { role: string }) => r.role) || [];
+    const authContext: AuthContext = {
+      userId,
+      roles,
+      isAdmin: roles.includes("admin"),
+      isClinician: roles.includes("clinician"),
+      isPharmacist: roles.includes("pharmacist"),
+      isPatient: roles.includes("patient"),
+    };
+
+    console.log(`FHIR API request from user ${userId} with roles: ${roles.join(", ")}`);
+
+    const url = new URL(req.url);
+    const pathParts = url.pathname.split("/").filter(Boolean);
+    
+    // Expected paths: /fhir-api/{resourceType} or /fhir-api/{resourceType}/{id}
+    // Remove 'fhir-api' from path
+    const fhirPath = pathParts.slice(pathParts.indexOf("fhir-api") + 1);
+    const resourceType = fhirPath[0];
+    const resourceId = fhirPath[1];
+
+    // Extract patient ID from query params for scoped queries
+    const patientId = url.searchParams.get("patient") || url.searchParams.get("subject");
+
     let bundle: FHIRBundle;
 
     switch (resourceType) {
       case "Patient": {
         if (resourceId) {
+          // Check if user can access this specific patient
+          const canAccess = await canAccessPatientData(supabase, authContext, resourceId);
+          if (!canAccess) {
+            return new Response(
+              JSON.stringify({
+                resourceType: "OperationOutcome",
+                issue: [{ severity: "error", code: "forbidden", diagnostics: "You do not have permission to access this patient's data" }],
+              }),
+              { status: 403, headers: { ...corsHeaders, "Content-Type": "application/fhir+json" } }
+            );
+          }
+
           const { data: profile, error } = await supabase
             .from("profiles")
             .select("*")
@@ -302,36 +480,105 @@ serve(async (req: Request): Promise<Response> => {
             );
           }
 
-          return new Response(JSON.stringify(toFHIRPatient(profile)), {
+          return new Response(JSON.stringify(toFHIRPatient(profile as Record<string, unknown>)), {
             headers: { ...corsHeaders, "Content-Type": "application/fhir+json" },
           });
         }
 
-        const { data: profiles, error } = await supabase.from("profiles").select("*").limit(100);
-        if (error) throw error;
+        // For listing patients, admins see all, others see only authorized patients
+        if (authContext.isAdmin) {
+          const { data: profiles, error } = await supabase.from("profiles").select("*").limit(100);
+          if (error) throw error;
 
-        bundle = {
-          resourceType: "Bundle",
-          type: "searchset",
-          total: profiles?.length || 0,
-          entry: profiles?.map((p) => ({
-            resource: toFHIRPatient(p),
-            fullUrl: `${supabaseUrl}/functions/v1/fhir-api/Patient/${p.user_id}`,
-          })),
-        };
+          bundle = {
+            resourceType: "Bundle",
+            type: "searchset",
+            total: profiles?.length || 0,
+            entry: profiles?.map((p: Record<string, unknown>) => ({
+              resource: toFHIRPatient(p),
+              fullUrl: `${supabaseUrl}/functions/v1/fhir-api/Patient/${p.user_id}`,
+            })),
+          };
+        } else {
+          const authorizedPatientIds = await getAuthorizedPatientIds(supabase, authContext);
+          
+          if (authorizedPatientIds.length === 0) {
+            bundle = {
+              resourceType: "Bundle",
+              type: "searchset",
+              total: 0,
+              entry: [],
+            };
+          } else {
+            const { data: profiles, error } = await supabase
+              .from("profiles")
+              .select("*")
+              .in("user_id", authorizedPatientIds)
+              .limit(100);
+            if (error) throw error;
+
+            bundle = {
+              resourceType: "Bundle",
+              type: "searchset",
+              total: profiles?.length || 0,
+              entry: profiles?.map((p: Record<string, unknown>) => ({
+                resource: toFHIRPatient(p),
+                fullUrl: `${supabaseUrl}/functions/v1/fhir-api/Patient/${p.user_id}`,
+              })),
+            };
+          }
+        }
         break;
       }
 
       case "MedicationRequest": {
+        // Check authorization for patient-scoped queries
+        if (patientId) {
+          const canAccess = await canAccessPatientData(supabase, authContext, patientId);
+          if (!canAccess) {
+            return new Response(
+              JSON.stringify({
+                resourceType: "OperationOutcome",
+                issue: [{ severity: "error", code: "forbidden", diagnostics: "You do not have permission to access this patient's prescriptions" }],
+              }),
+              { status: 403, headers: { ...corsHeaders, "Content-Type": "application/fhir+json" } }
+            );
+          }
+        }
+
         let query = supabase.from("prescriptions").select("*");
-        if (patientId) query = query.eq("patient_user_id", patientId);
-        if (resourceId) query = query.eq("id", resourceId);
+        
+        if (resourceId) {
+          query = query.eq("id", resourceId);
+        } else if (patientId) {
+          query = query.eq("patient_user_id", patientId);
+        } else if (!authContext.isAdmin) {
+          // Non-admins can only see prescriptions for authorized patients
+          const authorizedPatientIds = await getAuthorizedPatientIds(supabase, authContext);
+          if (authorizedPatientIds.length === 0) {
+            bundle = { resourceType: "Bundle", type: "searchset", total: 0, entry: [] };
+            break;
+          }
+          query = query.in("patient_user_id", authorizedPatientIds);
+        }
 
         const { data: prescriptions, error } = await query.limit(100);
         if (error) throw error;
 
+        // For single resource request, verify access
         if (resourceId && prescriptions?.length === 1) {
-          return new Response(JSON.stringify(toFHIRMedicationRequest(prescriptions[0])), {
+          const prescription = prescriptions[0] as Record<string, unknown>;
+          const canAccess = await canAccessPatientData(supabase, authContext, prescription.patient_user_id as string);
+          if (!canAccess) {
+            return new Response(
+              JSON.stringify({
+                resourceType: "OperationOutcome",
+                issue: [{ severity: "error", code: "forbidden", diagnostics: "You do not have permission to access this prescription" }],
+              }),
+              { status: 403, headers: { ...corsHeaders, "Content-Type": "application/fhir+json" } }
+            );
+          }
+          return new Response(JSON.stringify(toFHIRMedicationRequest(prescription)), {
             headers: { ...corsHeaders, "Content-Type": "application/fhir+json" },
           });
         }
@@ -340,7 +587,7 @@ serve(async (req: Request): Promise<Response> => {
           resourceType: "Bundle",
           type: "searchset",
           total: prescriptions?.length || 0,
-          entry: prescriptions?.map((p) => ({
+          entry: prescriptions?.map((p: Record<string, unknown>) => ({
             resource: toFHIRMedicationRequest(p),
             fullUrl: `${supabaseUrl}/functions/v1/fhir-api/MedicationRequest/${p.id}`,
           })),
@@ -349,8 +596,32 @@ serve(async (req: Request): Promise<Response> => {
       }
 
       case "MedicationAdministration": {
+        // Check authorization for patient-scoped queries
+        if (patientId) {
+          const canAccess = await canAccessPatientData(supabase, authContext, patientId);
+          if (!canAccess) {
+            return new Response(
+              JSON.stringify({
+                resourceType: "OperationOutcome",
+                issue: [{ severity: "error", code: "forbidden", diagnostics: "You do not have permission to access this patient's medication administration records" }],
+              }),
+              { status: 403, headers: { ...corsHeaders, "Content-Type": "application/fhir+json" } }
+            );
+          }
+        }
+
         let query = supabase.from("medication_logs").select("*, medications(name)");
-        if (patientId) query = query.eq("user_id", patientId);
+        
+        if (patientId) {
+          query = query.eq("user_id", patientId);
+        } else if (!authContext.isAdmin) {
+          const authorizedPatientIds = await getAuthorizedPatientIds(supabase, authContext);
+          if (authorizedPatientIds.length === 0) {
+            bundle = { resourceType: "Bundle", type: "searchset", total: 0, entry: [] };
+            break;
+          }
+          query = query.in("user_id", authorizedPatientIds);
+        }
 
         const { data: logs, error } = await query.limit(100);
         if (error) throw error;
@@ -359,8 +630,8 @@ serve(async (req: Request): Promise<Response> => {
           resourceType: "Bundle",
           type: "searchset",
           total: logs?.length || 0,
-          entry: logs?.map((log: any) => ({
-            resource: toFHIRMedicationAdministration(log, log.medications),
+          entry: logs?.map((log: Record<string, unknown>) => ({
+            resource: toFHIRMedicationAdministration(log, log.medications as Record<string, unknown> | null),
             fullUrl: `${supabaseUrl}/functions/v1/fhir-api/MedicationAdministration/${log.id}`,
           })),
         };
@@ -368,8 +639,32 @@ serve(async (req: Request): Promise<Response> => {
       }
 
       case "AllergyIntolerance": {
+        // Check authorization for patient-scoped queries
+        if (patientId) {
+          const canAccess = await canAccessPatientData(supabase, authContext, patientId);
+          if (!canAccess) {
+            return new Response(
+              JSON.stringify({
+                resourceType: "OperationOutcome",
+                issue: [{ severity: "error", code: "forbidden", diagnostics: "You do not have permission to access this patient's allergy records" }],
+              }),
+              { status: 403, headers: { ...corsHeaders, "Content-Type": "application/fhir+json" } }
+            );
+          }
+        }
+
         let query = supabase.from("patient_allergies").select("*");
-        if (patientId) query = query.eq("user_id", patientId);
+        
+        if (patientId) {
+          query = query.eq("user_id", patientId);
+        } else if (!authContext.isAdmin) {
+          const authorizedPatientIds = await getAuthorizedPatientIds(supabase, authContext);
+          if (authorizedPatientIds.length === 0) {
+            bundle = { resourceType: "Bundle", type: "searchset", total: 0, entry: [] };
+            break;
+          }
+          query = query.in("user_id", authorizedPatientIds);
+        }
 
         const { data: allergies, error } = await query.limit(100);
         if (error) throw error;
@@ -378,7 +673,7 @@ serve(async (req: Request): Promise<Response> => {
           resourceType: "Bundle",
           type: "searchset",
           total: allergies?.length || 0,
-          entry: allergies?.map((a) => ({
+          entry: allergies?.map((a: Record<string, unknown>) => ({
             resource: toFHIRAllergyIntolerance(a),
             fullUrl: `${supabaseUrl}/functions/v1/fhir-api/AllergyIntolerance/${a.id}`,
           })),
@@ -387,8 +682,32 @@ serve(async (req: Request): Promise<Response> => {
       }
 
       case "Condition": {
+        // Check authorization for patient-scoped queries
+        if (patientId) {
+          const canAccess = await canAccessPatientData(supabase, authContext, patientId);
+          if (!canAccess) {
+            return new Response(
+              JSON.stringify({
+                resourceType: "OperationOutcome",
+                issue: [{ severity: "error", code: "forbidden", diagnostics: "You do not have permission to access this patient's condition records" }],
+              }),
+              { status: 403, headers: { ...corsHeaders, "Content-Type": "application/fhir+json" } }
+            );
+          }
+        }
+
         let query = supabase.from("patient_chronic_conditions").select("*");
-        if (patientId) query = query.eq("user_id", patientId);
+        
+        if (patientId) {
+          query = query.eq("user_id", patientId);
+        } else if (!authContext.isAdmin) {
+          const authorizedPatientIds = await getAuthorizedPatientIds(supabase, authContext);
+          if (authorizedPatientIds.length === 0) {
+            bundle = { resourceType: "Bundle", type: "searchset", total: 0, entry: [] };
+            break;
+          }
+          query = query.in("user_id", authorizedPatientIds);
+        }
 
         const { data: conditions, error } = await query.limit(100);
         if (error) throw error;
@@ -397,7 +716,7 @@ serve(async (req: Request): Promise<Response> => {
           resourceType: "Bundle",
           type: "searchset",
           total: conditions?.length || 0,
-          entry: conditions?.map((c) => ({
+          entry: conditions?.map((c: Record<string, unknown>) => ({
             resource: toFHIRCondition(c),
             fullUrl: `${supabaseUrl}/functions/v1/fhir-api/Condition/${c.id}`,
           })),
@@ -406,7 +725,7 @@ serve(async (req: Request): Promise<Response> => {
       }
 
       case "metadata": {
-        // FHIR Capability Statement
+        // FHIR Capability Statement - public endpoint
         const capabilityStatement = {
           resourceType: "CapabilityStatement",
           status: "active",
@@ -417,6 +736,22 @@ serve(async (req: Request): Promise<Response> => {
           rest: [
             {
               mode: "server",
+              security: {
+                cors: true,
+                service: [
+                  {
+                    coding: [
+                      {
+                        system: "http://terminology.hl7.org/CodeSystem/restful-security-service",
+                        code: "OAuth",
+                        display: "OAuth"
+                      }
+                    ],
+                    text: "OAuth2 Bearer Token authentication required. Access is scoped based on user roles and patient relationships."
+                  }
+                ],
+                description: "Authenticated users can only access patient data they are authorized to view. Patients access their own data. Clinicians access assigned patients. Caregivers access patients who have granted access."
+              },
               resource: [
                 { type: "Patient", interaction: [{ code: "read" }, { code: "search-type" }] },
                 { type: "MedicationRequest", interaction: [{ code: "read" }, { code: "search-type" }] },
@@ -461,7 +796,7 @@ serve(async (req: Request): Promise<Response> => {
           {
             severity: "error",
             code: "exception",
-            diagnostics: error instanceof Error ? error.message : "Internal server error",
+            diagnostics: "An internal server error occurred",
           },
         ],
       }),
