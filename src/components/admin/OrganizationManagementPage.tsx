@@ -19,7 +19,7 @@ import { toast } from "sonner";
 
 export function OrganizationManagementPage() {
   const { organization, branding, isOrgAdmin, updateBranding, refreshOrganization } = useOrganization();
-  const { members, isLoading: membersLoading, updateMemberRole, removeMember } = useOrganizationMembers();
+  const { members, isLoading: membersLoading, updateMemberRole, removeMember, refetchMembers } = useOrganizationMembers();
   const { isManager } = useAuth();
   
   // Managers can also edit organization data
@@ -34,6 +34,9 @@ export function OrganizationManagementPage() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isRemoveDialogOpen, setIsRemoveDialogOpen] = useState(false);
   const [editRole, setEditRole] = useState<"owner" | "admin" | "member">("member");
+  const [editFirstName, setEditFirstName] = useState("");
+  const [editLastName, setEditLastName] = useState("");
+  const [isSavingMember, setIsSavingMember] = useState(false);
   
   const [brandingForm, setBrandingForm] = useState({
     app_name: branding?.app_name || "Pillaxia",
@@ -617,6 +620,8 @@ export function OrganizationManagementPage() {
                         if (canEdit) {
                           setSelectedMember(member);
                           setEditRole(member.org_role);
+                          setEditFirstName(member.profile?.first_name || "");
+                          setEditLastName(member.profile?.last_name || "");
                           setIsEditDialogOpen(true);
                         }
                       }}
@@ -677,18 +682,33 @@ export function OrganizationManagementPage() {
                 <Avatar className="h-14 w-14">
                   <AvatarImage src={selectedMember.profile?.avatar_url || undefined} />
                   <AvatarFallback>
-                    {selectedMember.profile?.first_name?.charAt(0) || "U"}
-                    {selectedMember.profile?.last_name?.charAt(0) || ""}
+                    {editFirstName?.charAt(0) || "U"}
+                    {editLastName?.charAt(0) || ""}
                   </AvatarFallback>
                 </Avatar>
-                <div>
-                  <p className="font-semibold text-lg">
-                    {selectedMember.profile?.first_name || ""} {selectedMember.profile?.last_name || ""}
-                    {!selectedMember.profile?.first_name && !selectedMember.profile?.last_name && "Unknown User"}
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    {selectedMember.profile?.email || selectedMember.user_id}
-                  </p>
+                <div className="text-sm text-muted-foreground">
+                  {selectedMember.profile?.email || selectedMember.user_id}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="edit-first-name">First Name</Label>
+                  <Input
+                    id="edit-first-name"
+                    value={editFirstName}
+                    onChange={(e) => setEditFirstName(e.target.value)}
+                    placeholder="First name"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-last-name">Last Name</Label>
+                  <Input
+                    id="edit-last-name"
+                    value={editLastName}
+                    onChange={(e) => setEditLastName(e.target.value)}
+                    placeholder="Last name"
+                  />
                 </div>
               </div>
 
@@ -739,27 +759,56 @@ export function OrganizationManagementPage() {
             <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
               Cancel
             </Button>
-            {selectedMember?.org_role !== "owner" && (
-              <Button 
-                onClick={() => {
-                  if (selectedMember && editRole !== selectedMember.org_role) {
-                    updateMemberRole.mutate({ 
+            <Button 
+              onClick={async () => {
+                if (!selectedMember) return;
+                setIsSavingMember(true);
+                try {
+                  // Update profile name if changed
+                  const nameChanged = 
+                    editFirstName !== (selectedMember.profile?.first_name || "") ||
+                    editLastName !== (selectedMember.profile?.last_name || "");
+                  
+                  if (nameChanged) {
+                    const { error: profileError } = await supabase
+                      .from("profiles")
+                      .update({ 
+                        first_name: editFirstName, 
+                        last_name: editLastName 
+                      })
+                      .eq("user_id", selectedMember.user_id);
+                    
+                    if (profileError) throw profileError;
+                  }
+
+                  // Update role if changed (and not owner)
+                  if (selectedMember.org_role !== "owner" && editRole !== selectedMember.org_role) {
+                    await updateMemberRole.mutateAsync({ 
                       memberId: selectedMember.id, 
                       newRole: editRole 
                     });
+                  } else if (nameChanged) {
+                    refetchMembers();
+                    toast.success("Member updated");
                   }
+                  
                   setIsEditDialogOpen(false);
-                }}
-                disabled={updateMemberRole.isPending}
-              >
-                {updateMemberRole.isPending ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                ) : (
-                  <Save className="h-4 w-4 mr-2" />
-                )}
-                Save Changes
-              </Button>
-            )}
+                } catch (error) {
+                  console.error("Failed to update member:", error);
+                  toast.error("Failed to update member");
+                } finally {
+                  setIsSavingMember(false);
+                }
+              }}
+              disabled={isSavingMember || updateMemberRole.isPending}
+            >
+              {(isSavingMember || updateMemberRole.isPending) ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Save className="h-4 w-4 mr-2" />
+              )}
+              Save Changes
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
