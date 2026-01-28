@@ -1,4 +1,4 @@
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Bell, CheckCircle, XCircle, TrendingUp, Eye, MousePointer, Send } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -29,19 +29,17 @@ interface AnalyticsOverviewCardsProps {
 function OverviewCard({ title, value, icon: Icon, color, bgColor, subtitle }: OverviewCardProps) {
   return (
     <Card>
-      <CardContent className="pt-6">
-        <div className="flex items-center gap-3">
-          <div className={`p-2 rounded-lg ${bgColor}`}>
-            <Icon className={`h-5 w-5 ${color}`} />
-          </div>
-          <div className="flex-1">
-            <p className="text-sm text-muted-foreground">{title}</p>
-            <p className="text-2xl font-bold">{value}</p>
-            {subtitle && (
-              <p className="text-xs text-muted-foreground">{subtitle}</p>
-            )}
-          </div>
+      <CardHeader className="pb-2">
+        <div className={`p-2 rounded-lg ${bgColor}`}>
+          <Icon className={`h-5 w-5 ${color}`} />
         </div>
+        <CardTitle className="text-sm">{title}</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <p className="text-2xl font-bold">{value}</p>
+        {subtitle && (
+          <p className="text-xs text-muted-foreground">{subtitle}</p>
+        )}
       </CardContent>
     </Card>
   );

@@ -100,15 +100,15 @@ export function AdminDashboardHome() {
       <div className="grid gap-4 md:grid-cols-3">
         {statCards.map((stat) => (
           <Card key={stat.title} className="hover:shadow-md transition-shadow">
-            <CardHeader className="flex flex-col items-center justify-center pb-2">
+            <CardHeader className="pb-2">
               <div className={`p-2 rounded-lg ${stat.bgColor} mb-1`}>
                 <stat.icon className={`h-5 w-5 ${stat.color}`} />
               </div>
-              <CardTitle className="text-sm font-bold text-center">
+              <CardTitle className="text-sm">
                 {stat.title}
               </CardTitle>
             </CardHeader>
-            <CardContent className="text-center">
+            <CardContent>
               {isLoading ? (
                 <Skeleton className="h-8 w-16 mx-auto" />
               ) : (
