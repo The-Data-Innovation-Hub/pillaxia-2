@@ -3,7 +3,6 @@ import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { ThemeToggle } from "@/components/ThemeToggle";
 import {
   Sidebar,
   SidebarContent,
@@ -88,7 +87,6 @@ export function AdminSidebar() {
           <HelpCircle className="h-4 w-4" />
           <span>Help & Support</span>
         </NavLink>
-        <ThemeToggle />
         <Button
           variant="outline"
           size="sm"
