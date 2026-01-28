@@ -22,7 +22,7 @@ const HeroSection = ({ onGetStarted }: HeroSectionProps) => {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5 }}
-              className="mb-4"
+              className="mb-4 flex justify-center lg:justify-start"
             >
               <VersionBadge variant="hero" />
             </motion.div>
