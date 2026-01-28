@@ -107,3 +107,6 @@ verify_jwt = false
 
 [functions.send-native-push]
 verify_jwt = false
+
+[functions.send-security-alert]
+verify_jwt = false

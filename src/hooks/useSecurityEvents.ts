@@ -39,8 +39,56 @@ interface LogDataAccessParams {
   reason?: string;
 }
 
+// Events that should trigger email notifications
+const CRITICAL_EVENTS: SecurityEventType[] = [
+  "account_locked",
+  "account_unlocked",
+  "suspicious_activity",
+  "concurrent_session_blocked",
+  "password_change",
+  "password_reset_request",
+  "mfa_enabled",
+  "mfa_disabled",
+  "data_export",
+  "permission_change",
+];
+
+// Events that should only notify on critical severity
+const SEVERITY_BASED_EVENTS: SecurityEventType[] = [
+  "login_failure",
+];
+
 export function useSecurityEvents() {
   const { user } = useAuth();
+
+  const sendSecurityAlertEmail = useCallback(
+    async (
+      userId: string,
+      eventType: SecurityEventType,
+      severity: SecuritySeverity,
+      description?: string,
+      metadata?: Record<string, unknown>
+    ) => {
+      try {
+        const { error } = await supabase.functions.invoke("send-security-alert", {
+          body: {
+            userId,
+            eventType,
+            severity,
+            description,
+            metadata,
+          },
+        });
+
+        if (error) {
+          console.error("Failed to send security alert email:", error);
+        }
+      } catch (error) {
+        console.error("Error sending security alert email:", error);
+      }
+    },
+    []
+  );
 
   const logSecurityEvent = useCallback(
     async ({
@@ -72,12 +120,34 @@ export function useSecurityEvents() {
         if (error) {
           console.error("Failed to log security event:", error);
         }
+
+        // Send email notification for critical events
+        if (user?.id) {
+          const shouldNotify =
+            CRITICAL_EVENTS.includes(eventType) ||
+            (SEVERITY_BASED_EVENTS.includes(eventType) && severity === "critical");
+
+          if (shouldNotify) {
+            // Send email in background - don't await to avoid blocking
+            sendSecurityAlertEmail(
+              user.id,
+              eventType,
+              severity,
+              description,
+              {
+                ...metadata,
+                user_agent: userAgent,
+                url: window.location.href,
+              }
+            );
+          }
+        }
       } catch (error) {
         // Silent fail - don't disrupt user experience
         console.error("Security event logging error:", error);
       }
     },
-    [user]
+    [user, sendSecurityAlertEmail]
   );
 
   const logDataAccess = useCallback(
@@ -115,5 +185,6 @@ export function useSecurityEvents() {
   return {
     logSecurityEvent,
     logDataAccess,
+    sendSecurityAlertEmail,
   };
 }
