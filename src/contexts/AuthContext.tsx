@@ -93,16 +93,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setRoles(rolesData);
             setLoading(false);
             
-            // Set Sentry user context
+            // Set Sentry user context with all roles
             setSentryUser({
               id: session.user.id,
               email: session.user.email,
-              role: rolesData[0] || 'patient',
+              role: rolesData.includes('admin') ? 'admin' : rolesData[0] || 'patient',
+            });
+            setSentryContext('user_roles', {
+              roles: rolesData,
+              isAdmin: rolesData.includes('admin'),
+              isManager: rolesData.includes('manager'),
+              isClinician: rolesData.includes('clinician'),
+              isPharmacist: rolesData.includes('pharmacist'),
             });
             setSentryContext('profile', {
               firstName: profileData?.first_name,
               lastName: profileData?.last_name,
-              roles: rolesData,
+              organization: profileData?.organization,
             });
           }, 0);
         } else {
