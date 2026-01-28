@@ -45,3 +45,4 @@ export { SecurityNotificationPreferencesCard } from "./SecurityNotificationPrefe
 export { PatientPrescriptionsCard } from "./PatientPrescriptionsCard";
 export { default as VitalsPage } from "./VitalsPage";
 export { default as LabResultsPage } from "./LabResultsPage";
+export { AppointmentsCalendarPage } from "./AppointmentsCalendarPage";
