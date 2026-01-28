@@ -32,10 +32,12 @@ import {
   BellRing,
   Send,
   User,
+  Building2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { AdminProfileTab } from "./AdminProfileTab";
+import { OrganizationManagementPage } from "./OrganizationManagementPage";
 
 interface IntegrationStatus {
   whatsapp: boolean;
@@ -71,7 +73,7 @@ export function SettingsPage() {
   const [testingPush, setTestingPush] = useState(false);
   const [pushTestUserId, setPushTestUserId] = useState("");
   const queryClient = useQueryClient();
-  const { user } = useAuth();
+  const { user, isManager, isAdmin } = useAuth();
 
   // Check integration status by calling a test endpoint
   const { data: integrationStatus, isLoading, refetch } = useQuery({
@@ -239,6 +241,12 @@ export function SettingsPage() {
       <Tabs defaultValue="profile" className="space-y-4">
         <TabsList>
           <TabsTrigger value="profile">Profile</TabsTrigger>
+          {isManager && !isAdmin && (
+            <TabsTrigger value="organization">
+              <Building2 className="h-4 w-4 mr-2" />
+              Organization
+            </TabsTrigger>
+          )}
           <TabsTrigger value="integrations">Integrations</TabsTrigger>
           <TabsTrigger value="notifications">Notifications</TabsTrigger>
           <TabsTrigger value="security">Security</TabsTrigger>
@@ -247,6 +255,12 @@ export function SettingsPage() {
         <TabsContent value="profile">
           <AdminProfileTab />
         </TabsContent>
+
+        {isManager && !isAdmin && (
+          <TabsContent value="organization">
+            <OrganizationManagementPage />
+          </TabsContent>
+        )}
 
         <TabsContent value="integrations" className="space-y-4">
           {/* WhatsApp Integration */}
