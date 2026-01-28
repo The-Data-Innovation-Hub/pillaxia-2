@@ -11,20 +11,21 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { z } from "zod";
-import { Loader2, User, Stethoscope, Pill, Shield, Home, ShieldCheck, Key, Fingerprint, AlertTriangle, ShieldAlert, Monitor } from "lucide-react";
+import { Loader2, User, Stethoscope, Pill, Shield, Home, ShieldCheck, Key, Fingerprint, AlertTriangle, ShieldAlert, Monitor, Building2 } from "lucide-react";
 import { useBiometricAuth } from "@/hooks/useBiometricAuth";
 import { useLoginAttempts } from "@/hooks/useLoginAttempts";
 import { useSecurityEvents } from "@/hooks/useSecurityEvents";
 import { usePasswordBreachCheck } from "@/hooks/usePasswordBreachCheck";
 import { PasswordBreachWarning } from "@/components/shared/PasswordBreachWarning";
 
-type AppRole = "patient" | "clinician" | "pharmacist" | "admin";
+type AppRole = "patient" | "clinician" | "pharmacist" | "admin" | "manager";
 
 // Demo users for testing
 const DEMO_USERS = [
   { email: "patient@demo.pillaxia.com", password: "DemoPatient2026!", role: "patient" as const, label: "Patient", icon: User, color: "bg-blue-500" },
   { email: "clinician@demo.pillaxia.com", password: "DemoClinician2026!", role: "clinician" as const, label: "Clinician", icon: Stethoscope, color: "bg-green-500" },
   { email: "pharmacist@demo.pillaxia.com", password: "DemoPharmacist2026!", role: "pharmacist" as const, label: "Pharmacist", icon: Pill, color: "bg-purple-500" },
+  { email: "manager@demo.pillaxia.com", password: "DemoManager2026!", role: "manager" as const, label: "Manager", icon: Building2, color: "bg-violet-500" },
   { email: "admin@demo.pillaxia.com", password: "DemoAdmin2026!", role: "admin" as const, label: "Admin", icon: Shield, color: "bg-red-500" },
 ];
 
@@ -780,6 +781,7 @@ const Auth = () => {
                         <SelectItem value="patient">Patient - Managing my medications</SelectItem>
                         <SelectItem value="clinician">Clinician - Healthcare provider</SelectItem>
                         <SelectItem value="pharmacist">Pharmacist - Pharmacy professional</SelectItem>
+                        <SelectItem value="manager">Manager - Organization management</SelectItem>
                         <SelectItem value="admin">Administrator - System management</SelectItem>
                       </SelectContent>
                     </Select>

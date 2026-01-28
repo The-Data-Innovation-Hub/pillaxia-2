@@ -3,7 +3,7 @@ import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
-type AppRole = "patient" | "clinician" | "pharmacist" | "admin";
+type AppRole = "patient" | "clinician" | "pharmacist" | "admin" | "manager";
 
 interface Profile {
   id: string;
@@ -29,9 +29,11 @@ interface AuthContextType {
   hasRole: (role: AppRole) => boolean;
   refreshProfile: () => Promise<void>;
   isAdmin: boolean;
+  isManager: boolean;
   isClinician: boolean;
   isPharmacist: boolean;
   isPatient: boolean;
+  isAdminOrManager: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -197,9 +199,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     hasRole,
     refreshProfile,
     isAdmin: hasRole("admin"),
+    isManager: hasRole("manager"),
     isClinician: hasRole("clinician"),
     isPharmacist: hasRole("pharmacist"),
     isPatient: hasRole("patient"),
+    isAdminOrManager: hasRole("admin") || hasRole("manager"),
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
