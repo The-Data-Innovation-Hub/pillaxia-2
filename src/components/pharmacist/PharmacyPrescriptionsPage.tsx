@@ -79,20 +79,26 @@ export function PharmacyPrescriptionsPage() {
   const [statusDialogOpen, setStatusDialogOpen] = useState(false);
   const [nextStatus, setNextStatus] = useState<PrescriptionStatus | null>(null);
 
-  // Get pharmacist's pharmacy
-  const { data: pharmacy } = useQuery({
-    queryKey: ["my-pharmacy", user?.id],
+  // Get all pharmacies managed by this pharmacist
+  const { data: pharmacies } = useQuery({
+    queryKey: ["my-pharmacies", user?.id],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("pharmacy_locations")
         .select("id, name")
-        .eq("pharmacist_user_id", user?.id)
-        .maybeSingle();
+        .eq("pharmacist_user_id", user?.id);
       if (error) throw error;
-      return data;
+      return data || [];
     },
     enabled: !!user,
   });
+
+  const pharmacyIds = pharmacies?.map(p => p.id) || [];
+  const pharmacyName = pharmacies && pharmacies.length === 1 
+    ? pharmacies[0].name 
+    : pharmacies && pharmacies.length > 1 
+      ? `${pharmacies.length} pharmacies`
+      : "your pharmacy";
 
   const statusFilter: PrescriptionStatus[] = 
     activeTab === "incoming" ? ["sent", "received"] :
@@ -100,7 +106,7 @@ export function PharmacyPrescriptionsPage() {
     ["dispensed", "cancelled", "expired"];
 
   const { prescriptions, isLoading, updatePrescriptionStatus } = usePrescriptions({
-    pharmacyId: pharmacy?.id,
+    pharmacyIds: pharmacyIds.length > 0 ? pharmacyIds : undefined,
     status: statusFilter,
   });
 
@@ -151,7 +157,7 @@ export function PharmacyPrescriptionsPage() {
       <div>
         <h1 className="text-2xl font-bold">E-Prescriptions</h1>
         <p className="text-muted-foreground">
-          Manage incoming electronic prescriptions for {pharmacy?.name || "your pharmacy"}
+          Manage incoming electronic prescriptions for {pharmacyName}
         </p>
       </div>
 
