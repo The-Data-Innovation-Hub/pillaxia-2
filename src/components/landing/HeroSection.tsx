@@ -98,15 +98,15 @@ const HeroSection = ({ onGetStarted }: HeroSectionProps) => {
             </motion.div>
           </div>
           
-          <div className="lg:w-1/2">
+          <div className="lg:w-1/2 overflow-hidden">
             <motion.div
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.8 }}
               className="relative"
             >
-              <div className="absolute -top-10 -left-10 w-40 h-40 bg-pillaxia-teal rounded-full opacity-30 blur-xl"></div>
-              <div className="absolute -bottom-10 -right-10 w-60 h-60 bg-primary rounded-full opacity-20 blur-xl"></div>
+              <div className="absolute top-0 left-0 w-40 h-40 bg-pillaxia-teal rounded-full opacity-30 blur-xl"></div>
+              <div className="absolute bottom-0 right-0 w-60 h-60 bg-primary rounded-full opacity-20 blur-xl"></div>
               <img
                 src={heroImage}
                 alt="Angela - AI Medication Assistant"
