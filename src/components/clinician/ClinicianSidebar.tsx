@@ -100,12 +100,12 @@ export function ClinicianSidebar() {
         </NavLink>
         <ThemeToggle />
         <Button
-          variant="ghost"
+          variant="outline"
           size="sm"
-          className="w-full justify-start gap-2"
+          className="w-full justify-start gap-3 mt-2 border-destructive/30 text-destructive hover:bg-destructive hover:text-destructive-foreground hover:border-destructive transition-all duration-200 group"
           onClick={signOut}
         >
-          <LogOut className="h-4 w-4" />
+          <LogOut className="h-4 w-4 transition-transform duration-200 group-hover:-translate-x-0.5" />
           {t.nav.signOut}
         </Button>
       </SidebarFooter>
