@@ -56,8 +56,11 @@ import {
   ABTestingPage,
   PatientEngagementPage,
   LicenseCompliancePage,
+  SecurityDashboardPage,
+  SecuritySettingsPage,
 } from "@/components/admin";
 import { HelpPage } from "@/components/shared";
+import { SessionTimeoutWarning } from "@/components/SessionTimeoutWarning";
 
 const queryClient = new QueryClient();
 
@@ -74,6 +77,7 @@ const App = () => (
           <AuthProvider>
             <LanguageProvider>
               <OfflineBanner />
+              <SessionTimeoutWarning />
               <AppRoutes />
             </LanguageProvider>
           </AuthProvider>
@@ -133,6 +137,8 @@ function AppRoutes() {
         <Route path="admin-settings" element={<SettingsPage />} />
         <Route path="ab-testing" element={<ABTestingPage />} />
         <Route path="patient-engagement" element={<PatientEngagementPage />} />
+        <Route path="security" element={<SecurityDashboardPage />} />
+        <Route path="security-settings" element={<SecuritySettingsPage />} />
         {/* Shared Routes */}
         <Route path="settings" element={<PatientSettingsPage />} />
         <Route path="sync-status" element={<SyncStatusPage />} />

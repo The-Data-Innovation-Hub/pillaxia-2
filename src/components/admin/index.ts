@@ -11,3 +11,5 @@ export { PatientEngagementPage } from "./PatientEngagementPage";
 export { PatientDetailDrawer } from "./PatientDetailDrawer";
 export { ClinicianEncouragementDialog } from "./ClinicianEncouragementDialog";
 export { LicenseCompliancePage } from "./LicenseCompliancePage";
+export { SecurityDashboardPage } from "./SecurityDashboardPage";
+export { SecuritySettingsPage } from "./SecuritySettingsPage";
