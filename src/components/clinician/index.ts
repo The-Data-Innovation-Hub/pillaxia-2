@@ -19,3 +19,4 @@ export { SendPrescriptionDialog } from "./SendPrescriptionDialog";
 export { PrescriptionDetailsDialog } from "./PrescriptionDetailsDialog";
 export { EditPrescriptionDialog } from "./EditPrescriptionDialog";
 export { ClinicianSettingsPage } from "./ClinicianSettingsPage";
+export { ClinicalDecisionSupport } from "./ClinicalDecisionSupport";

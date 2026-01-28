@@ -137,3 +137,6 @@ verify_jwt = false
 
 [functions.send-prescription]
 verify_jwt = false
+
+[functions.clinical-decision-support]
+verify_jwt = false

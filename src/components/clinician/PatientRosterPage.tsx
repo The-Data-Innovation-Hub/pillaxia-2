@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePatientCDSData } from "@/hooks/usePatientCDSData";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -32,10 +33,11 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Search, User, Pill, Activity, Calendar, UserPlus, UserMinus, Users, MessageCircle } from "lucide-react";
+import { Search, User, Pill, Activity, Calendar, UserPlus, UserMinus, Users, MessageCircle, Brain } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { ClinicianChatDialog } from "./ClinicianChatDialog";
+import { ClinicalDecisionSupport } from "./ClinicalDecisionSupport";
 
 interface PatientDetails {
   userId: string;
@@ -51,6 +53,35 @@ interface PatientDetails {
   isAssigned: boolean;
 }
 
+function CdsDialogContent({ cdsPatient, onClose }: { cdsPatient: PatientDetails | null; onClose: () => void }) {
+  const { data: patientData, isLoading } = usePatientCDSData(cdsPatient?.userId ?? null);
+  
+  if (!cdsPatient) return null;
+  
+  return (
+    <Dialog open={!!cdsPatient} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden p-0">
+        {isLoading ? (
+          <div className="p-8 text-center">Loading patient data...</div>
+        ) : patientData ? (
+          <ClinicalDecisionSupport patient={patientData} onClose={onClose} />
+        ) : (
+          <div className="p-8 text-center">
+            <ClinicalDecisionSupport 
+              patient={{
+                id: cdsPatient.userId,
+                name: `${cdsPatient.profile.first_name || ""} ${cdsPatient.profile.last_name || ""}`.trim() || "Patient",
+                medications: [],
+              }} 
+              onClose={onClose} 
+            />
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export function PatientRosterPage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -58,6 +89,7 @@ export function PatientRosterPage() {
   const [selectedPatient, setSelectedPatient] = useState<PatientDetails | null>(null);
   const [unassignPatient, setUnassignPatient] = useState<PatientDetails | null>(null);
   const [chatPatient, setChatPatient] = useState<PatientDetails | null>(null);
+  const [cdsPatient, setCdsPatient] = useState<PatientDetails | null>(null);
   const [activeTab, setActiveTab] = useState("assigned");
 
   // Fetch clinician profile for name
@@ -286,6 +318,15 @@ export function PatientRosterPage() {
                       <Button
                         variant="default"
                         size="sm"
+                        onClick={() => setCdsPatient(patient)}
+                        className="gap-1"
+                      >
+                        <Brain className="h-4 w-4" />
+                        CDS
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
                         onClick={() => setChatPatient(patient)}
                         className="gap-1"
                       >
@@ -496,6 +537,9 @@ export function PatientRosterPage() {
           viewerRole="clinician"
         />
       )}
+
+      {/* Clinical Decision Support Dialog */}
+      <CdsDialogContent cdsPatient={cdsPatient} onClose={() => setCdsPatient(null)} />
     </div>
   );
 }
