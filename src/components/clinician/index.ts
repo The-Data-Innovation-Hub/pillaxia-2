@@ -1,4 +1,5 @@
 export { ClinicianLayout } from "./ClinicianLayout";
+export { ClinicianProfileTab } from "./ClinicianProfileTab";
 export { ClinicianSidebar } from "./ClinicianSidebar";
 export { ClinicianDashboardHome } from "./ClinicianDashboardHome";
 export { PatientRiskFlagsCard } from "./PatientRiskFlagsCard";

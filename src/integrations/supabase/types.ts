@@ -1780,6 +1780,7 @@ export type Database = {
           email: string | null
           first_name: string | null
           id: string
+          job_title: string | null
           language_preference: string | null
           last_name: string | null
           license_expiration_date: string | null
@@ -1802,6 +1803,7 @@ export type Database = {
           email?: string | null
           first_name?: string | null
           id?: string
+          job_title?: string | null
           language_preference?: string | null
           last_name?: string | null
           license_expiration_date?: string | null
@@ -1824,6 +1826,7 @@ export type Database = {
           email?: string | null
           first_name?: string | null
           id?: string
+          job_title?: string | null
           language_preference?: string | null
           last_name?: string | null
           license_expiration_date?: string | null
