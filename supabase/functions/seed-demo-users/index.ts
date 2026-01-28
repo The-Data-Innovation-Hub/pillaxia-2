@@ -10,6 +10,7 @@ const DEMO_USERS = [
   { email: "clinician@demo.pillaxia.com", password: "DemoClinician2026!", role: "clinician", firstName: "Demo", lastName: "Clinician" },
   { email: "pharmacist@demo.pillaxia.com", password: "DemoPharmacist2026!", role: "pharmacist", firstName: "Demo", lastName: "Pharmacist" },
   { email: "admin@demo.pillaxia.com", password: "DemoAdmin2026!", role: "admin", firstName: "Demo", lastName: "Admin" },
+  { email: "manager@demo.pillaxia.com", password: "DemoManager2026!", role: "manager", firstName: "Demo", lastName: "Manager" },
   // Additional mock patients for testing
   { email: "alice.johnson@demo.pillaxia.com", password: "DemoAlice2026!", role: "patient", firstName: "Alice", lastName: "Johnson" },
   { email: "bob.smith@demo.pillaxia.com", password: "DemoBob2026!", role: "patient", firstName: "Bob", lastName: "Smith" },
