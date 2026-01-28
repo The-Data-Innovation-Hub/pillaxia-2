@@ -72,6 +72,13 @@ const NOTIFICATION_CONFIG = {
 
 const ONBOARDING_DISABLED_KEY = "progressive_onboarding_disabled";
 
+function CrashOnRender({ enabled }: { enabled: boolean }) {
+  if (enabled) {
+    throw new Error("This is your first Sentry test error!");
+  }
+  return null;
+}
+
 export function SettingsPage() {
   const [testingWhatsApp, setTestingWhatsApp] = useState(false);
   const [testingEmail, setTestingEmail] = useState(false);
@@ -81,11 +88,6 @@ export function SettingsPage() {
   const [shouldThrowError, setShouldThrowError] = useState(false);
   const queryClient = useQueryClient();
   const { user, isManager, isAdmin } = useAuth();
-
-  // This will trigger during render and be caught by error boundary
-  if (shouldThrowError) {
-    throw new Error("This is your first Sentry test error!");
-  }
 
   // Load onboarding preference
   useEffect(() => {
@@ -257,6 +259,7 @@ export function SettingsPage() {
 
   return (
     <div className="space-y-6">
+      <CrashOnRender enabled={shouldThrowError} />
       <div>
         <h1 className="text-2xl font-bold flex items-center gap-2">
           <Settings className="h-6 w-6" />
@@ -662,7 +665,15 @@ export function SettingsPage() {
                 <Button
                   variant="destructive"
                   size="sm"
-                  onClick={() => setShouldThrowError(true)}
+                  onClick={() => {
+                    // Enable Sentry sending in this preview tab so the test error actually reaches Sentry.
+                    try {
+                      sessionStorage.setItem("sentry_dev_enabled", "true");
+                    } catch {
+                      // ignore
+                    }
+                    setShouldThrowError(true);
+                  }}
                 >
                   <Bug className="h-4 w-4 mr-2" />
                   Break the World
