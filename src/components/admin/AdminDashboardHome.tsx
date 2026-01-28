@@ -108,9 +108,9 @@ export function AdminDashboardHome() {
                 <stat.icon className={`h-4 w-4 ${stat.color}`} />
               </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="text-center">
               {isLoading ? (
-                <Skeleton className="h-8 w-16" />
+                <Skeleton className="h-8 w-16 mx-auto" />
               ) : (
                 <div className="text-3xl font-bold">{stat.value}</div>
               )}

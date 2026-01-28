@@ -219,7 +219,7 @@ export function PatientDashboardHome() {
             </CardTitle>
             <Pill className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent>
+          <CardContent className="text-center">
             <div className="text-2xl font-bold">{stats.totalMedications}</div>
             <p className="text-xs text-muted-foreground">medications being tracked</p>
           </CardContent>
@@ -249,7 +249,7 @@ export function PatientDashboardHome() {
               <Calendar className="h-4 w-4 text-muted-foreground" />
             )}
           </CardHeader>
-          <CardContent>
+          <CardContent className="text-center">
             <div className="text-2xl font-bold">
               {stats.takenDoses}/{stats.todaysDoses}
             </div>
@@ -267,7 +267,7 @@ export function PatientDashboardHome() {
             </CardTitle>
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent>
+          <CardContent className="text-center">
             <div className="text-2xl font-bold text-primary">{stats.adherenceRate}%</div>
             <p className="text-xs text-muted-foreground">today's completion</p>
           </CardContent>
@@ -280,7 +280,7 @@ export function PatientDashboardHome() {
             </CardTitle>
             <ClipboardList className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent>
+          <CardContent className="text-center">
             <div className="text-2xl font-bold">{stats.recentSymptoms}</div>
             <p className="text-xs text-muted-foreground">in the last 7 days</p>
           </CardContent>
