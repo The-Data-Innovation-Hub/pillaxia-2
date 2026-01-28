@@ -109,13 +109,14 @@ async function generatePrescriptionNumber(): Promise<string> {
 export function usePrescriptions(options?: { 
   patientId?: string; 
   pharmacyId?: string;
+  pharmacyIds?: string[];
   status?: PrescriptionStatus[];
 }) {
   const { user, isClinician, isPharmacist, isPatient } = useAuth();
   const queryClient = useQueryClient();
 
   const { data: prescriptions, isLoading, error } = useQuery({
-    queryKey: ["prescriptions", user?.id, options?.patientId, options?.pharmacyId, options?.status],
+    queryKey: ["prescriptions", user?.id, options?.patientId, options?.pharmacyId, options?.pharmacyIds, options?.status],
     queryFn: async (): Promise<Prescription[]> => {
       // First, fetch prescriptions with pharmacy data
       let query = supabase
@@ -132,6 +133,11 @@ export function usePrescriptions(options?: {
 
       if (options?.pharmacyId) {
         query = query.eq("pharmacy_id", options.pharmacyId);
+      }
+
+      // Support multiple pharmacy IDs for pharmacists managing multiple locations
+      if (options?.pharmacyIds && options.pharmacyIds.length > 0) {
+        query = query.in("pharmacy_id", options.pharmacyIds);
       }
 
       if (options?.status && options.status.length > 0) {
