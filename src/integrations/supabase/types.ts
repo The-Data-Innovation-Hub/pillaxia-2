@@ -2206,6 +2206,60 @@ export type Database = {
           },
         ]
       }
+      user_login_locations: {
+        Row: {
+          action: string
+          city: string
+          country: string
+          country_code: string | null
+          created_at: string
+          id: string
+          ip_address: string
+          is_trusted: boolean
+          isp: string | null
+          latitude: number | null
+          longitude: number | null
+          region: string | null
+          timezone: string | null
+          user_agent: string | null
+          user_id: string
+        }
+        Insert: {
+          action?: string
+          city?: string
+          country?: string
+          country_code?: string | null
+          created_at?: string
+          id?: string
+          ip_address: string
+          is_trusted?: boolean
+          isp?: string | null
+          latitude?: number | null
+          longitude?: number | null
+          region?: string | null
+          timezone?: string | null
+          user_agent?: string | null
+          user_id: string
+        }
+        Update: {
+          action?: string
+          city?: string
+          country?: string
+          country_code?: string | null
+          created_at?: string
+          id?: string
+          ip_address?: string
+          is_trusted?: boolean
+          isp?: string | null
+          latitude?: number | null
+          longitude?: number | null
+          region?: string | null
+          timezone?: string | null
+          user_agent?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           assigned_by: string | null
@@ -2579,6 +2633,7 @@ export type Database = {
         | "permission_change"
         | "account_locked"
         | "account_unlocked"
+        | "new_login_location"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -2724,6 +2779,7 @@ export const Constants = {
         "permission_change",
         "account_locked",
         "account_unlocked",
+        "new_login_location",
       ],
     },
   },
