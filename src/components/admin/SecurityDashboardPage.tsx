@@ -208,9 +208,11 @@ export function SecurityDashboardPage() {
       {/* Stats Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Security Events</CardTitle>
-            <Activity className="h-4 w-4 text-muted-foreground" />
+          <CardHeader className="pb-2">
+            <div className="p-2 rounded-lg bg-muted">
+              <Activity className="h-4 w-4 text-muted-foreground" />
+            </div>
+            <CardTitle className="text-sm">Security Events</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats.totalEvents}</div>
@@ -221,9 +223,11 @@ export function SecurityDashboardPage() {
         </Card>
 
         <Card className={stats.criticalEvents > 0 ? "border-destructive" : ""}>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Critical Alerts</CardTitle>
-            <AlertTriangle className="h-4 w-4 text-destructive" />
+          <CardHeader className="pb-2">
+            <div className="p-2 rounded-lg bg-destructive/10">
+              <AlertTriangle className="h-4 w-4 text-destructive" />
+            </div>
+            <CardTitle className="text-sm">Critical Alerts</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-destructive">{stats.criticalEvents}</div>
@@ -234,9 +238,11 @@ export function SecurityDashboardPage() {
         </Card>
 
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active Sessions</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
+          <CardHeader className="pb-2">
+            <div className="p-2 rounded-lg bg-muted">
+              <Users className="h-4 w-4 text-muted-foreground" />
+            </div>
+            <CardTitle className="text-sm">Active Sessions</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats.activeSessions}</div>
@@ -247,9 +253,11 @@ export function SecurityDashboardPage() {
         </Card>
 
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">PHI Access</CardTitle>
-            <FileText className="h-4 w-4 text-muted-foreground" />
+          <CardHeader className="pb-2">
+            <div className="p-2 rounded-lg bg-muted">
+              <FileText className="h-4 w-4 text-muted-foreground" />
+            </div>
+            <CardTitle className="text-sm">PHI Access</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats.phiAccess}</div>
