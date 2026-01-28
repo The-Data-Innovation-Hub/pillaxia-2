@@ -22,8 +22,7 @@ import {
   HealthProfilePage,
   CaregiverNotificationHistoryPage,
   PatientSettingsPage,
-  NotificationHistoryPage,
-  SyncStatusPage,
+  NotificationsHubPage,
   VitalsPage,
   LabResultsPage,
 } from "@/components/patient";
@@ -117,7 +116,7 @@ function AppRoutes() {
         <Route path="caregiver-view" element={<CaregiverDashboardPage />} />
         <Route path="caregiver-history" element={<CaregiverNotificationHistoryPage />} />
         <Route path="angela" element={<AngelaPage />} />
-        <Route path="notifications" element={<NotificationHistoryPage />} />
+        <Route path="notifications" element={<NotificationsHubPage />} />
         <Route path="vitals" element={<VitalsPage />} />
         <Route path="lab-results" element={<LabResultsPage />} />
         <Route path="health-profile" element={<HealthProfilePage />} />
@@ -149,7 +148,7 @@ function AppRoutes() {
         <Route path="security" element={<SecurityPage />} />
         {/* Shared Routes */}
         <Route path="settings" element={<PatientSettingsPage />} />
-        <Route path="sync-status" element={<SyncStatusPage />} />
+        <Route path="sync-status" element={<Navigate to="/dashboard/notifications" replace />} />
         <Route path="help" element={<HelpPage />} />
       </Route>
       
