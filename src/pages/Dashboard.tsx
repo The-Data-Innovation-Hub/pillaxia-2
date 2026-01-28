@@ -4,11 +4,11 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, LogOut, User, Stethoscope, Pill, Shield } from "lucide-react";
+import { Loader2, LogOut, User, Stethoscope, Pill, Shield, Building2 } from "lucide-react";
 
 const Dashboard = () => {
   const navigate = useNavigate();
-  const { user, profile, roles, loading, signOut, isAdmin, isClinician, isPharmacist, isPatient } = useAuth();
+  const { user, profile, roles, loading, signOut, isAdmin, isManager, isClinician, isPharmacist, isPatient, isAdminOrManager } = useAuth();
 
   useEffect(() => {
     if (!loading && !user) {
@@ -32,6 +32,8 @@ const Dashboard = () => {
     switch (role) {
       case "admin":
         return <Shield className="h-4 w-4" />;
+      case "manager":
+        return <Building2 className="h-4 w-4" />;
       case "clinician":
         return <Stethoscope className="h-4 w-4" />;
       case "pharmacist":
@@ -45,6 +47,8 @@ const Dashboard = () => {
     switch (role) {
       case "admin":
         return "bg-destructive/10 text-destructive border-destructive/20";
+      case "manager":
+        return "bg-violet-500/10 text-violet-700 border-violet-500/20";
       case "clinician":
         return "bg-primary/10 text-primary border-primary/20";
       case "pharmacist":
@@ -168,6 +172,29 @@ const Dashboard = () => {
                 </p>
                 <Button className="w-full" variant="outline" disabled>
                   Coming in Phase 4
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Manager Card */}
+          {isManager && !isAdmin && (
+            <Card className="shadow-pillaxia-card border-violet-500/20">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Building2 className="h-5 w-5 text-violet-600" />
+                  Manager Dashboard
+                </CardTitle>
+                <CardDescription>
+                  Manage your organization
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Manage organization users, settings, and view analytics for your organization.
+                </p>
+                <Button className="w-full" variant="outline" disabled>
+                  Coming Soon
                 </Button>
               </CardContent>
             </Card>

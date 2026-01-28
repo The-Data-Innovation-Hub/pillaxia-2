@@ -183,7 +183,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
 // Role-based dashboard router
 function DashboardRouter() {
-  const { isPatient, isClinician, isPharmacist, isAdmin, loading } = useAuth();
+  const { isPatient, isClinician, isPharmacist, isAdmin, isManager, loading } = useAuth();
 
   if (loading) {
     return (
@@ -194,7 +194,7 @@ function DashboardRouter() {
   }
 
   // Route based on role priority
-  if (isAdmin) {
+  if (isAdmin || isManager) {
     return <AdminLayout />;
   }
   
@@ -212,9 +212,9 @@ function DashboardRouter() {
 
 // Determine which home component to show based on role
 function DashboardHome() {
-  const { isAdmin, isClinician, isPharmacist } = useAuth();
+  const { isAdmin, isManager, isClinician, isPharmacist } = useAuth();
   
-  if (isAdmin) {
+  if (isAdmin || isManager) {
     return <AdminDashboardHome />;
   }
   if (isPharmacist) {

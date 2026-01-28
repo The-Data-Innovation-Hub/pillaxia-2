@@ -3098,7 +3098,12 @@ export type Database = {
         Args: { p_device_token_hash: string; p_user_id: string }
         Returns: boolean
       }
+      is_manager: { Args: { _user_id: string }; Returns: boolean }
       is_org_admin: { Args: { p_user_id: string }; Returns: boolean }
+      is_org_manager: {
+        Args: { _org_id: string; _user_id: string }
+        Returns: boolean
+      }
       is_patient: { Args: { _user_id: string }; Returns: boolean }
       is_pharmacist: { Args: { _user_id: string }; Returns: boolean }
       is_same_organization: {
@@ -3130,6 +3135,10 @@ export type Database = {
         }
         Returns: string
       }
+      manager_can_access_user: {
+        Args: { _manager_id: string; _target_user_id: string }
+        Returns: boolean
+      }
       record_login_attempt: {
         Args: {
           p_email: string
@@ -3159,7 +3168,7 @@ export type Database = {
       unlock_account: { Args: { p_email: string }; Returns: boolean }
     }
     Enums: {
-      app_role: "patient" | "clinician" | "pharmacist" | "admin"
+      app_role: "patient" | "clinician" | "pharmacist" | "admin" | "manager"
       drug_schedule: "II" | "III" | "IV" | "V"
       organization_role: "owner" | "admin" | "member"
       organization_status: "active" | "suspended" | "trial" | "cancelled"
@@ -3307,7 +3316,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["patient", "clinician", "pharmacist", "admin"],
+      app_role: ["patient", "clinician", "pharmacist", "admin", "manager"],
       drug_schedule: ["II", "III", "IV", "V"],
       organization_role: ["owner", "admin", "member"],
       organization_status: ["active", "suspended", "trial", "cancelled"],

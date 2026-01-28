@@ -29,7 +29,7 @@ const menuItems = [
 ];
 
 export function AdminSidebar() {
-  const { signOut, profile } = useAuth();
+  const { signOut, profile, isAdmin, isManager } = useAuth();
 
   return (
     <Sidebar className="border-r">
@@ -45,7 +45,9 @@ export function AdminSidebar() {
             <span className="font-medium text-sm">
               {profile?.first_name} {profile?.last_name}
             </span>
-            <span className="text-xs text-muted-foreground">System Administrator</span>
+            <span className="text-xs text-muted-foreground">
+              {isAdmin ? "System Administrator" : isManager ? "Organization Manager" : "User"}
+            </span>
           </div>
         </div>
       </SidebarHeader>
