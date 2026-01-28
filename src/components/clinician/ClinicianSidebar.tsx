@@ -24,18 +24,18 @@ export function ClinicianSidebar() {
   const { data: hasCaregiverRelationships } = useHasCaregiverRelationships();
 
   const baseMenuItems = [
-    { title: t.dashboard.overview, url: "/dashboard", icon: LayoutDashboard },
-    { title: "Patient Roster", url: "/dashboard/patients", icon: Users },
-    { title: "E-Prescribing", url: "/dashboard/e-prescribing", icon: FileText },
+    { title: t.dashboard.overview, url: "/dashboard", icon: LayoutDashboard, tourId: "dashboard" },
+    { title: "Patient Roster", url: "/dashboard/patients", icon: Users, tourId: "patients" },
+    { title: "E-Prescribing", url: "/dashboard/e-prescribing", icon: FileText, tourId: "prescriptions" },
     { title: "Appointments", url: "/dashboard/appointments", icon: CalendarDays },
     { title: "Medication Review", url: "/dashboard/medications", icon: Pill },
-    { title: "Adherence Monitor", url: "/dashboard/adherence", icon: Activity },
+    { title: "Adherence Monitor", url: "/dashboard/adherence", icon: Activity, tourId: "adherence" },
     { title: "SOAP Notes", url: "/dashboard/soap-notes", icon: FileText },
   ];
 
   const caregiverMenuItems = [
-    { title: "Caregiver View", url: "/dashboard/caregiver-view", icon: Heart },
-    { title: "Alert History", url: "/dashboard/caregiver-history", icon: History },
+    { title: "Caregiver View", url: "/dashboard/caregiver-view", icon: Heart, tourId: undefined },
+    { title: "Alert History", url: "/dashboard/caregiver-history", icon: History, tourId: undefined },
   ];
 
   const menuItems = hasCaregiverRelationships
@@ -74,8 +74,10 @@ export function ClinicianSidebar() {
                       end={item.url === "/dashboard"}
                       className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-muted/50 transition-colors"
                       activeClassName="bg-primary/10 text-primary font-medium"
+                      data-tour={item.tourId}
+                      aria-label={item.title}
                     >
-                      <item.icon className="h-4 w-4" />
+                      <item.icon className="h-4 w-4" aria-hidden="true" />
                       <span>{item.title}</span>
                     </NavLink>
                   </SidebarMenuButton>

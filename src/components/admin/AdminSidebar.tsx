@@ -17,15 +17,15 @@ import {
 } from "@/components/ui/sidebar";
 
 const menuItems = [
-  { title: "Overview", url: "/dashboard", icon: LayoutDashboard, adminOnly: false },
-  { title: "User Management", url: "/dashboard/users", icon: Users, adminOnly: false },
+  { title: "Overview", url: "/dashboard", icon: LayoutDashboard, adminOnly: false, tourId: "dashboard" },
+  { title: "User Management", url: "/dashboard/users", icon: Users, adminOnly: false, tourId: "users" },
   { title: "Organization", url: "/dashboard/organization", icon: Building2, adminOnly: true },
   { title: "License Compliance", url: "/dashboard/license-compliance", icon: BadgeCheck, adminOnly: false },
-  { title: "System Analytics", url: "/dashboard/analytics", icon: BarChart3, adminOnly: false },
+  { title: "System Analytics", url: "/dashboard/analytics", icon: BarChart3, adminOnly: false, tourId: "analytics" },
   { title: "Notification Analytics", url: "/dashboard/notification-analytics", icon: TrendingUp, adminOnly: false },
   { title: "Patient Engagement", url: "/dashboard/patient-engagement", icon: Activity, adminOnly: false },
   { title: "A/B Testing", url: "/dashboard/ab-testing", icon: FlaskConical, adminOnly: false },
-  { title: "Security", url: "/dashboard/security", icon: ShieldCheck, adminOnly: false },
+  { title: "Security", url: "/dashboard/security", icon: ShieldCheck, adminOnly: false, tourId: "security" },
 ];
 
 export function AdminSidebar() {
@@ -67,8 +67,10 @@ export function AdminSidebar() {
                         end={item.url === "/dashboard"}
                         className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-muted/50 transition-colors"
                         activeClassName="bg-primary/10 text-primary font-medium"
+                        data-tour={item.tourId}
+                        aria-label={item.title}
                       >
-                        <item.icon className="h-4 w-4" />
+                        <item.icon className="h-4 w-4" aria-hidden="true" />
                         <span>{item.title}</span>
                       </NavLink>
                     </SidebarMenuButton>

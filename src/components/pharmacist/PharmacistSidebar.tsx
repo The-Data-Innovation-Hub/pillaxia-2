@@ -17,15 +17,15 @@ import {
 } from "@/components/ui/sidebar";
 
 const menuItems = [
-  { title: "Overview", url: "/dashboard", icon: LayoutDashboard },
-  { title: "E-Prescriptions", url: "/dashboard/e-prescriptions", icon: FileText },
+  { title: "Overview", url: "/dashboard", icon: LayoutDashboard, tourId: "dashboard" },
+  { title: "E-Prescriptions", url: "/dashboard/e-prescriptions", icon: FileText, tourId: "prescriptions" },
   { title: "Prescriptions", url: "/dashboard/prescriptions", icon: FileText },
-  { title: "Inventory", url: "/dashboard/inventory", icon: Package },
+  { title: "Inventory", url: "/dashboard/inventory", icon: Package, tourId: "inventory" },
   { title: "Availability", url: "/dashboard/availability", icon: MapPin },
   { title: "Controlled Drugs", url: "/dashboard/controlled-drugs", icon: Shield },
   { title: "Drug Recalls", url: "/dashboard/recalls", icon: AlertTriangle },
   { title: "Drug Transfers", url: "/dashboard/transfers", icon: ArrowRightLeft },
-  { title: "Refill Requests", url: "/dashboard/refills", icon: RefreshCw },
+  { title: "Refill Requests", url: "/dashboard/refills", icon: RefreshCw, tourId: "refills" },
   { title: "Notifications", url: "/dashboard/notifications", icon: Bell },
 ];
 
@@ -64,8 +64,10 @@ export function PharmacistSidebar() {
                       end={item.url === "/dashboard"}
                       className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-muted/50 transition-colors"
                       activeClassName="bg-primary/10 text-primary font-medium"
+                      data-tour={item.tourId}
+                      aria-label={item.title}
                     >
-                      <item.icon className="h-4 w-4" />
+                      <item.icon className="h-4 w-4" aria-hidden="true" />
                       <span>{item.title}</span>
                     </NavLink>
                   </SidebarMenuButton>

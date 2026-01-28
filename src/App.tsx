@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -8,11 +9,22 @@ import { OrganizationProvider } from "@/contexts/OrganizationContext";
 import { LanguageProvider } from "@/i18n/LanguageContext";
 import { OfflineBanner } from "@/components/OfflineBanner";
 import { ThemeProvider } from "next-themes";
+import { PageLoadingFallback } from "@/components/ui/loading-spinner";
+import { OnboardingProvider, TourOverlay, OnboardingChecklist } from "@/components/onboarding";
+import { SkipLink } from "@/components/a11y";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
+
+// Layout components (not lazy - needed immediately)
+import { PatientLayout } from "@/components/patient/PatientLayout";
+import { ClinicianLayout } from "@/components/clinician/ClinicianLayout";
+import { PharmacistLayout } from "@/components/pharmacist/PharmacistLayout";
+import { AdminLayout } from "@/components/admin/AdminLayout";
+import { SessionTimeoutWarning } from "@/components/SessionTimeoutWarning";
+
+// Lazy loaded routes
 import {
-  PatientLayout,
   PatientDashboardHome,
   MedicationsPage,
   SchedulePage,
@@ -23,21 +35,14 @@ import {
   PatientSettingsPage,
   NotificationsHubPage,
   AppointmentsCalendarPage,
-} from "@/components/patient";
-import {
-  ClinicianLayout,
   ClinicianDashboardHome,
   PatientRosterPage,
   MedicationReviewPage,
   AdherenceMonitorPage,
   SOAPNotesPage,
-  AppointmentsPage,
+  ClinicianAppointmentsPage,
   EPrescribingPage,
   ClinicianSettingsPage,
-} from "@/components/clinician";
-import { VideoRoom } from "@/components/telemedicine";
-import {
-  PharmacistLayout,
   PharmacistDashboardHome,
   PrescriptionsPage,
   InventoryPage,
@@ -47,9 +52,6 @@ import {
   DrugRecallsPage,
   DrugTransfersPage,
   PharmacyPrescriptionsPage,
-} from "@/components/pharmacist";
-import {
-  AdminLayout,
   AdminDashboardHome,
   UserManagementPage,
   SystemAnalyticsPage,
@@ -60,14 +62,11 @@ import {
   LicenseCompliancePage,
   SecurityPage,
   OrganizationManagementPage,
-} from "@/components/admin";
-import { HelpPage } from "@/components/shared";
-import { SessionTimeoutWarning } from "@/components/SessionTimeoutWarning";
+  HelpPage,
+  VideoRoom,
+} from "@/routes/lazy-routes";
 
 const queryClient = new QueryClient();
-
-// These components must be rendered inside AuthProvider, so we define them here
-// and they will be used within the AppRoutes component which is inside AuthProvider
 
 const App = () => (
   <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
@@ -79,9 +78,14 @@ const App = () => (
           <AuthProvider>
             <OrganizationProvider>
               <LanguageProvider>
-                <OfflineBanner />
-                <SessionTimeoutWarning />
-                <AppRoutes />
+                <OnboardingProvider>
+                  <SkipLink href="#main-content" />
+                  <OfflineBanner />
+                  <SessionTimeoutWarning />
+                  <TourOverlay />
+                  <OnboardingChecklist />
+                  <AppRoutes />
+                </OnboardingProvider>
               </LanguageProvider>
             </OrganizationProvider>
           </AuthProvider>
@@ -91,8 +95,11 @@ const App = () => (
   </ThemeProvider>
 );
 
-// All routes and components that use useAuth must be inside this component
-// which is rendered within AuthProvider
+// Suspense wrapper for lazy loaded routes
+function SuspenseRoute({ children }: { children: React.ReactNode }) {
+  return <Suspense fallback={<PageLoadingFallback />}>{children}</Suspense>;
+}
+
 function AppRoutes() {
   return (
     <Routes>
@@ -108,52 +115,52 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       >
-        <Route index element={<DashboardHome />} />
+        <Route index element={<SuspenseRoute><DashboardHome /></SuspenseRoute>} />
         {/* Patient Routes */}
-        <Route path="medications" element={<MedicationsPage />} />
-        <Route path="schedule" element={<SchedulePage />} />
-        <Route path="appointments" element={<AppointmentsCalendarPage />} />
-        <Route path="health" element={<HealthHubPage />} />
+        <Route path="medications" element={<SuspenseRoute><MedicationsPage /></SuspenseRoute>} />
+        <Route path="schedule" element={<SuspenseRoute><SchedulePage /></SuspenseRoute>} />
+        <Route path="appointments" element={<SuspenseRoute><AppointmentsCalendarPage /></SuspenseRoute>} />
+        <Route path="health" element={<SuspenseRoute><HealthHubPage /></SuspenseRoute>} />
         <Route path="symptoms" element={<Navigate to="/dashboard/health" replace />} />
         <Route path="vitals" element={<Navigate to="/dashboard/health" replace />} />
         <Route path="lab-results" element={<Navigate to="/dashboard/health" replace />} />
         <Route path="health-profile" element={<Navigate to="/dashboard/health" replace />} />
-        <Route path="caregivers" element={<CaregiversHubPage />} />
+        <Route path="caregivers" element={<SuspenseRoute><CaregiversHubPage /></SuspenseRoute>} />
         <Route path="caregiver-view" element={<Navigate to="/dashboard/caregivers" replace />} />
-        <Route path="caregiver-history" element={<CaregiverNotificationHistoryPage />} />
-        <Route path="angela" element={<AngelaPage />} />
-        <Route path="notifications" element={<NotificationsHubPage />} />
+        <Route path="caregiver-history" element={<SuspenseRoute><CaregiverNotificationHistoryPage /></SuspenseRoute>} />
+        <Route path="angela" element={<SuspenseRoute><AngelaPage /></SuspenseRoute>} />
+        <Route path="notifications" element={<SuspenseRoute><NotificationsHubPage /></SuspenseRoute>} />
         {/* Clinician Routes */}
-        <Route path="patients" element={<PatientRosterPage />} />
-        <Route path="e-prescribing" element={<EPrescribingPage />} />
-        <Route path="adherence" element={<AdherenceMonitorPage />} />
-        <Route path="soap-notes" element={<SOAPNotesPage />} />
-        <Route path="appointments" element={<AppointmentsPage />} />
-        <Route path="clinician-settings" element={<ClinicianSettingsPage />} />
-        <Route path="telemedicine/room/:roomId" element={<VideoRoom />} />
+        <Route path="patients" element={<SuspenseRoute><PatientRosterPage /></SuspenseRoute>} />
+        <Route path="e-prescribing" element={<SuspenseRoute><EPrescribingPage /></SuspenseRoute>} />
+        <Route path="adherence" element={<SuspenseRoute><AdherenceMonitorPage /></SuspenseRoute>} />
+        <Route path="soap-notes" element={<SuspenseRoute><SOAPNotesPage /></SuspenseRoute>} />
+        <Route path="clinician-appointments" element={<SuspenseRoute><ClinicianAppointmentsPage /></SuspenseRoute>} />
+        <Route path="clinician-settings" element={<SuspenseRoute><ClinicianSettingsPage /></SuspenseRoute>} />
+        <Route path="telemedicine/room/:roomId" element={<SuspenseRoute><VideoRoom /></SuspenseRoute>} />
         {/* Pharmacist Routes */}
-        <Route path="e-prescriptions" element={<PharmacyPrescriptionsPage />} />
-        <Route path="prescriptions" element={<PrescriptionsPage />} />
-        <Route path="inventory" element={<InventoryPage />} />
-        <Route path="availability" element={<MedicationAvailabilityPage />} />
-        <Route path="controlled-drugs" element={<ControlledDrugRegisterPage />} />
-        <Route path="recalls" element={<DrugRecallsPage />} />
-        <Route path="transfers" element={<DrugTransfersPage />} />
-        <Route path="refills" element={<RefillRequestsPage />} />
+        <Route path="e-prescriptions" element={<SuspenseRoute><PharmacyPrescriptionsPage /></SuspenseRoute>} />
+        <Route path="prescriptions" element={<SuspenseRoute><PrescriptionsPage /></SuspenseRoute>} />
+        <Route path="inventory" element={<SuspenseRoute><InventoryPage /></SuspenseRoute>} />
+        <Route path="availability" element={<SuspenseRoute><MedicationAvailabilityPage /></SuspenseRoute>} />
+        <Route path="controlled-drugs" element={<SuspenseRoute><ControlledDrugRegisterPage /></SuspenseRoute>} />
+        <Route path="recalls" element={<SuspenseRoute><DrugRecallsPage /></SuspenseRoute>} />
+        <Route path="transfers" element={<SuspenseRoute><DrugTransfersPage /></SuspenseRoute>} />
+        <Route path="refills" element={<SuspenseRoute><RefillRequestsPage /></SuspenseRoute>} />
         {/* Admin Routes */}
-        <Route path="users" element={<UserManagementPage />} />
-        <Route path="license-compliance" element={<LicenseCompliancePage />} />
-        <Route path="analytics" element={<SystemAnalyticsPage />} />
-        <Route path="notification-analytics" element={<NotificationAnalyticsPage />} />
-        <Route path="admin-settings" element={<SettingsPage />} />
-        <Route path="ab-testing" element={<ABTestingPage />} />
-        <Route path="patient-engagement" element={<PatientEngagementPage />} />
-        <Route path="security" element={<SecurityPage />} />
-        <Route path="organization" element={<OrganizationManagementPage />} />
+        <Route path="users" element={<SuspenseRoute><UserManagementPage /></SuspenseRoute>} />
+        <Route path="license-compliance" element={<SuspenseRoute><LicenseCompliancePage /></SuspenseRoute>} />
+        <Route path="analytics" element={<SuspenseRoute><SystemAnalyticsPage /></SuspenseRoute>} />
+        <Route path="notification-analytics" element={<SuspenseRoute><NotificationAnalyticsPage /></SuspenseRoute>} />
+        <Route path="admin-settings" element={<SuspenseRoute><SettingsPage /></SuspenseRoute>} />
+        <Route path="ab-testing" element={<SuspenseRoute><ABTestingPage /></SuspenseRoute>} />
+        <Route path="patient-engagement" element={<SuspenseRoute><PatientEngagementPage /></SuspenseRoute>} />
+        <Route path="security" element={<SuspenseRoute><SecurityPage /></SuspenseRoute>} />
+        <Route path="organization" element={<SuspenseRoute><OrganizationManagementPage /></SuspenseRoute>} />
         {/* Shared Routes */}
-        <Route path="settings" element={<PatientSettingsPage />} />
+        <Route path="settings" element={<SuspenseRoute><PatientSettingsPage /></SuspenseRoute>} />
         <Route path="sync-status" element={<Navigate to="/dashboard/notifications" replace />} />
-        <Route path="help" element={<HelpPage />} />
+        <Route path="help" element={<SuspenseRoute><HelpPage /></SuspenseRoute>} />
       </Route>
       
       {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
@@ -162,16 +169,12 @@ function AppRoutes() {
   );
 }
 
-// Protected route wrapper - now used inside AppRoutes which is inside AuthProvider
+// Protected route wrapper
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
-      </div>
-    );
+    return <PageLoadingFallback />;
   }
 
   if (!user) {
@@ -186,11 +189,7 @@ function DashboardRouter() {
   const { isPatient, isClinician, isPharmacist, isAdmin, isManager, loading } = useAuth();
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
-      </div>
-    );
+    return <PageLoadingFallback />;
   }
 
   // Route based on role priority
