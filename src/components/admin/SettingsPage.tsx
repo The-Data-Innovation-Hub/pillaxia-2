@@ -665,15 +665,7 @@ export function SettingsPage() {
                 <Button
                   variant="destructive"
                   size="sm"
-                  onClick={() => {
-                    // Enable Sentry sending in this preview tab so the test error actually reaches Sentry.
-                    try {
-                      sessionStorage.setItem("sentry_dev_enabled", "true");
-                    } catch {
-                      // ignore
-                    }
-                    setShouldThrowError(true);
-                  }}
+                  onClick={() => setShouldThrowError(true)}
                 >
                   <Bug className="h-4 w-4 mr-2" />
                   Break the World
