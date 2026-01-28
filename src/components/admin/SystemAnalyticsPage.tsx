@@ -147,20 +147,18 @@ export function SystemAnalyticsPage() {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {adherenceCards.map((card) => (
           <Card key={card.title}>
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-3">
-                <div className={`p-2 rounded-lg ${card.bgColor}`}>
-                  <card.icon className={`h-5 w-5 ${card.color}`} />
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">{card.title}</p>
-                  {isLoading ? (
-                    <Skeleton className="h-7 w-12" />
-                  ) : (
-                    <p className="text-2xl font-bold">{card.value}</p>
-                  )}
-                </div>
+            <CardHeader className="pb-2">
+              <div className={`p-2 rounded-lg ${card.bgColor}`}>
+                <card.icon className={`h-5 w-5 ${card.color}`} />
               </div>
+              <CardTitle className="text-sm">{card.title}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {isLoading ? (
+                <Skeleton className="h-7 w-12 mx-auto" />
+              ) : (
+                <p className="text-2xl font-bold">{card.value}</p>
+              )}
             </CardContent>
           </Card>
         ))}
@@ -276,37 +274,33 @@ export function SystemAnalyticsPage() {
       {/* Additional Stats */}
       <div className="grid gap-4 sm:grid-cols-2">
         <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-purple-50">
-                <Calendar className="h-5 w-5 text-purple-600" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Symptom Entries</p>
-                {isLoading ? (
-                  <Skeleton className="h-7 w-12" />
-                ) : (
-                  <p className="text-2xl font-bold">{analytics?.symptomCount || 0}</p>
-                )}
-              </div>
+          <CardHeader className="pb-2">
+            <div className="p-2 rounded-lg bg-purple-50">
+              <Calendar className="h-5 w-5 text-purple-600" />
             </div>
+            <CardTitle className="text-sm">Symptom Entries</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {isLoading ? (
+              <Skeleton className="h-7 w-12 mx-auto" />
+            ) : (
+              <p className="text-2xl font-bold">{analytics?.symptomCount || 0}</p>
+            )}
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-blue-50">
-                <Activity className="h-5 w-5 text-blue-600" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Total Logs Recorded</p>
-                {isLoading ? (
-                  <Skeleton className="h-7 w-12" />
-                ) : (
-                  <p className="text-2xl font-bold">{analytics?.totalLogs || 0}</p>
-                )}
-              </div>
+          <CardHeader className="pb-2">
+            <div className="p-2 rounded-lg bg-blue-50">
+              <Activity className="h-5 w-5 text-blue-600" />
             </div>
+            <CardTitle className="text-sm">Total Logs Recorded</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {isLoading ? (
+              <Skeleton className="h-7 w-12 mx-auto" />
+            ) : (
+              <p className="text-2xl font-bold">{analytics?.totalLogs || 0}</p>
+            )}
           </CardContent>
         </Card>
       </div>
