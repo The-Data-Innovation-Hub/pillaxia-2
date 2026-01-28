@@ -5,6 +5,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { ChangelogDialog } from "@/components/ChangelogDialog";
 
 interface VersionBadgeProps {
   variant?: "default" | "minimal" | "detailed" | "full";
@@ -17,26 +18,32 @@ export function VersionBadge({ variant = "default", className = "" }: VersionBad
   
   if (variant === "minimal") {
     return (
-      <span className={`text-xs text-muted-foreground ${className}`}>
-        {shortVersion}
-      </span>
+      <ChangelogDialog>
+        <span className={`text-xs text-muted-foreground cursor-pointer hover:text-foreground transition-colors ${className}`}>
+          {shortVersion}
+        </span>
+      </ChangelogDialog>
     );
   }
 
   if (variant === "full") {
     return (
-      <span className={`text-xs text-muted-foreground ${className}`}>
-        {fullVersion}
-      </span>
+      <ChangelogDialog>
+        <span className={`text-xs text-muted-foreground cursor-pointer hover:text-foreground transition-colors ${className}`}>
+          {fullVersion}
+        </span>
+      </ChangelogDialog>
     );
   }
 
   if (variant === "detailed") {
     return (
-      <div className={`text-xs text-muted-foreground ${className}`}>
-        <span className="font-medium">{fullVersion}</span>
-        <span className="ml-1 opacity-70">({VERSION_INFO.environment})</span>
-      </div>
+      <ChangelogDialog>
+        <div className={`text-xs text-muted-foreground cursor-pointer hover:text-foreground transition-colors ${className}`}>
+          <span className="font-medium">{fullVersion}</span>
+          <span className="ml-1 opacity-70">({VERSION_INFO.environment})</span>
+        </div>
+      </ChangelogDialog>
     );
   }
 
@@ -44,11 +51,13 @@ export function VersionBadge({ variant = "default", className = "" }: VersionBad
     <TooltipProvider>
       <Tooltip>
         <TooltipTrigger asChild>
-          <span 
-            className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-muted text-muted-foreground hover:bg-muted/80 transition-colors cursor-default ${className}`}
-          >
-            {shortVersion}
-          </span>
+          <ChangelogDialog>
+            <span 
+              className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-muted text-muted-foreground hover:bg-muted/80 transition-colors cursor-pointer ${className}`}
+            >
+              {shortVersion}
+            </span>
+          </ChangelogDialog>
         </TooltipTrigger>
         <TooltipContent side="bottom" className="text-xs">
           <div className="space-y-1">
@@ -62,6 +71,7 @@ export function VersionBadge({ variant = "default", className = "" }: VersionBad
             <p className="text-muted-foreground">
               Environment: {VERSION_INFO.environment}
             </p>
+            <p className="text-primary text-[10px] mt-1">Click to view changelog</p>
           </div>
         </TooltipContent>
       </Tooltip>
