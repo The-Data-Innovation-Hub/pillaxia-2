@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Users, Pill, Activity, Shield, FileText } from "lucide-react";
+import { Users, Pill, Activity, Shield, FileText, Building2 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -38,6 +38,11 @@ export function AdminDashboardHome() {
         .from("medications")
         .select("*", { count: "exact", head: true });
 
+      // Get total organizations
+      const { count: totalOrganizations } = await supabase
+        .from("organizations")
+        .select("*", { count: "exact", head: true });
+
       // Get recent audit logs count (last 24h)
       const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
       const { count: recentAuditLogs } = await supabase
@@ -49,6 +54,7 @@ export function AdminDashboardHome() {
         totalUsers: totalUsers || 0,
         roleCounts,
         totalMedications: totalMedications || 0,
+        totalOrganizations: totalOrganizations || 0,
         recentAuditLogs: recentAuditLogs || 0,
       };
     },
@@ -62,6 +68,14 @@ export function AdminDashboardHome() {
       color: "text-blue-600",
       bgColor: "bg-blue-50",
       link: "/dashboard/users",
+    },
+    {
+      title: "Organizations",
+      value: stats?.totalOrganizations || 0,
+      icon: Building2,
+      color: "text-violet-600",
+      bgColor: "bg-violet-50",
+      link: "/dashboard/organization",
     },
     {
       title: "Total Medications",
@@ -97,7 +111,7 @@ export function AdminDashboardHome() {
       </div>
 
       {/* Main Stats */}
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {statCards.map((stat) => (
           <Card key={stat.title} className="hover:shadow-md transition-shadow">
             <CardHeader className="pb-2">
