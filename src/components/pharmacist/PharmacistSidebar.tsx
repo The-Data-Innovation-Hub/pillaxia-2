@@ -27,7 +27,6 @@ const menuItems = [
   { title: "Drug Transfers", url: "/dashboard/transfers", icon: ArrowRightLeft },
   { title: "Refill Requests", url: "/dashboard/refills", icon: RefreshCw },
   { title: "Notifications", url: "/dashboard/notifications", icon: Bell },
-  { title: "Settings", url: "/dashboard/settings", icon: Settings },
 ];
 
 export function PharmacistSidebar() {
@@ -64,7 +63,7 @@ export function PharmacistSidebar() {
                       to={item.url}
                       end={item.url === "/dashboard"}
                       className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-muted/50 transition-colors"
-                      activeClassName="bg-emerald-50 text-emerald-700 font-medium"
+                      activeClassName="bg-primary/10 text-primary font-medium"
                     >
                       <item.icon className="h-4 w-4" />
                       <span>{item.title}</span>
@@ -81,10 +80,18 @@ export function PharmacistSidebar() {
         <NavLink 
           to="/dashboard/help"
           className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-muted/50 transition-colors text-sm"
-          activeClassName="bg-emerald-50 text-emerald-700 font-medium"
+          activeClassName="bg-primary/10 text-primary font-medium"
         >
           <HelpCircle className="h-4 w-4" />
           <span>Help & Support</span>
+        </NavLink>
+        <NavLink 
+          to="/dashboard/settings"
+          className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-muted/50 transition-colors text-sm"
+          activeClassName="bg-primary/10 text-primary font-medium"
+        >
+          <Settings className="h-4 w-4" />
+          <span>Settings</span>
         </NavLink>
         <Button
           variant="outline"
