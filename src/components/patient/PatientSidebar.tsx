@@ -137,11 +137,11 @@ export function PatientSidebar() {
         </NavLink>
         <ThemeToggle />
         <Button 
-          variant="ghost" 
-          className="w-full justify-start gap-3 text-destructive hover:text-destructive hover:bg-destructive/10"
+          variant="outline"
+          className="w-full justify-start gap-3 mt-2 border-destructive/30 text-destructive hover:bg-destructive hover:text-destructive-foreground hover:border-destructive transition-all duration-200 group"
           onClick={signOut}
         >
-          <LogOut className="h-4 w-4" />
+          <LogOut className="h-4 w-4 transition-transform duration-200 group-hover:-translate-x-0.5" />
           <span>{t.nav.signOut}</span>
         </Button>
       </SidebarFooter>
