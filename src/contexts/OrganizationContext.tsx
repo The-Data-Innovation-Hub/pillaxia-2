@@ -105,23 +105,41 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     setError(null);
 
     try {
-      // First, get the user's organization membership
-      const { data: memberData, error: memberError } = await supabase
+      // First, get the user's profile to check for a preferred organization
+      const { data: profileData } = await supabase
+        .from("profiles")
+        .select("organization_id")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      // Get the user's organization memberships
+      const { data: memberDataList, error: memberError } = await supabase
         .from("organization_members")
         .select("*")
         .eq("user_id", user.id)
         .eq("is_active", true)
-        .maybeSingle();
+        .order("joined_at", { ascending: false });
 
       if (memberError) throw memberError;
 
-      if (!memberData) {
+      if (!memberDataList || memberDataList.length === 0) {
         // User is not part of any organization
         setOrganization(null);
         setBranding(null);
         setMembership(null);
         setIsLoading(false);
         return;
+      }
+
+      // Prefer the organization set in the user's profile, otherwise use the first/most recent membership
+      let memberData = memberDataList[0];
+      if (profileData?.organization_id) {
+        const preferredMembership = memberDataList.find(
+          (m) => m.organization_id === profileData.organization_id
+        );
+        if (preferredMembership) {
+          memberData = preferredMembership;
+        }
       }
 
       setMembership(memberData as OrganizationMember);
