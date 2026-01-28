@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import heroImage from "@/assets/hero-angela.png";
 import { useLanguage } from "@/i18n/LanguageContext";
+import { VersionBadge } from "@/components/VersionBadge";
 
 interface HeroSectionProps {
   onGetStarted?: () => void;
@@ -17,6 +18,15 @@ const HeroSection = ({ onGetStarted }: HeroSectionProps) => {
       <div className="container mx-auto px-4">
         <div className="flex flex-col lg:flex-row items-center gap-12">
           <div className="lg:w-1/2">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5 }}
+              className="mb-4"
+            >
+              <VersionBadge />
+            </motion.div>
+            
             <motion.p
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
