@@ -211,10 +211,27 @@ serve(async (req: Request) => {
           day: "numeric",
         });
 
+        // Generate video call join link if this is a video appointment
+        const isVideoCall = appointment.is_video_call;
+        const videoRoomId = appointment.video_room_id;
+        const baseUrl = Deno.env.get("SITE_URL") || "https://pillaxia.com";
+        const videoCallLink = isVideoCall && videoRoomId 
+          ? `${baseUrl}/dashboard/telemedicine/room/${videoRoomId}`
+          : null;
+
         let emailSent = false;
         let smsSent = false;
         let whatsappSent = false;
         if (resendApiKey && patientProfile?.email && (prefs?.email_reminders !== false)) {
+          const videoCallSection = isVideoCall && videoCallLink
+            ? `
+              <div style="background: #0ea5e9; padding: 15px 20px; border-radius: 8px; margin: 15px 0; text-align: center;">
+                <p style="color: white; margin: 0 0 10px 0; font-weight: bold;">📹 This is a Video Appointment</p>
+                <a href="${videoCallLink}" style="display: inline-block; background: white; color: #0ea5e9; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: bold;">Join Video Call</a>
+              </div>
+            `
+            : "";
+
           const emailHtml = `
             <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
               <h2 style="color: #0ea5e9;">Appointment Reminder</h2>
@@ -224,11 +241,13 @@ serve(async (req: Request) => {
                 <p><strong>Title:</strong> ${appointment.title}</p>
                 <p><strong>Date:</strong> ${appointmentDate}</p>
                 <p><strong>Time:</strong> ${appointmentTime}</p>
-                ${appointment.location ? `<p><strong>Location:</strong> ${appointment.location}</p>` : ""}
+                ${isVideoCall ? `<p><strong>Type:</strong> 📹 Video Consultation</p>` : ""}
+                ${!isVideoCall && appointment.location ? `<p><strong>Location:</strong> ${appointment.location}</p>` : ""}
                 ${clinicianProfile ? `<p><strong>With:</strong> Dr. ${clinicianProfile.first_name} ${clinicianProfile.last_name}</p>` : ""}
                 ${appointment.description ? `<p><strong>Notes:</strong> ${appointment.description}</p>` : ""}
               </div>
-              <p>Please make sure to arrive on time. If you need to reschedule or cancel, please log in to your Pillaxia account.</p>
+              ${videoCallSection}
+              <p>${isVideoCall ? "Click the button above to join your video call at the scheduled time." : "Please make sure to arrive on time."} If you need to reschedule or cancel, please log in to your Pillaxia account.</p>
               <p>Best regards,<br>The Pillaxia Team</p>
             </div>
           `;
@@ -270,7 +289,9 @@ serve(async (req: Request) => {
 
         // Send SMS reminder if enabled and phone available
         if (twilioConfigured && patientProfile?.phone && (prefs?.sms_reminders !== false)) {
-          const smsMessage = `Pillaxia Reminder: Your appointment "${appointment.title}" is tomorrow at ${appointmentTime}${appointment.location ? ` at ${appointment.location}` : ""}${clinicianProfile ? ` with Dr. ${clinicianProfile.last_name}` : ""}. Reply STOP to opt out.`;
+          const videoInfo = isVideoCall && videoCallLink ? ` 📹 Join: ${videoCallLink}` : "";
+          const locationInfo = !isVideoCall && appointment.location ? ` at ${appointment.location}` : "";
+          const smsMessage = `Pillaxia Reminder: Your ${isVideoCall ? "video " : ""}appointment "${appointment.title}" is tomorrow at ${appointmentTime}${locationInfo}${clinicianProfile ? ` with Dr. ${clinicianProfile.last_name}` : ""}.${videoInfo} Reply STOP to opt out.`;
 
           const smsResult = await sendSMS(
             patientProfile.phone,
@@ -302,7 +323,11 @@ serve(async (req: Request) => {
 
         // Send WhatsApp reminder if enabled and phone available
         if (patientProfile?.phone && (prefs?.whatsapp_reminders !== false)) {
-          const whatsappMessage = `📅 Pillaxia Appointment Reminder\n\nHello ${patientProfile.first_name || "there"},\n\nYour appointment "${appointment.title}" is scheduled for tomorrow at ${appointmentTime}${appointment.location ? ` at ${appointment.location}` : ""}${clinicianProfile ? ` with Dr. ${clinicianProfile.last_name}` : ""}.\n\nPlease arrive on time. Log in to your Pillaxia account to reschedule if needed.`;
+          const videoSection = isVideoCall && videoCallLink 
+            ? `\n\n📹 *This is a Video Consultation*\nTap the link below to join:\n${videoCallLink}`
+            : "";
+          const locationSection = !isVideoCall && appointment.location ? ` at ${appointment.location}` : "";
+          const whatsappMessage = `📅 *Pillaxia Appointment Reminder*\n\nHello ${patientProfile.first_name || "there"},\n\nYour ${isVideoCall ? "video " : ""}appointment "${appointment.title}" is scheduled for tomorrow at ${appointmentTime}${locationSection}${clinicianProfile ? ` with Dr. ${clinicianProfile.last_name}` : ""}.${videoSection}\n\n${isVideoCall ? "Click the link above at your appointment time to join." : "Please arrive on time."} Log in to your Pillaxia account to reschedule if needed.`;
 
           let whatsappResult: { success: boolean; sid?: string; messageId?: string; error?: string };
           let provider = "twilio";
