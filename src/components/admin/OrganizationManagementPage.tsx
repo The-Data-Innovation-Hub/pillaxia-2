@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Building2, Palette, Users, Settings, Plus, Upload, Save, Loader2, Pencil, Trash2 } from "lucide-react";
+import { Building2, Palette, Users, Settings, Plus, Upload, Save, Loader2, Pencil, Trash2, CreditCard } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,11 +16,14 @@ import { useOrganizationMembers, type OrganizationMemberWithProfile } from "@/ho
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { OrganizationBillingTab } from "./OrganizationBillingTab";
+import { useSearchParams } from "react-router-dom";
 
 export function OrganizationManagementPage() {
   const { organization, branding, isOrgAdmin, updateBranding, refreshOrganization } = useOrganization();
   const { members, isLoading: membersLoading, updateMemberRole, removeMember, refetchMembers } = useOrganizationMembers();
   const { isManager } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   
   // Managers can also edit organization data
   const canEdit = isOrgAdmin || isManager;
@@ -37,7 +40,20 @@ export function OrganizationManagementPage() {
   const [editFirstName, setEditFirstName] = useState("");
   const [editLastName, setEditLastName] = useState("");
   const [isSavingMember, setIsSavingMember] = useState(false);
+
+  // Handle billing success/cancel redirects
+  const defaultTab = searchParams.get("tab") || "details";
+  const billingStatus = searchParams.get("billing");
   
+  useEffect(() => {
+    if (billingStatus === "success") {
+      toast.success("Subscription activated successfully!");
+      setSearchParams({ tab: "billing" });
+    } else if (billingStatus === "canceled") {
+      toast.info("Checkout was canceled");
+      setSearchParams({ tab: "billing" });
+    }
+  }, [billingStatus, setSearchParams]);
   const [brandingForm, setBrandingForm] = useState({
     app_name: branding?.app_name || "Pillaxia",
     primary_color: branding?.primary_color || "244 69% 31%",
@@ -227,7 +243,7 @@ export function OrganizationManagementPage() {
         </Badge>
       </div>
 
-      <Tabs defaultValue="details" className="w-full">
+      <Tabs defaultValue={defaultTab} className="w-full">
         <TabsList className="w-full justify-start">
           <TabsTrigger value="details" className="px-6">
             <Settings className="h-4 w-4 mr-2" />
@@ -240,6 +256,10 @@ export function OrganizationManagementPage() {
           <TabsTrigger value="members" className="px-6">
             <Users className="h-4 w-4 mr-2" />
             Members
+          </TabsTrigger>
+          <TabsTrigger value="billing" className="px-6">
+            <CreditCard className="h-4 w-4 mr-2" />
+            Billing
           </TabsTrigger>
         </TabsList>
 
@@ -843,6 +863,11 @@ export function OrganizationManagementPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Billing Tab Content */}
+      <TabsContent value="billing" className="mt-6">
+        <OrganizationBillingTab />
+      </TabsContent>
     </div>
   );
 }
