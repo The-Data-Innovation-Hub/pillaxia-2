@@ -1830,6 +1830,66 @@ export type Database = {
           },
         ]
       }
+      security_notification_preferences: {
+        Row: {
+          created_at: string
+          email_enabled: boolean
+          id: string
+          notify_account_locked: boolean
+          notify_account_unlocked: boolean
+          notify_concurrent_session_blocked: boolean
+          notify_data_export: boolean
+          notify_mfa_disabled: boolean
+          notify_mfa_enabled: boolean
+          notify_new_device_login: boolean
+          notify_password_change: boolean
+          notify_password_reset: boolean
+          notify_permission_change: boolean
+          notify_suspicious_activity: boolean
+          push_enabled: boolean
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          email_enabled?: boolean
+          id?: string
+          notify_account_locked?: boolean
+          notify_account_unlocked?: boolean
+          notify_concurrent_session_blocked?: boolean
+          notify_data_export?: boolean
+          notify_mfa_disabled?: boolean
+          notify_mfa_enabled?: boolean
+          notify_new_device_login?: boolean
+          notify_password_change?: boolean
+          notify_password_reset?: boolean
+          notify_permission_change?: boolean
+          notify_suspicious_activity?: boolean
+          push_enabled?: boolean
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          email_enabled?: boolean
+          id?: string
+          notify_account_locked?: boolean
+          notify_account_unlocked?: boolean
+          notify_concurrent_session_blocked?: boolean
+          notify_data_export?: boolean
+          notify_mfa_disabled?: boolean
+          notify_mfa_enabled?: boolean
+          notify_new_device_login?: boolean
+          notify_password_change?: boolean
+          notify_password_reset?: boolean
+          notify_permission_change?: boolean
+          notify_suspicious_activity?: boolean
+          push_enabled?: boolean
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       security_settings: {
         Row: {
           created_at: string
