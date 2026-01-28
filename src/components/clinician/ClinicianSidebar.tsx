@@ -32,7 +32,6 @@ export function ClinicianSidebar() {
     { title: "Adherence Monitor", url: "/dashboard/adherence", icon: Activity },
     { title: "Appointments", url: "/dashboard/appointments", icon: CalendarDays },
     { title: "SOAP Notes", url: "/dashboard/soap-notes", icon: FileText },
-    { title: "Settings", url: "/dashboard/clinician-settings", icon: Settings },
   ];
 
   const caregiverMenuItems = [
@@ -96,6 +95,14 @@ export function ClinicianSidebar() {
         >
           <HelpCircle className="h-4 w-4" />
           <span>Help & Support</span>
+        </NavLink>
+        <NavLink 
+          to="/dashboard/clinician-settings"
+          className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-muted/50 transition-colors text-sm"
+          activeClassName="bg-primary/10 text-primary font-medium"
+        >
+          <Settings className="h-4 w-4" />
+          <span>Settings</span>
         </NavLink>
         <Button
           variant="outline"
