@@ -119,6 +119,10 @@ export function useOrganizationMembers() {
     },
   });
 
+  const refetchMembers = () => {
+    queryClient.invalidateQueries({ queryKey: ["organization-members", organization?.id] });
+  };
+
   return {
     members: members || [],
     isLoading,
@@ -126,5 +130,6 @@ export function useOrganizationMembers() {
     updateMemberRole,
     removeMember,
     inviteMember,
+    refetchMembers,
   };
 }
