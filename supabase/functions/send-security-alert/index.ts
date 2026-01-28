@@ -200,7 +200,7 @@ const handler = async (req: Request): Promise<Response> => {
     `;
 
     const { data: emailData, error: emailError } = await resend.emails.send({
-      from: "Pillaxia Security <noreply@resend.dev>",
+      from: "Pillaxia Security <security@thedatainnovationhub.com>",
       to: [profile.email],
       subject: `${eventTitle} - Pillaxia Security Alert`,
       html: emailHtml,
