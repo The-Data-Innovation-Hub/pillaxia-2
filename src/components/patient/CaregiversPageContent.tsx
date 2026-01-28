@@ -42,6 +42,7 @@ interface CaregiverPermissions {
 interface CaregiverInvitation {
   id: string;
   caregiver_email: string;
+  caregiver_name: string | null;
   caregiver_user_id: string | null;
   status: string;
   permissions: CaregiverPermissions | null;
@@ -59,6 +60,7 @@ export function CaregiversPageContent() {
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
   const [deleteInvitation, setDeleteInvitation] = useState<CaregiverInvitation | null>(null);
   const [newEmail, setNewEmail] = useState("");
+  const [newName, setNewName] = useState("");
   const [emailError, setEmailError] = useState("");
   const [permissions, setPermissions] = useState({
     view_medications: true,
@@ -100,10 +102,11 @@ export function CaregiversPageContent() {
 
   // Send invitation mutation
   const sendInvitationMutation = useMutation({
-    mutationFn: async ({ email, perms }: { email: string; perms: typeof permissions }) => {
+    mutationFn: async ({ email, name, perms }: { email: string; name: string; perms: typeof permissions }) => {
       const { error } = await supabase.from("caregiver_invitations").insert({
         patient_user_id: user!.id,
         caregiver_email: email.toLowerCase().trim(),
+        caregiver_name: name.trim() || null,
         permissions: perms,
         status: "pending",
       });
@@ -113,6 +116,7 @@ export function CaregiversPageContent() {
       toast.success("Invitation sent successfully!");
       setInviteDialogOpen(false);
       setNewEmail("");
+      setNewName("");
       setPermissions({ view_medications: true, view_adherence: true, view_symptoms: false });
       queryClient.invalidateQueries({ queryKey: ["caregiver-invitations"] });
     },
@@ -153,7 +157,7 @@ export function CaregiversPageContent() {
       return;
     }
     setEmailError("");
-    sendInvitationMutation.mutate({ email: newEmail, perms: permissions });
+    sendInvitationMutation.mutate({ email: newEmail, name: newName, perms: permissions });
   };
 
   const getStatusBadge = (status: string) => {
@@ -214,6 +218,17 @@ export function CaregiversPageContent() {
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="name">Caregiver's Name</Label>
+                <Input
+                  id="name"
+                  type="text"
+                  placeholder="John Doe"
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                  maxLength={100}
+                />
+              </div>
               <div className="space-y-2">
                 <Label htmlFor="email">Caregiver's Email</Label>
                 <Input
@@ -317,16 +332,19 @@ export function CaregiversPageContent() {
                     <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
                       <span className="text-primary font-medium">
                         {invitation.caregiver_profile?.first_name?.[0] ||
+                          invitation.caregiver_name?.[0]?.toUpperCase() ||
                           invitation.caregiver_email[0].toUpperCase()}
                       </span>
                     </div>
                     <div>
-                      {invitation.caregiver_profile?.first_name && (
+                      {(invitation.caregiver_profile?.first_name || invitation.caregiver_name) && (
                         <p className="font-medium">
-                          {invitation.caregiver_profile.first_name} {invitation.caregiver_profile.last_name || ""}
+                          {invitation.caregiver_profile?.first_name
+                            ? `${invitation.caregiver_profile.first_name} ${invitation.caregiver_profile.last_name || ""}`
+                            : invitation.caregiver_name}
                         </p>
                       )}
-                      <p className={invitation.caregiver_profile?.first_name ? "text-sm text-muted-foreground" : "font-medium"}>
+                      <p className={(invitation.caregiver_profile?.first_name || invitation.caregiver_name) ? "text-sm text-muted-foreground" : "font-medium"}>
                         {invitation.caregiver_email}
                       </p>
                     </div>
