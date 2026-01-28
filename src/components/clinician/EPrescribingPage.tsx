@@ -33,15 +33,28 @@ import {
   AlertTriangle,
   Plus,
   Pill,
+  Pencil,
+  Trash2,
 } from "lucide-react";
 import { usePrescriptions, Prescription, PrescriptionStatus } from "@/hooks/usePrescriptions";
 import { CreatePrescriptionDialog } from "./CreatePrescriptionDialog";
 import { SendPrescriptionDialog } from "./SendPrescriptionDialog";
 import { PrescriptionDetailsDialog } from "./PrescriptionDetailsDialog";
+import { EditPrescriptionDialog } from "./EditPrescriptionDialog";
 import { format } from "date-fns";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const STATUS_CONFIG: Record<PrescriptionStatus, { label: string; variant: "default" | "secondary" | "destructive" | "outline"; icon: React.ReactNode }> = {
   draft: { label: "Draft", variant: "outline", icon: <FileText className="h-3 w-3" /> },
@@ -63,6 +76,8 @@ export function EPrescribingPage() {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [sendDialogOpen, setSendDialogOpen] = useState(false);
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedPrescription, setSelectedPrescription] = useState<Prescription | null>(null);
   const [activeTab, setActiveTab] = useState<"active" | "completed" | "all">("active");
 
@@ -71,7 +86,7 @@ export function EPrescribingPage() {
     activeTab === "completed" ? ["dispensed", "cancelled", "expired"] :
     undefined;
 
-  const { prescriptions, isLoading, sendPrescription, cancelPrescription } = usePrescriptions({
+  const { prescriptions, isLoading, sendPrescription, cancelPrescription, deletePrescription } = usePrescriptions({
     status: statusFilter,
   });
 
@@ -290,15 +305,26 @@ export function EPrescribingPage() {
                                   View Details
                                 </DropdownMenuItem>
                                 {['draft', 'pending'].includes(rx.status) && (
-                                  <DropdownMenuItem
-                                    onClick={() => {
-                                      setSelectedPrescription(rx);
-                                      setSendDialogOpen(true);
-                                    }}
-                                  >
-                                    <Send className="h-4 w-4 mr-2" />
-                                    Send to Pharmacy
-                                  </DropdownMenuItem>
+                                  <>
+                                    <DropdownMenuItem
+                                      onClick={() => {
+                                        setSelectedPrescription(rx);
+                                        setEditDialogOpen(true);
+                                      }}
+                                    >
+                                      <Pencil className="h-4 w-4 mr-2" />
+                                      Edit
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                      onClick={() => {
+                                        setSelectedPrescription(rx);
+                                        setSendDialogOpen(true);
+                                      }}
+                                    >
+                                      <Send className="h-4 w-4 mr-2" />
+                                      Send to Pharmacy
+                                    </DropdownMenuItem>
+                                  </>
                                 )}
                                 {!['dispensed', 'cancelled', 'expired'].includes(rx.status) && (
                                   <>
@@ -312,6 +338,21 @@ export function EPrescribingPage() {
                                     >
                                       <XCircle className="h-4 w-4 mr-2" />
                                       Cancel Prescription
+                                    </DropdownMenuItem>
+                                  </>
+                                )}
+                                {['draft', 'pending', 'cancelled'].includes(rx.status) && (
+                                  <>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem
+                                      className="text-destructive"
+                                      onClick={() => {
+                                        setSelectedPrescription(rx);
+                                        setDeleteDialogOpen(true);
+                                      }}
+                                    >
+                                      <Trash2 className="h-4 w-4 mr-2" />
+                                      Delete
                                     </DropdownMenuItem>
                                   </>
                                 )}
@@ -364,6 +405,43 @@ export function EPrescribingPage() {
           prescription={selectedPrescription}
         />
       )}
+
+      {/* Edit Prescription Dialog */}
+      {selectedPrescription && (
+        <EditPrescriptionDialog
+          open={editDialogOpen}
+          onOpenChange={setEditDialogOpen}
+          prescription={selectedPrescription}
+        />
+      )}
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Prescription</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to permanently delete prescription{" "}
+              <strong>{selectedPrescription?.prescription_number}</strong>? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (selectedPrescription) {
+                  deletePrescription.mutate(selectedPrescription.id);
+                  setDeleteDialogOpen(false);
+                  setSelectedPrescription(null);
+                }
+              }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

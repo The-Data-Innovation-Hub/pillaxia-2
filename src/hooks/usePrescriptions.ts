@@ -82,6 +82,24 @@ export interface CreatePrescriptionData {
   diagnosis_description?: string;
 }
 
+export interface UpdatePrescriptionData {
+  medication_name?: string;
+  generic_name?: string | null;
+  dosage?: string;
+  dosage_unit?: string;
+  form?: string;
+  quantity?: number;
+  refills_authorized?: number;
+  sig?: string;
+  instructions?: string | null;
+  pharmacy_id?: string | null;
+  is_controlled_substance?: boolean;
+  dea_schedule?: string | null;
+  dispense_as_written?: boolean;
+  diagnosis_code?: string | null;
+  diagnosis_description?: string | null;
+}
+
 async function generatePrescriptionNumber(): Promise<string> {
   const { data, error } = await supabase.rpc('generate_prescription_number');
   if (error) throw error;
@@ -303,6 +321,48 @@ export function usePrescriptions(options?: {
     },
   });
 
+  const updatePrescription = useMutation({
+    mutationFn: async ({ prescriptionId, data }: { prescriptionId: string; data: UpdatePrescriptionData }) => {
+      const { error } = await supabase
+        .from("prescriptions")
+        .update(data)
+        .eq("id", prescriptionId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["prescriptions"] });
+      toast.success("Prescription updated");
+    },
+    onError: (error: Error) => {
+      toast.error("Failed to update prescription", { description: error.message });
+    },
+  });
+
+  const deletePrescription = useMutation({
+    mutationFn: async (prescriptionId: string) => {
+      // First delete related history records
+      await supabase
+        .from("prescription_status_history")
+        .delete()
+        .eq("prescription_id", prescriptionId);
+
+      const { error } = await supabase
+        .from("prescriptions")
+        .delete()
+        .eq("id", prescriptionId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["prescriptions"] });
+      toast.success("Prescription deleted");
+    },
+    onError: (error: Error) => {
+      toast.error("Failed to delete prescription", { description: error.message });
+    },
+  });
+
   return {
     prescriptions,
     isLoading,
@@ -311,5 +371,7 @@ export function usePrescriptions(options?: {
     sendPrescription,
     updatePrescriptionStatus,
     cancelPrescription,
+    updatePrescription,
+    deletePrescription,
   };
 }
