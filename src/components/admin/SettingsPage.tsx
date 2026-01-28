@@ -34,7 +34,9 @@ import {
   User,
   Building2,
   GraduationCap,
+  Bug,
 } from "lucide-react";
+import { captureError, captureMessage } from "@/lib/sentry";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { AdminProfileTab } from "./AdminProfileTab";
@@ -625,7 +627,76 @@ export function SettingsPage() {
             </CardContent>
           </Card>
 
-          {/* Progressive Onboarding Toggle */}
+          {/* Sentry Error Tracking Test */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-destructive/10">
+                  <Bug className="h-5 w-5 text-destructive" />
+                </div>
+                <div>
+                  <CardTitle>Error Tracking (Sentry)</CardTitle>
+                  <CardDescription>
+                    Test Sentry integration by triggering a sample error
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <Alert>
+                <Info className="h-4 w-4" />
+                <AlertTitle>Sentry Integration</AlertTitle>
+                <AlertDescription>
+                  Sentry captures errors and performance data. Use these buttons to verify
+                  the integration is working correctly.
+                </AlertDescription>
+              </Alert>
+
+              <div className="flex flex-wrap items-center gap-3">
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => {
+                    const testError = new Error("Test error from Admin Settings - Sentry integration check");
+                    captureError(testError, { 
+                      source: "admin_settings_test",
+                      timestamp: new Date().toISOString()
+                    });
+                    toast.success("Test error sent to Sentry!", {
+                      description: "Check your Sentry dashboard for the error.",
+                    });
+                  }}
+                >
+                  <Bug className="h-4 w-4 mr-2" />
+                  Trigger Test Error
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    captureMessage("Test message from Admin Settings", "info");
+                    toast.success("Test message sent to Sentry!", {
+                      description: "Check your Sentry dashboard for the message.",
+                    });
+                  }}
+                >
+                  <Send className="h-4 w-4 mr-2" />
+                  Send Test Message
+                </Button>
+                <Button variant="ghost" size="sm" asChild>
+                  <a
+                    href="https://sentry.io"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="gap-1"
+                  >
+                    Open Sentry Dashboard
+                    <ExternalLink className="h-3 w-3" />
+                  </a>
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
           <Card>
             <CardHeader>
               <div className="flex items-center gap-3">
