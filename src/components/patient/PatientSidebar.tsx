@@ -34,14 +34,14 @@ export function PatientSidebar() {
   const { t } = useLanguage();
 
   const menuItems = [
-    { title: t.dashboard.overview, url: "/dashboard", icon: LayoutDashboard },
-    { title: t.medications.title, url: "/dashboard/medications", icon: Pill },
-    { title: t.schedule.title, url: "/dashboard/schedule", icon: Calendar },
+    { title: t.dashboard.overview, url: "/dashboard", icon: LayoutDashboard, tourId: "dashboard" },
+    { title: t.medications.title, url: "/dashboard/medications", icon: Pill, tourId: "medications" },
+    { title: t.schedule.title, url: "/dashboard/schedule", icon: Calendar, tourId: "schedule" },
     { title: "Appointments", url: "/dashboard/appointments", icon: CalendarCheck },
     { title: "Health Hub", url: "/dashboard/health", icon: Heart },
     { title: t.caregivers.title, url: "/dashboard/caregivers", icon: Users },
-    { title: t.notifications.title, url: "/dashboard/notifications", icon: Bell },
-    { title: t.angela.title, url: "/dashboard/angela", icon: Bot },
+    { title: t.notifications.title, url: "/dashboard/notifications", icon: Bell, tourId: "notifications" },
+    { title: t.angela.title, url: "/dashboard/angela", icon: Bot, tourId: "angela" },
   ];
 
   return (
@@ -76,8 +76,10 @@ export function PatientSidebar() {
                       end={item.url === "/dashboard"}
                       className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-muted/50 transition-colors"
                       activeClassName="bg-primary/10 text-primary font-medium"
+                      data-tour={item.tourId}
+                      aria-label={item.title}
                     >
-                      <item.icon className="h-4 w-4" />
+                      <item.icon className="h-4 w-4" aria-hidden="true" />
                       <span>{item.title}</span>
                     </NavLink>
                   </SidebarMenuButton>

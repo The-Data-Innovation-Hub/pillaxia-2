@@ -321,3 +321,148 @@
     background: hsl(var(--muted-foreground) / 0.5);
   }
 }
+
+/* ==============================================
+   ACCESSIBILITY - WCAG 2.1 AA Visual Compliance
+   ============================================== */
+
+@layer base {
+  /* Enhanced focus indicators - visible on all focusable elements */
+  *:focus-visible {
+    @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
+    transition: box-shadow 0.15s ease;
+  }
+
+  /* Ensure links have sufficient contrast and visible focus */
+  a:focus-visible {
+    @apply rounded-sm;
+  }
+
+  /* High contrast focus for buttons */
+  button:focus-visible,
+  [role="button"]:focus-visible {
+    @apply ring-offset-2;
+  }
+
+  /* Form inputs - enhanced focus */
+  input:focus-visible,
+  textarea:focus-visible,
+  select:focus-visible {
+    @apply ring-2 ring-ring border-ring;
+  }
+
+  /* Checkbox and radio buttons */
+  [type="checkbox"]:focus-visible,
+  [type="radio"]:focus-visible {
+    @apply ring-offset-0;
+  }
+}
+
+@layer utilities {
+  /* Screen reader only - improved */
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
+  }
+
+  /* Focus visible only (for custom focus styles) */
+  .focus-visible-only:focus:not(:focus-visible) {
+    outline: none;
+    box-shadow: none;
+  }
+
+  /* High contrast mode support */
+  @media (forced-colors: active) {
+    .glass,
+    .glass-subtle,
+    .glass-strong {
+      border: 2px solid CanvasText;
+    }
+
+    button,
+    [role="button"] {
+      border: 2px solid ButtonText;
+    }
+  }
+
+  /* Reduced motion support */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+
+    .glass-shimmer::before {
+      animation: none;
+    }
+
+    .glass-hover:hover {
+      transform: none;
+    }
+  }
+
+  /* Skip link styles (already defined in component, but ensure consistency) */
+  .skip-link {
+    @apply sr-only focus:not-sr-only focus:absolute focus:z-[200];
+    @apply focus:top-4 focus:left-4 focus:px-4 focus:py-2;
+    @apply focus:bg-primary focus:text-primary-foreground;
+    @apply focus:rounded-lg focus:shadow-lg;
+  }
+
+  /* Ensure minimum touch target size (44x44px for WCAG 2.1 AA) */
+  .touch-target {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  /* Text selection with brand colors */
+  ::selection {
+    background: hsl(var(--primary) / 0.3);
+    color: hsl(var(--foreground));
+  }
+
+  /* Ensure disabled states are visually distinct */
+  [disabled],
+  .disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    pointer-events: none;
+  }
+
+  /* Current page indicator for navigation */
+  [aria-current="page"] {
+    @apply font-medium text-primary;
+  }
+
+  /* Live region for screen reader announcements */
+  .live-region {
+    @apply sr-only;
+  }
+
+  /* Ensure form labels are associated with inputs */
+  label {
+    cursor: pointer;
+  }
+
+  /* Error states with sufficient color contrast */
+  .error-text {
+    @apply text-destructive font-medium;
+  }
+
+  /* Required field indicator */
+  .required::after {
+    content: " *";
+    @apply text-destructive;
+  }
+}
