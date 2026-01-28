@@ -1,4 +1,4 @@
-import { LayoutDashboard, Users, BarChart3, FileText, LogOut, Shield, Settings, Bell, TrendingUp, FlaskConical, Activity, HelpCircle, BadgeCheck, ShieldCheck, Lock, ClipboardCheck } from "lucide-react";
+import { LayoutDashboard, Users, BarChart3, LogOut, Settings, TrendingUp, FlaskConical, Activity, HelpCircle, BadgeCheck, ShieldCheck } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -24,11 +24,7 @@ const menuItems = [
   { title: "Notification Analytics", url: "/dashboard/notification-analytics", icon: TrendingUp },
   { title: "Patient Engagement", url: "/dashboard/patient-engagement", icon: Activity },
   { title: "A/B Testing", url: "/dashboard/ab-testing", icon: FlaskConical },
-  { title: "Audit Logs", url: "/dashboard/audit-logs", icon: FileText },
-  { title: "Security Dashboard", url: "/dashboard/security", icon: ShieldCheck },
-  { title: "Security Settings", url: "/dashboard/security-settings", icon: Lock },
-  { title: "Compliance Reports", url: "/dashboard/compliance-reports", icon: ClipboardCheck },
-  { title: "Notifications", url: "/dashboard/notifications", icon: Bell },
+  { title: "Security", url: "/dashboard/security", icon: ShieldCheck },
 ];
 
 export function AdminSidebar() {

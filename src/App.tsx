@@ -54,15 +54,12 @@ import {
   AdminDashboardHome,
   UserManagementPage,
   SystemAnalyticsPage,
-  AuditLogPage,
   SettingsPage,
   NotificationAnalyticsPage,
   ABTestingPage,
   PatientEngagementPage,
   LicenseCompliancePage,
-  SecurityDashboardPage,
-  SecuritySettingsPage,
-  ComplianceReportPage,
+  SecurityPage,
 } from "@/components/admin";
 import { HelpPage } from "@/components/shared";
 import { SessionTimeoutWarning } from "@/components/SessionTimeoutWarning";
@@ -142,13 +139,10 @@ function AppRoutes() {
         <Route path="license-compliance" element={<LicenseCompliancePage />} />
         <Route path="analytics" element={<SystemAnalyticsPage />} />
         <Route path="notification-analytics" element={<NotificationAnalyticsPage />} />
-        <Route path="audit-logs" element={<AuditLogPage />} />
         <Route path="admin-settings" element={<SettingsPage />} />
         <Route path="ab-testing" element={<ABTestingPage />} />
         <Route path="patient-engagement" element={<PatientEngagementPage />} />
-        <Route path="security" element={<SecurityDashboardPage />} />
-        <Route path="security-settings" element={<SecuritySettingsPage />} />
-        <Route path="compliance-reports" element={<ComplianceReportPage />} />
+        <Route path="security" element={<SecurityPage />} />
         {/* Shared Routes */}
         <Route path="settings" element={<PatientSettingsPage />} />
         <Route path="sync-status" element={<SyncStatusPage />} />
