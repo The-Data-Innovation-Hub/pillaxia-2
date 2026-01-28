@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState, ReactNode } from "react
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { setSentryUser, clearSentryUser, setSentryContext } from "@/lib/sentry";
 
 type AppRole = "patient" | "clinician" | "pharmacist" | "admin" | "manager";
 
@@ -91,11 +92,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setProfile(profileData);
             setRoles(rolesData);
             setLoading(false);
+            
+            // Set Sentry user context
+            setSentryUser({
+              id: session.user.id,
+              email: session.user.email,
+              role: rolesData[0] || 'patient',
+            });
+            setSentryContext('profile', {
+              firstName: profileData?.first_name,
+              lastName: profileData?.last_name,
+              roles: rolesData,
+            });
           }, 0);
         } else {
           setProfile(null);
           setRoles([]);
           setLoading(false);
+          clearSentryUser();
         }
       }
     );
@@ -176,6 +190,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = async () => {
     await supabase.auth.signOut();
+    clearSentryUser();
     toast.success("Signed out successfully");
   };
 

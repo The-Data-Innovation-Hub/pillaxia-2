@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { captureException, captureMessage } from "../_shared/sentry.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -43,6 +44,7 @@ serve(async (req) => {
     
     if (!LOVABLE_API_KEY) {
       console.error("LOVABLE_API_KEY is not configured");
+      await captureMessage("LOVABLE_API_KEY not configured", "error", { functionName: "angela-chat" });
       throw new Error("LOVABLE_API_KEY is not configured");
     }
 
@@ -67,6 +69,14 @@ serve(async (req) => {
     if (!response.ok) {
       const errorText = await response.text();
       console.error("AI gateway error:", response.status, errorText);
+      
+      // Log non-critical errors to Sentry
+      if (response.status !== 429 && response.status !== 402) {
+        await captureMessage(`AI gateway error: ${response.status}`, "error", {
+          functionName: "angela-chat",
+          extra: { statusCode: response.status, errorText },
+        });
+      }
       
       if (response.status === 429) {
         return new Response(
@@ -94,6 +104,13 @@ serve(async (req) => {
     });
   } catch (e) {
     console.error("Angela chat error:", e);
+    
+    // Capture exception to Sentry
+    await captureException(e instanceof Error ? e : new Error(String(e)), {
+      functionName: "angela-chat",
+      request: req,
+    });
+    
     return new Response(
       JSON.stringify({ error: e instanceof Error ? e.message : "Something went wrong. Please try again." }), 
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
