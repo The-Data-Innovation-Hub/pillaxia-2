@@ -134,3 +134,6 @@ verify_jwt = false
 
 [functions.org-customer-portal]
 verify_jwt = false
+
+[functions.send-prescription]
+verify_jwt = false

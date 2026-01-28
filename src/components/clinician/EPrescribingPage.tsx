@@ -36,6 +36,8 @@ import {
 } from "lucide-react";
 import { usePrescriptions, Prescription, PrescriptionStatus } from "@/hooks/usePrescriptions";
 import { CreatePrescriptionDialog } from "./CreatePrescriptionDialog";
+import { SendPrescriptionDialog } from "./SendPrescriptionDialog";
+import { PrescriptionDetailsDialog } from "./PrescriptionDetailsDialog";
 import { format } from "date-fns";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -59,6 +61,9 @@ export function EPrescribingPage() {
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
   const [selectedPatientName, setSelectedPatientName] = useState("");
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [sendDialogOpen, setSendDialogOpen] = useState(false);
+  const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
+  const [selectedPrescription, setSelectedPrescription] = useState<Prescription | null>(null);
   const [activeTab, setActiveTab] = useState<"active" | "completed" | "all">("active");
 
   const statusFilter: PrescriptionStatus[] | undefined = 
@@ -275,14 +280,20 @@ export function EPrescribingPage() {
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
-                                <DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={() => {
+                                    setSelectedPrescription(rx);
+                                    setDetailsDialogOpen(true);
+                                  }}
+                                >
                                   <Eye className="h-4 w-4 mr-2" />
                                   View Details
                                 </DropdownMenuItem>
-                                {rx.status === 'draft' && (
+                                {['draft', 'pending'].includes(rx.status) && (
                                   <DropdownMenuItem
                                     onClick={() => {
-                                      // Would open pharmacy selection
+                                      setSelectedPrescription(rx);
+                                      setSendDialogOpen(true);
                                     }}
                                   >
                                     <Send className="h-4 w-4 mr-2" />
@@ -333,6 +344,24 @@ export function EPrescribingPage() {
           onOpenChange={setCreateDialogOpen}
           patientId={selectedPatientId}
           patientName={selectedPatientName}
+        />
+      )}
+
+      {/* Send Prescription Dialog */}
+      {selectedPrescription && (
+        <SendPrescriptionDialog
+          open={sendDialogOpen}
+          onOpenChange={setSendDialogOpen}
+          prescription={selectedPrescription}
+        />
+      )}
+
+      {/* Prescription Details Dialog */}
+      {selectedPrescription && (
+        <PrescriptionDetailsDialog
+          open={detailsDialogOpen}
+          onOpenChange={setDetailsDialogOpen}
+          prescription={selectedPrescription}
         />
       )}
     </div>
