@@ -2,7 +2,6 @@ import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { useHasCaregiverRelationships } from "@/hooks/useHasCaregiverRelationships";
-import { useOfflineSync } from "@/hooks/useOfflineSync";
 import {
   Sidebar,
   SidebarContent,
@@ -28,19 +27,16 @@ import {
   Heart,
   History,
   Bell,
-  RefreshCw,
   HelpCircle,
   Activity,
   FileText,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 
 export function PatientSidebar() {
   const { signOut, profile } = useAuth();
   const { t } = useLanguage();
   const { data: hasCaregiverRelationships } = useHasCaregiverRelationships();
-  const { conflictCount } = useOfflineSync();
 
   const baseMenuItems = [
     { title: t.dashboard.overview, url: "/dashboard", icon: LayoutDashboard },
@@ -109,19 +105,6 @@ export function PatientSidebar() {
       </SidebarContent>
 
       <SidebarFooter className="border-t p-4 space-y-2">
-        <NavLink 
-          to="/dashboard/sync-status"
-          className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-muted/50 transition-colors text-sm"
-          activeClassName="bg-primary/10 text-primary font-medium"
-        >
-          <RefreshCw className="h-4 w-4" />
-          <span className="flex-1">Sync Status</span>
-          {conflictCount > 0 && (
-            <Badge variant="destructive" className="h-5 min-w-5 px-1.5 text-xs font-medium">
-              {conflictCount > 99 ? "99+" : conflictCount}
-            </Badge>
-          )}
-        </NavLink>
         <NavLink 
           to="/dashboard/help"
           className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-muted/50 transition-colors text-sm"
