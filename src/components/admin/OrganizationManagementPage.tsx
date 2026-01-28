@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, forwardRef } from "react";
 import { Building2, Palette, Users, Settings, Plus, Upload, Save, Loader2 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,12 +11,17 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useOrganizationMembers } from "@/hooks/useOrganizationMembers";
+import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
-export function OrganizationManagementPage() {
+export const OrganizationManagementPage = forwardRef<HTMLDivElement>((_, ref) => {
   const { organization, branding, isOrgAdmin, updateBranding, refreshOrganization } = useOrganization();
   const { members, isLoading: membersLoading, updateMemberRole, removeMember } = useOrganizationMembers();
+  const { isManager } = useAuth();
+  
+  // Managers can also edit organization data
+  const canEdit = isOrgAdmin || isManager;
   
   const [isSaving, setIsSaving] = useState(false);
   const [brandingForm, setBrandingForm] = useState({
@@ -154,7 +159,7 @@ export function OrganizationManagementPage() {
                     id="org-name"
                     value={orgForm.name}
                     onChange={(e) => setOrgForm({ ...orgForm, name: e.target.value })}
-                    disabled={!isOrgAdmin}
+                    disabled={!canEdit}
                   />
                 </div>
                 <div className="space-y-2">
@@ -170,7 +175,7 @@ export function OrganizationManagementPage() {
                   id="org-description"
                   value={orgForm.description}
                   onChange={(e) => setOrgForm({ ...orgForm, description: e.target.value })}
-                  disabled={!isOrgAdmin}
+                  disabled={!canEdit}
                   rows={3}
                 />
               </div>
@@ -183,7 +188,7 @@ export function OrganizationManagementPage() {
                     type="email"
                     value={orgForm.contact_email}
                     onChange={(e) => setOrgForm({ ...orgForm, contact_email: e.target.value })}
-                    disabled={!isOrgAdmin}
+                    disabled={!canEdit}
                   />
                 </div>
                 <div className="space-y-2">
@@ -192,7 +197,7 @@ export function OrganizationManagementPage() {
                     id="org-phone"
                     value={orgForm.contact_phone}
                     onChange={(e) => setOrgForm({ ...orgForm, contact_phone: e.target.value })}
-                    disabled={!isOrgAdmin}
+                    disabled={!canEdit}
                   />
                 </div>
               </div>
@@ -203,7 +208,7 @@ export function OrganizationManagementPage() {
                   id="org-address"
                   value={orgForm.address}
                   onChange={(e) => setOrgForm({ ...orgForm, address: e.target.value })}
-                  disabled={!isOrgAdmin}
+                  disabled={!canEdit}
                 />
               </div>
 
@@ -214,7 +219,7 @@ export function OrganizationManagementPage() {
                     id="org-city"
                     value={orgForm.city}
                     onChange={(e) => setOrgForm({ ...orgForm, city: e.target.value })}
-                    disabled={!isOrgAdmin}
+                    disabled={!canEdit}
                   />
                 </div>
                 <div className="space-y-2">
@@ -223,12 +228,12 @@ export function OrganizationManagementPage() {
                     id="org-state"
                     value={orgForm.state}
                     onChange={(e) => setOrgForm({ ...orgForm, state: e.target.value })}
-                    disabled={!isOrgAdmin}
+                    disabled={!canEdit}
                   />
                 </div>
               </div>
 
-              {isOrgAdmin && (
+              {canEdit && (
                 <div className="pt-4">
                   <Button onClick={handleSaveOrganization} disabled={isSaving}>
                     {isSaving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
@@ -283,7 +288,7 @@ export function OrganizationManagementPage() {
                     value={brandingForm.app_name}
                     onChange={(e) => setBrandingForm({ ...brandingForm, app_name: e.target.value })}
                     placeholder="Your App Name"
-                    disabled={!isOrgAdmin}
+                    disabled={!canEdit}
                   />
                   <p className="text-xs text-muted-foreground">
                     This name will appear in the header and page titles
@@ -300,7 +305,7 @@ export function OrganizationManagementPage() {
                         <Building2 className="h-8 w-8 text-muted-foreground" />
                       )}
                     </div>
-                    <Button variant="outline" size="sm" disabled={!isOrgAdmin}>
+                    <Button variant="outline" size="sm" disabled={!canEdit}>
                       <Upload className="h-4 w-4 mr-2" />
                       Upload Logo
                     </Button>
@@ -322,7 +327,7 @@ export function OrganizationManagementPage() {
                         value={brandingForm.primary_color}
                         onChange={(e) => setBrandingForm({ ...brandingForm, primary_color: e.target.value })}
                         placeholder="244 69% 31%"
-                        disabled={!isOrgAdmin}
+                        disabled={!canEdit}
                       />
                     </div>
                   </div>
@@ -337,7 +342,7 @@ export function OrganizationManagementPage() {
                         value={brandingForm.secondary_color}
                         onChange={(e) => setBrandingForm({ ...brandingForm, secondary_color: e.target.value })}
                         placeholder="280 100% 70%"
-                        disabled={!isOrgAdmin}
+                        disabled={!canEdit}
                       />
                     </div>
                   </div>
@@ -352,7 +357,7 @@ export function OrganizationManagementPage() {
                         value={brandingForm.accent_color}
                         onChange={(e) => setBrandingForm({ ...brandingForm, accent_color: e.target.value })}
                         placeholder="174 72% 40%"
-                        disabled={!isOrgAdmin}
+                        disabled={!canEdit}
                       />
                     </div>
                   </div>
@@ -368,7 +373,7 @@ export function OrganizationManagementPage() {
                     value={brandingForm.support_email}
                     onChange={(e) => setBrandingForm({ ...brandingForm, support_email: e.target.value })}
                     placeholder="support@yourorg.com"
-                    disabled={!isOrgAdmin}
+                    disabled={!canEdit}
                   />
                 </div>
                 <div className="space-y-2">
@@ -378,7 +383,7 @@ export function OrganizationManagementPage() {
                     value={brandingForm.support_phone}
                     onChange={(e) => setBrandingForm({ ...brandingForm, support_phone: e.target.value })}
                     placeholder="+234 xxx xxx xxxx"
-                    disabled={!isOrgAdmin}
+                    disabled={!canEdit}
                   />
                 </div>
               </div>
@@ -392,7 +397,7 @@ export function OrganizationManagementPage() {
                     value={brandingForm.terms_url}
                     onChange={(e) => setBrandingForm({ ...brandingForm, terms_url: e.target.value })}
                     placeholder="https://yourorg.com/terms"
-                    disabled={!isOrgAdmin}
+                    disabled={!canEdit}
                   />
                 </div>
                 <div className="space-y-2">
@@ -403,12 +408,12 @@ export function OrganizationManagementPage() {
                     value={brandingForm.privacy_url}
                     onChange={(e) => setBrandingForm({ ...brandingForm, privacy_url: e.target.value })}
                     placeholder="https://yourorg.com/privacy"
-                    disabled={!isOrgAdmin}
+                    disabled={!canEdit}
                   />
                 </div>
               </div>
 
-              {isOrgAdmin && (
+              {canEdit && (
                 <div className="pt-4">
                   <Button onClick={handleSaveBranding} disabled={isSaving}>
                     {isSaving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
@@ -545,4 +550,6 @@ export function OrganizationManagementPage() {
       </Tabs>
     </div>
   );
-}
+});
+
+OrganizationManagementPage.displayName = "OrganizationManagementPage";
