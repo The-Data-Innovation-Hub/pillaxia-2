@@ -14,3 +14,4 @@ export { LicenseCompliancePage } from "./LicenseCompliancePage";
 export { SecurityDashboardPage } from "./SecurityDashboardPage";
 export { SecuritySettingsPage } from "./SecuritySettingsPage";
 export { ComplianceReportPage } from "./ComplianceReportPage";
+export { SecurityPage } from "./SecurityPage";
