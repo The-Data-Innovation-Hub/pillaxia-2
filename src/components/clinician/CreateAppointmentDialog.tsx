@@ -24,6 +24,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -37,7 +39,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { CalendarIcon, Loader2 } from "lucide-react";
+import { CalendarIcon, Loader2, Video } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -49,6 +51,7 @@ const appointmentSchema = z.object({
   appointment_time: z.string().min(1, "Please select a time"),
   duration_minutes: z.number().min(5).max(480),
   location: z.string().max(200).optional(),
+  is_video_call: z.boolean().default(false),
 });
 
 type AppointmentFormData = z.infer<typeof appointmentSchema>;
@@ -73,6 +76,7 @@ export function CreateAppointmentDialog({
       duration_minutes: 30,
       location: "",
       appointment_time: "09:00",
+      is_video_call: false,
     },
   });
 
@@ -111,7 +115,8 @@ export function CreateAppointmentDialog({
         appointment_date: format(data.appointment_date, "yyyy-MM-dd"),
         appointment_time: data.appointment_time,
         duration_minutes: data.duration_minutes,
-        location: data.location || null,
+        location: data.is_video_call ? "Video Call" : (data.location || null),
+        is_video_call: data.is_video_call,
         status: "scheduled",
       });
 
@@ -312,13 +317,41 @@ export function CreateAppointmentDialog({
                   <FormItem>
                     <FormLabel>Location (optional)</FormLabel>
                     <FormControl>
-                      <Input placeholder="e.g., Room 101" {...field} />
+                      <Input 
+                        placeholder="e.g., Room 101" 
+                        {...field} 
+                        disabled={form.watch("is_video_call")}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
             </div>
+
+            <FormField
+              control={form.control}
+              name="is_video_call"
+              render={({ field }) => (
+                <FormItem className="flex items-center justify-between rounded-lg border p-4">
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-2">
+                      <Video className="h-4 w-4 text-primary" />
+                      <FormLabel className="font-medium">Video Consultation</FormLabel>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Enable video call for this appointment
+                    </p>
+                  </div>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
 
             <div className="flex justify-end gap-3 pt-4">
               <Button
