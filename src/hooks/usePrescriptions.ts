@@ -99,12 +99,11 @@ export function usePrescriptions(options?: {
   const { data: prescriptions, isLoading, error } = useQuery({
     queryKey: ["prescriptions", user?.id, options?.patientId, options?.pharmacyId, options?.status],
     queryFn: async (): Promise<Prescription[]> => {
+      // First, fetch prescriptions with pharmacy data
       let query = supabase
         .from("prescriptions")
         .select(`
           *,
-          patient_profile:profiles!prescriptions_patient_user_id_fkey(first_name, last_name, email, phone),
-          clinician_profile:profiles!prescriptions_clinician_user_id_fkey(first_name, last_name, license_number),
           pharmacy:pharmacy_locations(name, phone, email)
         `)
         .order("created_at", { ascending: false });
@@ -121,9 +120,44 @@ export function usePrescriptions(options?: {
         query = query.in("status", options.status);
       }
 
-      const { data, error } = await query;
-      if (error) throw error;
-      return (data || []) as unknown as Prescription[];
+      const { data: prescriptionsData, error: prescriptionsError } = await query;
+      if (prescriptionsError) throw prescriptionsError;
+
+      if (!prescriptionsData || prescriptionsData.length === 0) {
+        return [];
+      }
+
+      // Get unique user IDs for patients and clinicians
+      const patientIds = [...new Set(prescriptionsData.map(p => p.patient_user_id))];
+      const clinicianIds = [...new Set(prescriptionsData.map(p => p.clinician_user_id))];
+      const allUserIds = [...new Set([...patientIds, ...clinicianIds])];
+
+      // Fetch profiles for all users in one query
+      const { data: profilesData } = await supabase
+        .from("profiles")
+        .select("user_id, first_name, last_name, email, phone, license_number")
+        .in("user_id", allUserIds);
+
+      // Create a map for quick lookup
+      const profilesMap = new Map(profilesData?.map(p => [p.user_id, p]) || []);
+
+      // Merge profiles into prescriptions
+      const prescriptionsWithProfiles = prescriptionsData.map(rx => ({
+        ...rx,
+        patient_profile: profilesMap.get(rx.patient_user_id) ? {
+          first_name: profilesMap.get(rx.patient_user_id)?.first_name || null,
+          last_name: profilesMap.get(rx.patient_user_id)?.last_name || null,
+          email: profilesMap.get(rx.patient_user_id)?.email || null,
+          phone: profilesMap.get(rx.patient_user_id)?.phone || null,
+        } : undefined,
+        clinician_profile: profilesMap.get(rx.clinician_user_id) ? {
+          first_name: profilesMap.get(rx.clinician_user_id)?.first_name || null,
+          last_name: profilesMap.get(rx.clinician_user_id)?.last_name || null,
+          license_number: profilesMap.get(rx.clinician_user_id)?.license_number || null,
+        } : undefined,
+      }));
+
+      return prescriptionsWithProfiles as Prescription[];
     },
     enabled: !!user,
   });
