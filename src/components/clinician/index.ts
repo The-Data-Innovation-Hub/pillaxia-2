@@ -17,4 +17,5 @@ export { EPrescribingPage } from "./EPrescribingPage";
 export { CreatePrescriptionDialog } from "./CreatePrescriptionDialog";
 export { SendPrescriptionDialog } from "./SendPrescriptionDialog";
 export { PrescriptionDetailsDialog } from "./PrescriptionDetailsDialog";
+export { EditPrescriptionDialog } from "./EditPrescriptionDialog";
 export { ClinicianSettingsPage } from "./ClinicianSettingsPage";
