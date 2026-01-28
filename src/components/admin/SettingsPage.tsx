@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -33,6 +33,7 @@ import {
   Send,
   User,
   Building2,
+  GraduationCap,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
@@ -67,13 +68,33 @@ const NOTIFICATION_CONFIG = {
   },
 };
 
+const ONBOARDING_DISABLED_KEY = "progressive_onboarding_disabled";
+
 export function SettingsPage() {
   const [testingWhatsApp, setTestingWhatsApp] = useState(false);
   const [testingEmail, setTestingEmail] = useState(false);
   const [testingPush, setTestingPush] = useState(false);
   const [pushTestUserId, setPushTestUserId] = useState("");
+  const [onboardingEnabled, setOnboardingEnabled] = useState(true);
   const queryClient = useQueryClient();
   const { user, isManager, isAdmin } = useAuth();
+
+  // Load onboarding preference
+  useEffect(() => {
+    const disabled = localStorage.getItem(ONBOARDING_DISABLED_KEY) === "true";
+    setOnboardingEnabled(!disabled);
+  }, []);
+
+  const handleToggleOnboarding = (enabled: boolean) => {
+    setOnboardingEnabled(enabled);
+    localStorage.setItem(ONBOARDING_DISABLED_KEY, (!enabled).toString());
+    // Dispatch storage event so other tabs/components can react
+    window.dispatchEvent(new StorageEvent("storage", {
+      key: ONBOARDING_DISABLED_KEY,
+      newValue: (!enabled).toString(),
+    }));
+    toast.success(enabled ? "Progressive onboarding enabled" : "Progressive onboarding disabled");
+  };
 
   // Check integration status by calling a test endpoint
   const { data: integrationStatus, isLoading, refetch } = useQuery({
@@ -599,6 +620,42 @@ export function SettingsPage() {
                     </p>
                   </div>
                   <Badge variant="default" className="bg-green-600">Active</Badge>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Progressive Onboarding Toggle */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-indigo-500/10">
+                  <GraduationCap className="h-5 w-5 text-indigo-600" />
+                </div>
+                <div>
+                  <CardTitle>Progressive Onboarding</CardTitle>
+                  <CardDescription>
+                    Guided tutorials and feature discovery for new users
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between p-4 border rounded-lg">
+                <div>
+                  <p className="font-medium">Enable Onboarding</p>
+                  <p className="text-sm text-muted-foreground">
+                    Show guided tours and checklists to help users discover features
+                  </p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Badge variant={onboardingEnabled ? "default" : "secondary"}>
+                    {onboardingEnabled ? "Enabled" : "Disabled"}
+                  </Badge>
+                  <Switch
+                    checked={onboardingEnabled}
+                    onCheckedChange={handleToggleOnboarding}
+                  />
                 </div>
               </div>
             </CardContent>
