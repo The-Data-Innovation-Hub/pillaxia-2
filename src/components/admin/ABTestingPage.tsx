@@ -35,6 +35,23 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   FlaskConical,
   Plus,
   TrendingUp,
@@ -43,6 +60,14 @@ import {
   MousePointerClick,
   Trophy,
   AlertCircle,
+  MoreVertical,
+  Pencil,
+  Trash2,
+  Copy,
+  Download,
+  Calendar,
+  BarChart3,
+  CheckCircle2,
 } from "lucide-react";
 
 interface ABTest {
@@ -77,9 +102,52 @@ const NOTIFICATION_TYPES = [
   { value: "clinician_message", label: "Clinician Messages" },
 ];
 
+// Statistical significance calculation using z-test for proportions
+function calculateStatisticalSignificance(
+  n1: number,
+  p1: number,
+  n2: number,
+  p2: number
+): { isSignificant: boolean; confidence: number; zScore: number } {
+  if (n1 < 5 || n2 < 5) {
+    return { isSignificant: false, confidence: 0, zScore: 0 };
+  }
+
+  const pooledP = (n1 * p1 + n2 * p2) / (n1 + n2);
+  const se = Math.sqrt(pooledP * (1 - pooledP) * (1 / n1 + 1 / n2));
+  
+  if (se === 0) {
+    return { isSignificant: false, confidence: 0, zScore: 0 };
+  }
+
+  const zScore = Math.abs((p1 - p2) / se);
+  
+  // Z-score thresholds: 1.645 (90%), 1.96 (95%), 2.576 (99%)
+  let confidence = 0;
+  let isSignificant = false;
+  
+  if (zScore >= 2.576) {
+    confidence = 99;
+    isSignificant = true;
+  } else if (zScore >= 1.96) {
+    confidence = 95;
+    isSignificant = true;
+  } else if (zScore >= 1.645) {
+    confidence = 90;
+    isSignificant = true;
+  } else {
+    confidence = Math.min(89, Math.round(zScore * 45));
+  }
+
+  return { isSignificant, confidence, zScore };
+}
+
 export function ABTestingPage() {
   const queryClient = useQueryClient();
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [selectedTest, setSelectedTest] = useState<ABTest | null>(null);
   const [newTest, setNewTest] = useState({
     test_name: "",
     notification_type: "medication_reminder",
@@ -87,13 +155,23 @@ export function ABTestingPage() {
     variant_a_preview: "",
     variant_b_subject: "",
     variant_b_preview: "",
+    end_date: "",
+  });
+  const [editTest, setEditTest] = useState({
+    id: "",
+    test_name: "",
+    notification_type: "medication_reminder",
+    variant_a_subject: "",
+    variant_a_preview: "",
+    variant_b_subject: "",
+    variant_b_preview: "",
+    end_date: "",
   });
 
-  // Fetch all A/B tests using RPC or raw query
+  // Fetch all A/B tests
   const { data: tests, isLoading } = useQuery({
     queryKey: ["ab-tests"],
     queryFn: async () => {
-      // Use raw fetch since tables aren't in types yet
       const { data, error } = await supabase
         .from("email_ab_tests" as any)
         .select("*")
@@ -108,7 +186,6 @@ export function ABTestingPage() {
   const { data: testResults } = useQuery({
     queryKey: ["ab-test-results"],
     queryFn: async () => {
-      // Get assignments with notification history data
       const { data: assignments, error } = await supabase
         .from("email_ab_assignments" as any)
         .select(`
@@ -120,7 +197,6 @@ export function ABTestingPage() {
 
       if (error) throw error;
 
-      // Aggregate results by test
       const results: Record<string, ABTestResults> = {};
       
       for (const assignment of (assignments || []) as any[]) {
@@ -161,7 +237,13 @@ export function ABTestingPage() {
       const { error } = await supabase
         .from("email_ab_tests" as any)
         .insert({
-          ...newTest,
+          test_name: newTest.test_name,
+          notification_type: newTest.notification_type,
+          variant_a_subject: newTest.variant_a_subject,
+          variant_a_preview: newTest.variant_a_preview || null,
+          variant_b_subject: newTest.variant_b_subject,
+          variant_b_preview: newTest.variant_b_preview || null,
+          end_date: newTest.end_date ? new Date(newTest.end_date).toISOString() : null,
           is_active: true,
         } as any);
 
@@ -177,12 +259,99 @@ export function ABTestingPage() {
         variant_a_preview: "",
         variant_b_subject: "",
         variant_b_preview: "",
+        end_date: "",
       });
       toast.success("A/B test created successfully");
     },
     onError: (error) => {
       console.error("Failed to create test:", error);
       toast.error("Failed to create test");
+    },
+  });
+
+  // Update test
+  const updateTestMutation = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase
+        .from("email_ab_tests" as any)
+        .update({
+          test_name: editTest.test_name,
+          notification_type: editTest.notification_type,
+          variant_a_subject: editTest.variant_a_subject,
+          variant_a_preview: editTest.variant_a_preview || null,
+          variant_b_subject: editTest.variant_b_subject,
+          variant_b_preview: editTest.variant_b_preview || null,
+          end_date: editTest.end_date ? new Date(editTest.end_date).toISOString() : null,
+        } as any)
+        .eq("id", editTest.id);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["ab-tests"] });
+      setEditDialogOpen(false);
+      toast.success("Test updated successfully");
+    },
+    onError: (error) => {
+      console.error("Failed to update test:", error);
+      toast.error("Failed to update test");
+    },
+  });
+
+  // Delete test
+  const deleteTestMutation = useMutation({
+    mutationFn: async (testId: string) => {
+      // First delete assignments
+      await supabase
+        .from("email_ab_assignments" as any)
+        .delete()
+        .eq("test_id", testId);
+
+      // Then delete the test
+      const { error } = await supabase
+        .from("email_ab_tests" as any)
+        .delete()
+        .eq("id", testId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["ab-tests"] });
+      queryClient.invalidateQueries({ queryKey: ["ab-test-results"] });
+      setDeleteDialogOpen(false);
+      setSelectedTest(null);
+      toast.success("Test deleted successfully");
+    },
+    onError: (error) => {
+      console.error("Failed to delete test:", error);
+      toast.error("Failed to delete test");
+    },
+  });
+
+  // Duplicate test
+  const duplicateTestMutation = useMutation({
+    mutationFn: async (test: ABTest) => {
+      const { error } = await supabase
+        .from("email_ab_tests" as any)
+        .insert({
+          test_name: `${test.test_name} (Copy)`,
+          notification_type: test.notification_type,
+          variant_a_subject: test.variant_a_subject,
+          variant_a_preview: test.variant_a_preview,
+          variant_b_subject: test.variant_b_subject,
+          variant_b_preview: test.variant_b_preview,
+          is_active: false,
+        } as any);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["ab-tests"] });
+      toast.success("Test duplicated successfully");
+    },
+    onError: (error) => {
+      console.error("Failed to duplicate test:", error);
+      toast.error("Failed to duplicate test");
     },
   });
 
@@ -210,25 +379,94 @@ export function ABTestingPage() {
     if (!results) return null;
     
     const aOpenRate = results.variant_a_sent > 0 
-      ? (results.variant_a_opened / results.variant_a_sent) * 100 
+      ? results.variant_a_opened / results.variant_a_sent 
       : 0;
     const bOpenRate = results.variant_b_sent > 0 
-      ? (results.variant_b_opened / results.variant_b_sent) * 100 
+      ? results.variant_b_opened / results.variant_b_sent 
       : 0;
 
-    if (results.variant_a_sent < 10 || results.variant_b_sent < 10) {
-      return { winner: null, message: "Need more data" };
-    }
+    const stats = calculateStatisticalSignificance(
+      results.variant_a_sent,
+      aOpenRate,
+      results.variant_b_sent,
+      bOpenRate
+    );
 
-    const diff = Math.abs(aOpenRate - bOpenRate);
-    if (diff < 5) {
-      return { winner: null, message: "No significant difference" };
+    if (!stats.isSignificant) {
+      if (results.variant_a_sent < 30 || results.variant_b_sent < 30) {
+        return { winner: null, message: "Need more data (min 30 each)", confidence: stats.confidence };
+      }
+      return { winner: null, message: `Not significant (${stats.confidence}% confidence)`, confidence: stats.confidence };
     }
 
     return {
       winner: aOpenRate > bOpenRate ? "A" : "B",
-      message: `${(aOpenRate > bOpenRate ? aOpenRate : bOpenRate).toFixed(1)}% open rate`,
+      message: `${stats.confidence}% confidence`,
+      confidence: stats.confidence,
     };
+  };
+
+  const handleEdit = (test: ABTest) => {
+    setEditTest({
+      id: test.id,
+      test_name: test.test_name,
+      notification_type: test.notification_type,
+      variant_a_subject: test.variant_a_subject,
+      variant_a_preview: test.variant_a_preview || "",
+      variant_b_subject: test.variant_b_subject,
+      variant_b_preview: test.variant_b_preview || "",
+      end_date: test.end_date ? format(new Date(test.end_date), "yyyy-MM-dd") : "",
+    });
+    setEditDialogOpen(true);
+  };
+
+  const handleDelete = (test: ABTest) => {
+    setSelectedTest(test);
+    setDeleteDialogOpen(true);
+  };
+
+  const exportResults = (test: ABTest) => {
+    const results = getResultsForTest(test.id);
+    const aOpenRate = results && results.variant_a_sent > 0
+      ? (results.variant_a_opened / results.variant_a_sent) * 100
+      : 0;
+    const bOpenRate = results && results.variant_b_sent > 0
+      ? (results.variant_b_opened / results.variant_b_sent) * 100
+      : 0;
+    const aClickRate = results && results.variant_a_sent > 0
+      ? (results.variant_a_clicked / results.variant_a_sent) * 100
+      : 0;
+    const bClickRate = results && results.variant_b_sent > 0
+      ? (results.variant_b_clicked / results.variant_b_sent) * 100
+      : 0;
+
+    const winner = calculateWinner(results);
+
+    const csvContent = [
+      ["A/B Test Results Export"],
+      [""],
+      ["Test Name", test.test_name],
+      ["Notification Type", NOTIFICATION_TYPES.find(t => t.value === test.notification_type)?.label],
+      ["Start Date", format(new Date(test.start_date), "MMM d, yyyy")],
+      ["End Date", test.end_date ? format(new Date(test.end_date), "MMM d, yyyy") : "Ongoing"],
+      ["Status", test.is_active ? "Active" : "Paused"],
+      [""],
+      ["Variant", "Subject Line", "Preview Text", "Sent", "Opened", "Open Rate", "Clicked", "Click Rate"],
+      ["A", test.variant_a_subject, test.variant_a_preview || "", results?.variant_a_sent || 0, results?.variant_a_opened || 0, `${aOpenRate.toFixed(2)}%`, results?.variant_a_clicked || 0, `${aClickRate.toFixed(2)}%`],
+      ["B", test.variant_b_subject, test.variant_b_preview || "", results?.variant_b_sent || 0, results?.variant_b_opened || 0, `${bOpenRate.toFixed(2)}%`, results?.variant_b_clicked || 0, `${bClickRate.toFixed(2)}%`],
+      [""],
+      ["Winner", winner?.winner ? `Variant ${winner.winner}` : "No winner yet"],
+      ["Statistical Confidence", winner?.confidence ? `${winner.confidence}%` : "N/A"],
+    ].map(row => row.join(",")).join("\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `ab-test-${test.test_name.replace(/\s+/g, "-").toLowerCase()}-${format(new Date(), "yyyy-MM-dd")}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success("Results exported to CSV");
   };
 
   if (isLoading) {
@@ -262,7 +500,7 @@ export function ABTestingPage() {
               New Test
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-lg">
+          <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Create A/B Test</DialogTitle>
               <DialogDescription>
@@ -278,23 +516,37 @@ export function ABTestingPage() {
                   onChange={(e) => setNewTest({ ...newTest, test_name: e.target.value })}
                 />
               </div>
-              <div className="space-y-2">
-                <Label>Notification Type</Label>
-                <Select
-                  value={newTest.notification_type}
-                  onValueChange={(v) => setNewTest({ ...newTest, notification_type: v })}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {NOTIFICATION_TYPES.map((type) => (
-                      <SelectItem key={type.value} value={type.value}>
-                        {type.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Notification Type</Label>
+                  <Select
+                    value={newTest.notification_type}
+                    onValueChange={(v) => setNewTest({ ...newTest, notification_type: v })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {NOTIFICATION_TYPES.map((type) => (
+                        <SelectItem key={type.value} value={type.value}>
+                          {type.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-1">
+                    <Calendar className="h-3 w-3" />
+                    End Date (optional)
+                  </Label>
+                  <Input
+                    type="date"
+                    value={newTest.end_date}
+                    onChange={(e) => setNewTest({ ...newTest, end_date: e.target.value })}
+                    min={format(new Date(), "yyyy-MM-dd")}
+                  />
+                </div>
               </div>
               <Separator />
               <div className="space-y-4">
@@ -363,8 +615,139 @@ export function ABTestingPage() {
         </Dialog>
       </div>
 
+      {/* Edit Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit A/B Test</DialogTitle>
+            <DialogDescription>
+              Update test configuration
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Test Name</Label>
+              <Input
+                value={editTest.test_name}
+                onChange={(e) => setEditTest({ ...editTest, test_name: e.target.value })}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Notification Type</Label>
+                <Select
+                  value={editTest.notification_type}
+                  onValueChange={(v) => setEditTest({ ...editTest, notification_type: v })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {NOTIFICATION_TYPES.map((type) => (
+                      <SelectItem key={type.value} value={type.value}>
+                        {type.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label className="flex items-center gap-1">
+                  <Calendar className="h-3 w-3" />
+                  End Date
+                </Label>
+                <Input
+                  type="date"
+                  value={editTest.end_date}
+                  onChange={(e) => setEditTest({ ...editTest, end_date: e.target.value })}
+                />
+              </div>
+            </div>
+            <Separator />
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <Badge variant="outline">A</Badge>
+                <span className="text-sm font-medium">Variant A</span>
+              </div>
+              <div className="space-y-2">
+                <Label>Subject Line</Label>
+                <Input
+                  value={editTest.variant_a_subject}
+                  onChange={(e) => setEditTest({ ...editTest, variant_a_subject: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Preview Text</Label>
+                <Input
+                  value={editTest.variant_a_preview}
+                  onChange={(e) => setEditTest({ ...editTest, variant_a_preview: e.target.value })}
+                />
+              </div>
+            </div>
+            <Separator />
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <Badge variant="secondary">B</Badge>
+                <span className="text-sm font-medium">Variant B</span>
+              </div>
+              <div className="space-y-2">
+                <Label>Subject Line</Label>
+                <Input
+                  value={editTest.variant_b_subject}
+                  onChange={(e) => setEditTest({ ...editTest, variant_b_subject: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Preview Text</Label>
+                <Input
+                  value={editTest.variant_b_preview}
+                  onChange={(e) => setEditTest({ ...editTest, variant_b_preview: e.target.value })}
+                />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => updateTestMutation.mutate()}
+              disabled={
+                !editTest.test_name ||
+                !editTest.variant_a_subject ||
+                !editTest.variant_b_subject ||
+                updateTestMutation.isPending
+              }
+            >
+              {updateTestMutation.isPending ? "Saving..." : "Save Changes"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete A/B Test?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete "{selectedTest?.test_name}" and all its assignment data. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => selectedTest && deleteTestMutation.mutate(selectedTest.id)}
+            >
+              {deleteTestMutation.isPending ? "Deleting..." : "Delete Test"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* Overview Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -395,15 +778,42 @@ export function ABTestingPage() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Tests with Winner
+              Statistically Significant
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-primary">
+              {tests?.filter((t) => {
+                const results = getResultsForTest(t.id);
+                const winner = calculateWinner(results);
+                return winner?.winner && winner.confidence >= 95;
+              }).length || 0}
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Avg Open Rate Lift
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {tests?.filter((t) => {
-                const results = getResultsForTest(t.id);
-                return calculateWinner(results)?.winner;
-              }).length || 0}
+              {(() => {
+                const lifts = tests?.map((t) => {
+                  const r = getResultsForTest(t.id);
+                  if (!r || r.variant_a_sent < 10 || r.variant_b_sent < 10) return null;
+                  const aRate = r.variant_a_opened / r.variant_a_sent;
+                  const bRate = r.variant_b_opened / r.variant_b_sent;
+                  const baseRate = Math.min(aRate, bRate);
+                  const winnerRate = Math.max(aRate, bRate);
+                  return baseRate > 0 ? ((winnerRate - baseRate) / baseRate) * 100 : 0;
+                }).filter(Boolean) as number[];
+                
+                if (lifts.length === 0) return "—";
+                const avg = lifts.reduce((a, b) => a + b, 0) / lifts.length;
+                return `+${avg.toFixed(1)}%`;
+              })()}
             </div>
           </CardContent>
         </Card>
@@ -444,17 +854,33 @@ export function ABTestingPage() {
                       <FlaskConical className="h-5 w-5 text-primary" />
                       <div>
                         <CardTitle className="text-lg">{test.test_name}</CardTitle>
-                        <CardDescription>
-                          {NOTIFICATION_TYPES.find((t) => t.value === test.notification_type)?.label} •
-                          Started {format(new Date(test.start_date), "MMM d, yyyy")}
+                        <CardDescription className="flex flex-wrap gap-x-2">
+                          <span>{NOTIFICATION_TYPES.find((t) => t.value === test.notification_type)?.label}</span>
+                          <span>•</span>
+                          <span>Started {format(new Date(test.start_date), "MMM d, yyyy")}</span>
+                          {test.end_date && (
+                            <>
+                              <span>•</span>
+                              <span className="flex items-center gap-1">
+                                <Calendar className="h-3 w-3" />
+                                Ends {format(new Date(test.end_date), "MMM d, yyyy")}
+                              </span>
+                            </>
+                          )}
                         </CardDescription>
                       </div>
                     </div>
-                    <div className="flex items-center gap-4">
-                      {winner?.winner && (
+                    <div className="flex items-center gap-3">
+                      {winner?.winner && winner.confidence >= 95 && (
                         <Badge className="gap-1" variant="default">
                           <Trophy className="h-3 w-3" />
-                          Variant {winner.winner} wins
+                          Variant {winner.winner} wins ({winner.confidence}%)
+                        </Badge>
+                      )}
+                      {winner?.winner && winner.confidence < 95 && winner.confidence >= 90 && (
+                        <Badge className="gap-1" variant="secondary">
+                          <BarChart3 className="h-3 w-3" />
+                          Variant {winner.winner} leading ({winner.confidence}%)
                         </Badge>
                       )}
                       <Switch
@@ -463,6 +889,35 @@ export function ABTestingPage() {
                           toggleTestMutation.mutate({ id: test.id, is_active: checked })
                         }
                       />
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon">
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => handleEdit(test)}>
+                            <Pencil className="h-4 w-4 mr-2" />
+                            Edit
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => duplicateTestMutation.mutate(test)}>
+                            <Copy className="h-4 w-4 mr-2" />
+                            Duplicate
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => exportResults(test)}>
+                            <Download className="h-4 w-4 mr-2" />
+                            Export Results
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            className="text-destructive focus:text-destructive"
+                            onClick={() => handleDelete(test)}
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
                   </div>
                 </CardHeader>
@@ -473,7 +928,13 @@ export function ABTestingPage() {
                       <div className="flex items-center justify-between mb-3">
                         <Badge variant="outline">Variant A</Badge>
                         {winner?.winner === "A" && (
-                          <Trophy className="h-4 w-4 text-primary" />
+                          <div className="flex items-center gap-1">
+                            {winner.confidence >= 95 ? (
+                              <CheckCircle2 className="h-4 w-4 text-primary" />
+                            ) : (
+                              <Trophy className="h-4 w-4 text-primary" />
+                            )}
+                          </div>
                         )}
                       </div>
                       <p className="font-medium mb-1">{test.variant_a_subject}</p>
@@ -503,7 +964,13 @@ export function ABTestingPage() {
                       <div className="flex items-center justify-between mb-3">
                         <Badge variant="secondary">Variant B</Badge>
                         {winner?.winner === "B" && (
-                          <Trophy className="h-4 w-4 text-primary" />
+                          <div className="flex items-center gap-1">
+                            {winner.confidence >= 95 ? (
+                              <CheckCircle2 className="h-4 w-4 text-primary" />
+                            ) : (
+                              <Trophy className="h-4 w-4 text-primary" />
+                            )}
+                          </div>
                         )}
                       </div>
                       <p className="font-medium mb-1">{test.variant_b_subject}</p>
@@ -529,12 +996,23 @@ export function ABTestingPage() {
                     </div>
                   </div>
 
-                  {/* Progress comparison */}
+                  {/* Progress comparison with statistical significance */}
                   {results && (results.variant_a_sent > 0 || results.variant_b_sent > 0) && (
                     <div className="mt-4 pt-4 border-t">
-                      <div className="flex items-center gap-2 mb-2">
-                        <TrendingUp className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-sm font-medium">Open Rate Comparison</span>
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                          <span className="text-sm font-medium">Open Rate Comparison</span>
+                        </div>
+                        {winner && (
+                          <Badge variant={winner.confidence >= 95 ? "default" : "secondary"} className="text-xs">
+                            {winner.confidence >= 95 ? (
+                              <><CheckCircle2 className="h-3 w-3 mr-1" /> Statistically Significant</>
+                            ) : (
+                              winner.message
+                            )}
+                          </Badge>
+                        )}
                       </div>
                       <div className="space-y-2">
                         <div className="flex items-center gap-2">
@@ -548,6 +1026,12 @@ export function ABTestingPage() {
                           <span className="text-xs w-12 text-right">{bOpenRate.toFixed(1)}%</span>
                         </div>
                       </div>
+                      {aOpenRate !== bOpenRate && (
+                        <p className="text-xs text-muted-foreground mt-2">
+                          {aOpenRate > bOpenRate ? "A" : "B"} is performing {Math.abs(aOpenRate - bOpenRate).toFixed(1)}% better
+                          {winner?.confidence && winner.confidence < 95 && ` (need ${95 - winner.confidence}% more confidence)`}
+                        </p>
+                      )}
                     </div>
                   )}
 
