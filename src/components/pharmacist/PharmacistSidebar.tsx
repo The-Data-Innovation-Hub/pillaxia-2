@@ -37,13 +37,18 @@ export function PharmacistSidebar() {
   return (
     <Sidebar className="border-r">
       <SidebarHeader className="p-4 border-b">
-        <div className="flex items-center gap-2">
-          <div className="h-8 w-8 rounded-lg bg-emerald-600 flex items-center justify-center">
-            <Package className="h-4 w-4 text-white" />
-          </div>
-          <div>
-            <h2 className="font-semibold text-sm">PillaxiaPharm</h2>
-            <p className="text-xs text-muted-foreground">Pharmacy Portal</p>
+        <div className="flex items-center gap-3">
+          <Avatar className="h-10 w-10">
+            <AvatarImage src={profile?.avatar_url || undefined} alt={profile?.first_name || "User"} />
+            <AvatarFallback className="bg-primary/10 text-primary font-medium">
+              {profile?.first_name?.[0] || "P"}
+            </AvatarFallback>
+          </Avatar>
+          <div className="flex flex-col">
+            <span className="font-medium text-sm">
+              {profile?.first_name} {profile?.last_name}
+            </span>
+            <span className="text-xs text-muted-foreground">Pharmacist</span>
           </div>
         </div>
       </SidebarHeader>
@@ -73,24 +78,7 @@ export function PharmacistSidebar() {
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter className="p-4 border-t">
-        <div className="flex items-center gap-3 mb-3">
-          <Avatar className="h-8 w-8">
-            <AvatarImage src={profile?.avatar_url || undefined} alt={profile?.first_name || "User"} />
-            <AvatarFallback className="bg-emerald-100 text-emerald-700 font-medium text-sm">
-              {profile?.first_name?.[0] || "P"}
-            </AvatarFallback>
-          </Avatar>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium truncate">
-              {profile?.first_name} {profile?.last_name}
-            </p>
-            {profile?.organization && (
-              <p className="text-xs text-muted-foreground truncate">{profile.organization}</p>
-            )}
-            <p className="text-xs text-muted-foreground">Pharmacist</p>
-          </div>
-        </div>
+      <SidebarFooter className="p-4 border-t space-y-2">
         <NavLink 
           to="/dashboard/help"
           className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-muted/50 transition-colors text-sm"
