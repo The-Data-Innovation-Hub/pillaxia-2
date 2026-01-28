@@ -21,10 +21,10 @@ type AppRole = "patient" | "clinician" | "pharmacist" | "admin";
 
 // Demo users for testing
 const DEMO_USERS = [
-  { email: "patient@demo.pillaxia.com", password: "demo123456", role: "patient" as const, label: "Patient", icon: User, color: "bg-blue-500" },
-  { email: "clinician@demo.pillaxia.com", password: "demo123456", role: "clinician" as const, label: "Clinician", icon: Stethoscope, color: "bg-green-500" },
-  { email: "pharmacist@demo.pillaxia.com", password: "demo123456", role: "pharmacist" as const, label: "Pharmacist", icon: Pill, color: "bg-purple-500" },
-  { email: "admin@demo.pillaxia.com", password: "demo123456", role: "admin" as const, label: "Admin", icon: Shield, color: "bg-red-500" },
+  { email: "patient@demo.pillaxia.com", password: "DemoPatient2026!", role: "patient" as const, label: "Patient", icon: User, color: "bg-blue-500" },
+  { email: "clinician@demo.pillaxia.com", password: "DemoClinician2026!", role: "clinician" as const, label: "Clinician", icon: Stethoscope, color: "bg-green-500" },
+  { email: "pharmacist@demo.pillaxia.com", password: "DemoPharmacist2026!", role: "pharmacist" as const, label: "Pharmacist", icon: Pill, color: "bg-purple-500" },
+  { email: "admin@demo.pillaxia.com", password: "DemoAdmin2026!", role: "admin" as const, label: "Admin", icon: Shield, color: "bg-red-500" },
 ];
 
 // Validation schemas

@@ -6,15 +6,15 @@ const corsHeaders = {
 };
 
 const DEMO_USERS = [
-  { email: "patient@demo.pillaxia.com", password: "demo123456", role: "patient", firstName: "Demo", lastName: "Patient" },
-  { email: "clinician@demo.pillaxia.com", password: "demo123456", role: "clinician", firstName: "Demo", lastName: "Clinician" },
-  { email: "pharmacist@demo.pillaxia.com", password: "demo123456", role: "pharmacist", firstName: "Demo", lastName: "Pharmacist" },
-  { email: "admin@demo.pillaxia.com", password: "demo123456", role: "admin", firstName: "Demo", lastName: "Admin" },
+  { email: "patient@demo.pillaxia.com", password: "DemoPatient2026!", role: "patient", firstName: "Demo", lastName: "Patient" },
+  { email: "clinician@demo.pillaxia.com", password: "DemoClinician2026!", role: "clinician", firstName: "Demo", lastName: "Clinician" },
+  { email: "pharmacist@demo.pillaxia.com", password: "DemoPharmacist2026!", role: "pharmacist", firstName: "Demo", lastName: "Pharmacist" },
+  { email: "admin@demo.pillaxia.com", password: "DemoAdmin2026!", role: "admin", firstName: "Demo", lastName: "Admin" },
   // Additional mock patients for testing
-  { email: "alice.johnson@demo.pillaxia.com", password: "demo123456", role: "patient", firstName: "Alice", lastName: "Johnson" },
-  { email: "bob.smith@demo.pillaxia.com", password: "demo123456", role: "patient", firstName: "Bob", lastName: "Smith" },
-  { email: "carol.williams@demo.pillaxia.com", password: "demo123456", role: "patient", firstName: "Carol", lastName: "Williams" },
-  { email: "david.brown@demo.pillaxia.com", password: "demo123456", role: "patient", firstName: "David", lastName: "Brown" },
+  { email: "alice.johnson@demo.pillaxia.com", password: "DemoAlice2026!", role: "patient", firstName: "Alice", lastName: "Johnson" },
+  { email: "bob.smith@demo.pillaxia.com", password: "DemoBob2026!", role: "patient", firstName: "Bob", lastName: "Smith" },
+  { email: "carol.williams@demo.pillaxia.com", password: "DemoCarol2026!", role: "patient", firstName: "Carol", lastName: "Williams" },
+  { email: "david.brown@demo.pillaxia.com", password: "DemoDavid2026!", role: "patient", firstName: "David", lastName: "Brown" },
 ];
 
 Deno.serve(async (req) => {
@@ -37,7 +37,19 @@ Deno.serve(async (req) => {
 
     for (const user of DEMO_USERS) {
       if (existingEmails.has(user.email)) {
-        results.push({ email: user.email, status: "already exists" });
+        // Reset password for existing demo users
+        const existingUser = existingUsers?.users?.find(u => u.email === user.email);
+        if (existingUser) {
+          const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
+            existingUser.id,
+            { password: user.password }
+          );
+          if (updateError) {
+            results.push({ email: user.email, status: "password reset failed", error: updateError.message });
+          } else {
+            results.push({ email: user.email, status: "password reset" });
+          }
+        }
         continue;
       }
 
