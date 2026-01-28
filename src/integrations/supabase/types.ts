@@ -266,6 +266,39 @@ export type Database = {
         }
         Relationships: []
       }
+      compliance_reports: {
+        Row: {
+          created_at: string
+          generated_by: string
+          id: string
+          report_data: Json
+          report_period_end: string
+          report_period_start: string
+          report_type: string
+          summary: Json | null
+        }
+        Insert: {
+          created_at?: string
+          generated_by: string
+          id?: string
+          report_data?: Json
+          report_period_end: string
+          report_period_start: string
+          report_type: string
+          summary?: Json | null
+        }
+        Update: {
+          created_at?: string
+          generated_by?: string
+          id?: string
+          report_data?: Json
+          report_period_end?: string
+          report_period_start?: string
+          report_type?: string
+          summary?: Json | null
+        }
+        Relationships: []
+      }
       controlled_drug_adjustments: {
         Row: {
           adjustment_type: string
@@ -441,6 +474,48 @@ export type Database = {
           strength?: string
           unit_of_measure?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      data_access_log: {
+        Row: {
+          access_type: string
+          accessed_record_id: string | null
+          accessed_table: string
+          created_at: string
+          data_category: string
+          id: string
+          ip_address: string | null
+          patient_id: string | null
+          reason: string | null
+          user_agent: string | null
+          user_id: string
+        }
+        Insert: {
+          access_type: string
+          accessed_record_id?: string | null
+          accessed_table: string
+          created_at?: string
+          data_category?: string
+          id?: string
+          ip_address?: string | null
+          patient_id?: string | null
+          reason?: string | null
+          user_agent?: string | null
+          user_id: string
+        }
+        Update: {
+          access_type?: string
+          accessed_record_id?: string | null
+          accessed_table?: string
+          created_at?: string
+          data_category?: string
+          id?: string
+          ip_address?: string | null
+          patient_id?: string | null
+          reason?: string | null
+          user_agent?: string | null
+          user_id?: string
         }
         Relationships: []
       }
@@ -1630,6 +1705,92 @@ export type Database = {
           },
         ]
       }
+      security_events: {
+        Row: {
+          created_at: string
+          description: string | null
+          device_fingerprint: string | null
+          event_category: string
+          event_type: Database["public"]["Enums"]["security_event_type"]
+          id: string
+          ip_address: string | null
+          location: Json | null
+          metadata: Json | null
+          session_id: string | null
+          severity: string
+          user_agent: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          device_fingerprint?: string | null
+          event_category?: string
+          event_type: Database["public"]["Enums"]["security_event_type"]
+          id?: string
+          ip_address?: string | null
+          location?: Json | null
+          metadata?: Json | null
+          session_id?: string | null
+          severity?: string
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          device_fingerprint?: string | null
+          event_category?: string
+          event_type?: Database["public"]["Enums"]["security_event_type"]
+          id?: string
+          ip_address?: string | null
+          location?: Json | null
+          metadata?: Json | null
+          session_id?: string | null
+          severity?: string
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "security_events_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "user_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      security_settings: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          setting_key: string
+          setting_value: Json
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          setting_key: string
+          setting_value?: Json
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          setting_key?: string
+          setting_value?: Json
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       soap_notes: {
         Row: {
           assessment: string | null
@@ -1734,11 +1895,57 @@ export type Database = {
         }
         Relationships: []
       }
+      user_sessions: {
+        Row: {
+          created_at: string
+          device_info: Json | null
+          ended_at: string | null
+          expires_at: string
+          id: string
+          ip_address: string | null
+          is_active: boolean
+          last_activity_at: string
+          location: Json | null
+          session_token: string
+          user_agent: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          device_info?: Json | null
+          ended_at?: string | null
+          expires_at: string
+          id?: string
+          ip_address?: string | null
+          is_active?: boolean
+          last_activity_at?: string
+          location?: Json | null
+          session_token: string
+          user_agent?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          device_info?: Json | null
+          ended_at?: string | null
+          expires_at?: string
+          id?: string
+          ip_address?: string | null
+          is_active?: boolean
+          last_activity_at?: string
+          location?: Json | null
+          session_token?: string
+          user_agent?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
+      check_session_limits: { Args: { p_user_id: string }; Returns: boolean }
       get_user_roles: {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["app_role"][]
@@ -1762,10 +1969,51 @@ export type Database = {
       }
       is_patient: { Args: { _user_id: string }; Returns: boolean }
       is_pharmacist: { Args: { _user_id: string }; Returns: boolean }
+      log_data_access: {
+        Args: {
+          p_access_type: string
+          p_accessed_record_id: string
+          p_accessed_table: string
+          p_data_category?: string
+          p_patient_id?: string
+          p_reason?: string
+          p_user_id: string
+        }
+        Returns: string
+      }
+      log_security_event: {
+        Args: {
+          p_description?: string
+          p_event_category?: string
+          p_event_type: Database["public"]["Enums"]["security_event_type"]
+          p_ip_address?: string
+          p_metadata?: Json
+          p_severity?: string
+          p_user_agent?: string
+          p_user_id: string
+        }
+        Returns: string
+      }
     }
     Enums: {
       app_role: "patient" | "clinician" | "pharmacist" | "admin"
       drug_schedule: "II" | "III" | "IV" | "V"
+      security_event_type:
+        | "login_success"
+        | "login_failure"
+        | "logout"
+        | "password_change"
+        | "password_reset_request"
+        | "mfa_enabled"
+        | "mfa_disabled"
+        | "session_timeout"
+        | "concurrent_session_blocked"
+        | "suspicious_activity"
+        | "data_export"
+        | "data_access"
+        | "permission_change"
+        | "account_locked"
+        | "account_unlocked"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1895,6 +2143,23 @@ export const Constants = {
     Enums: {
       app_role: ["patient", "clinician", "pharmacist", "admin"],
       drug_schedule: ["II", "III", "IV", "V"],
+      security_event_type: [
+        "login_success",
+        "login_failure",
+        "logout",
+        "password_change",
+        "password_reset_request",
+        "mfa_enabled",
+        "mfa_disabled",
+        "session_timeout",
+        "concurrent_session_blocked",
+        "suspicious_activity",
+        "data_export",
+        "data_access",
+        "permission_change",
+        "account_locked",
+        "account_unlocked",
+      ],
     },
   },
 } as const
