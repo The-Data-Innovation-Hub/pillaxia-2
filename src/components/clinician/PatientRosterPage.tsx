@@ -33,7 +33,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Search, User, Pill, Activity, Calendar, UserPlus, UserMinus, Users, MessageCircle, Brain } from "lucide-react";
+import { Search, User, Pill, Activity, Calendar, UserPlus, UserMinus, Users, MessageCircle, Sparkles } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { ClinicianChatDialog } from "./ClinicianChatDialog";
@@ -321,8 +321,8 @@ export function PatientRosterPage() {
                         onClick={() => setCdsPatient(patient)}
                         className="gap-1"
                       >
-                        <Brain className="h-4 w-4" />
-                        CDS
+                        <Sparkles className="h-4 w-4" />
+                        Angela
                       </Button>
                       <Button
                         variant="outline"
