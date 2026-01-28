@@ -1,4 +1,4 @@
-import { useState, forwardRef } from "react";
+import { useState } from "react";
 import { Building2, Palette, Users, Settings, Plus, Upload, Save, Loader2 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -15,7 +15,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
-export const OrganizationManagementPage = forwardRef<HTMLDivElement>((_, ref) => {
+export function OrganizationManagementPage() {
   const { organization, branding, isOrgAdmin, updateBranding, refreshOrganization } = useOrganization();
   const { members, isLoading: membersLoading, updateMemberRole, removeMember } = useOrganizationMembers();
   const { isManager } = useAuth();
@@ -550,6 +550,4 @@ export const OrganizationManagementPage = forwardRef<HTMLDivElement>((_, ref) =>
       </Tabs>
     </div>
   );
-});
-
-OrganizationManagementPage.displayName = "OrganizationManagementPage";
+}
