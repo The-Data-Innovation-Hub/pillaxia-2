@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Building2, Palette, Users, Settings, Plus, Upload, Save, Loader2 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -24,6 +24,9 @@ export function OrganizationManagementPage() {
   const canEdit = isOrgAdmin || isManager;
   
   const [isSaving, setIsSaving] = useState(false);
+  const [isUploadingLogo, setIsUploadingLogo] = useState(false);
+  const logoInputRef = useRef<HTMLInputElement>(null);
+  
   const [brandingForm, setBrandingForm] = useState({
     app_name: branding?.app_name || "Pillaxia",
     primary_color: branding?.primary_color || "244 69% 31%",
@@ -98,6 +101,61 @@ export function OrganizationManagementPage() {
       toast.error("Failed to update organization");
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleLogoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !organization) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      toast.error("Please select an image file");
+      return;
+    }
+
+    // Validate file size (max 2MB)
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error("Image must be less than 2MB");
+      return;
+    }
+
+    setIsUploadingLogo(true);
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${organization.id}/logo-${Date.now()}.${fileExt}`;
+
+      // Upload to avatars bucket (reusing existing bucket)
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(fileName, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(fileName);
+
+      // Update organization branding with new logo URL
+      const { error: updateError } = await supabase
+        .from('organization_branding')
+        .update({ logo_url: publicUrl })
+        .eq('organization_id', organization.id);
+
+      if (updateError) throw updateError;
+
+      await refreshOrganization();
+      toast.success("Logo uploaded successfully");
+    } catch (error) {
+      console.error("Logo upload error:", error);
+      toast.error("Failed to upload logo");
+    } finally {
+      setIsUploadingLogo(false);
+      // Reset file input
+      if (logoInputRef.current) {
+        logoInputRef.current.value = '';
+      }
     }
   };
 
@@ -298,16 +356,33 @@ export function OrganizationManagementPage() {
                 <div className="space-y-4">
                   <Label>Logo</Label>
                   <div className="flex items-center gap-4">
-                    <div className="h-16 w-16 rounded-lg border bg-muted flex items-center justify-center">
+                    <div className="h-16 w-16 rounded-lg border bg-muted flex items-center justify-center overflow-hidden">
                       {branding?.logo_url ? (
-                        <img src={branding.logo_url} alt="Logo" className="h-12 w-12 object-contain" />
+                        <img src={branding.logo_url} alt="Logo" className="h-full w-full object-contain" />
                       ) : (
                         <Building2 className="h-8 w-8 text-muted-foreground" />
                       )}
                     </div>
-                    <Button variant="outline" size="sm" disabled={!canEdit}>
-                      <Upload className="h-4 w-4 mr-2" />
-                      Upload Logo
+                    <input
+                      ref={logoInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handleLogoUpload}
+                      className="hidden"
+                      disabled={!canEdit || isUploadingLogo}
+                    />
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      disabled={!canEdit || isUploadingLogo}
+                      onClick={() => logoInputRef.current?.click()}
+                    >
+                      {isUploadingLogo ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <Upload className="h-4 w-4 mr-2" />
+                      )}
+                      {isUploadingLogo ? "Uploading..." : "Upload Logo"}
                     </Button>
                   </div>
                 </div>
