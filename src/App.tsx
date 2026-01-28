@@ -15,15 +15,12 @@ import {
   PatientDashboardHome,
   MedicationsPage,
   SchedulePage,
-  SymptomsPage,
   AngelaPage,
   CaregiversHubPage,
-  HealthProfilePage,
+  HealthHubPage,
   CaregiverNotificationHistoryPage,
   PatientSettingsPage,
   NotificationsHubPage,
-  VitalsPage,
-  LabResultsPage,
 } from "@/components/patient";
 import {
   ClinicianLayout,
@@ -110,15 +107,16 @@ function AppRoutes() {
         {/* Patient Routes */}
         <Route path="medications" element={<MedicationsPage />} />
         <Route path="schedule" element={<SchedulePage />} />
-        <Route path="symptoms" element={<SymptomsPage />} />
+        <Route path="health" element={<HealthHubPage />} />
+        <Route path="symptoms" element={<Navigate to="/dashboard/health" replace />} />
+        <Route path="vitals" element={<Navigate to="/dashboard/health" replace />} />
+        <Route path="lab-results" element={<Navigate to="/dashboard/health" replace />} />
+        <Route path="health-profile" element={<Navigate to="/dashboard/health" replace />} />
         <Route path="caregivers" element={<CaregiversHubPage />} />
         <Route path="caregiver-view" element={<Navigate to="/dashboard/caregivers" replace />} />
         <Route path="caregiver-history" element={<CaregiverNotificationHistoryPage />} />
         <Route path="angela" element={<AngelaPage />} />
         <Route path="notifications" element={<NotificationsHubPage />} />
-        <Route path="vitals" element={<VitalsPage />} />
-        <Route path="lab-results" element={<LabResultsPage />} />
-        <Route path="health-profile" element={<HealthProfilePage />} />
         {/* Clinician Routes */}
         <Route path="patients" element={<PatientRosterPage />} />
         <Route path="e-prescribing" element={<EPrescribingPage />} />
