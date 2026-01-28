@@ -321,12 +321,14 @@ export function CaregiversPageContent() {
                       </span>
                     </div>
                     <div>
-                      <p className="font-medium">
-                        {invitation.caregiver_profile?.first_name
-                          ? `${invitation.caregiver_profile.first_name} ${invitation.caregiver_profile.last_name || ""}`
-                          : invitation.caregiver_email}
+                      {invitation.caregiver_profile?.first_name && (
+                        <p className="font-medium">
+                          {invitation.caregiver_profile.first_name} {invitation.caregiver_profile.last_name || ""}
+                        </p>
+                      )}
+                      <p className={invitation.caregiver_profile?.first_name ? "text-sm text-muted-foreground" : "font-medium"}>
+                        {invitation.caregiver_email}
                       </p>
-                      <p className="text-sm text-muted-foreground">{invitation.caregiver_email}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
