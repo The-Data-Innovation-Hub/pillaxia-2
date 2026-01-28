@@ -1,7 +1,6 @@
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/i18n/LanguageContext";
-import { useHasCaregiverRelationships } from "@/hooks/useHasCaregiverRelationships";
 import {
   Sidebar,
   SidebarContent,
@@ -25,7 +24,6 @@ import {
   Bot,
   Users,
   Heart,
-  History,
   Bell,
   HelpCircle,
   Activity,
@@ -36,9 +34,8 @@ import { Button } from "@/components/ui/button";
 export function PatientSidebar() {
   const { signOut, profile } = useAuth();
   const { t } = useLanguage();
-  const { data: hasCaregiverRelationships } = useHasCaregiverRelationships();
 
-  const baseMenuItems = [
+  const menuItems = [
     { title: t.dashboard.overview, url: "/dashboard", icon: LayoutDashboard },
     { title: t.medications.title, url: "/dashboard/medications", icon: Pill },
     { title: t.schedule.title, url: "/dashboard/schedule", icon: Calendar },
@@ -50,15 +47,6 @@ export function PatientSidebar() {
     { title: t.notifications.title, url: "/dashboard/notifications", icon: Bell },
     { title: t.angela.title, url: "/dashboard/angela", icon: Bot },
   ];
-
-  const caregiverMenuItems = [
-    { title: "Caregiver View", url: "/dashboard/caregiver-view", icon: Heart },
-    { title: "Alert History", url: "/dashboard/caregiver-history", icon: History },
-  ];
-
-  const menuItems = hasCaregiverRelationships
-    ? [...baseMenuItems.slice(0, 8), ...caregiverMenuItems, baseMenuItems[8], baseMenuItems[9]]
-    : baseMenuItems;
 
   return (
     <Sidebar className="border-r">

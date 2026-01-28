@@ -17,8 +17,7 @@ import {
   SchedulePage,
   SymptomsPage,
   AngelaPage,
-  CaregiversPage,
-  CaregiverDashboardPage,
+  CaregiversHubPage,
   HealthProfilePage,
   CaregiverNotificationHistoryPage,
   PatientSettingsPage,
@@ -112,8 +111,8 @@ function AppRoutes() {
         <Route path="medications" element={<MedicationsPage />} />
         <Route path="schedule" element={<SchedulePage />} />
         <Route path="symptoms" element={<SymptomsPage />} />
-        <Route path="caregivers" element={<CaregiversPage />} />
-        <Route path="caregiver-view" element={<CaregiverDashboardPage />} />
+        <Route path="caregivers" element={<CaregiversHubPage />} />
+        <Route path="caregiver-view" element={<Navigate to="/dashboard/caregivers" replace />} />
         <Route path="caregiver-history" element={<CaregiverNotificationHistoryPage />} />
         <Route path="angela" element={<AngelaPage />} />
         <Route path="notifications" element={<NotificationsHubPage />} />
