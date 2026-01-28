@@ -797,6 +797,93 @@ export type Database = {
           },
         ]
       }
+      email_ab_assignments: {
+        Row: {
+          assigned_at: string
+          id: string
+          notification_id: string
+          test_id: string
+          user_id: string
+          variant: string
+        }
+        Insert: {
+          assigned_at?: string
+          id?: string
+          notification_id: string
+          test_id: string
+          user_id: string
+          variant: string
+        }
+        Update: {
+          assigned_at?: string
+          id?: string
+          notification_id?: string
+          test_id?: string
+          user_id?: string
+          variant?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_ab_assignments_notification_id_fkey"
+            columns: ["notification_id"]
+            isOneToOne: false
+            referencedRelation: "notification_history"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_ab_assignments_test_id_fkey"
+            columns: ["test_id"]
+            isOneToOne: false
+            referencedRelation: "email_ab_tests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      email_ab_tests: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          end_date: string | null
+          id: string
+          is_active: boolean
+          notification_type: string
+          start_date: string
+          test_name: string
+          variant_a_preview: string | null
+          variant_a_subject: string
+          variant_b_preview: string | null
+          variant_b_subject: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          end_date?: string | null
+          id?: string
+          is_active?: boolean
+          notification_type: string
+          start_date?: string
+          test_name: string
+          variant_a_preview?: string | null
+          variant_a_subject: string
+          variant_b_preview?: string | null
+          variant_b_subject: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          end_date?: string | null
+          id?: string
+          is_active?: boolean
+          notification_type?: string
+          start_date?: string
+          test_name?: string
+          variant_a_preview?: string | null
+          variant_a_subject?: string
+          variant_b_preview?: string | null
+          variant_b_subject?: string
+        }
+        Relationships: []
+      }
       login_attempts: {
         Row: {
           created_at: string
