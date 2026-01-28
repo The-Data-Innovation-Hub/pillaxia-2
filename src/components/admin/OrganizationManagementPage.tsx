@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Building2, Palette, Users, Settings, Plus, Upload, Save, Loader2 } from "lucide-react";
+import { Building2, Palette, Users, Settings, Plus, Upload, Save, Loader2, Pencil, Trash2 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,8 +9,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useOrganization } from "@/contexts/OrganizationContext";
-import { useOrganizationMembers } from "@/hooks/useOrganizationMembers";
+import { useOrganizationMembers, type OrganizationMemberWithProfile } from "@/hooks/useOrganizationMembers";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -26,6 +28,12 @@ export function OrganizationManagementPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [isUploadingLogo, setIsUploadingLogo] = useState(false);
   const logoInputRef = useRef<HTMLInputElement>(null);
+  
+  // Member edit dialog state
+  const [selectedMember, setSelectedMember] = useState<OrganizationMemberWithProfile | null>(null);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isRemoveDialogOpen, setIsRemoveDialogOpen] = useState(false);
+  const [editRole, setEditRole] = useState<"owner" | "admin" | "member">("member");
   
   const [brandingForm, setBrandingForm] = useState({
     app_name: branding?.app_name || "Pillaxia",
@@ -600,7 +608,19 @@ export function OrganizationManagementPage() {
               ) : (
                 <div className="space-y-4">
                   {members.map((member) => (
-                    <div key={member.id} className="flex items-center justify-between p-4 rounded-lg border">
+                    <div 
+                      key={member.id} 
+                      className={`flex items-center justify-between p-4 rounded-lg border transition-colors ${
+                        canEdit ? "cursor-pointer hover:bg-muted/50" : ""
+                      }`}
+                      onClick={() => {
+                        if (canEdit) {
+                          setSelectedMember(member);
+                          setEditRole(member.org_role);
+                          setIsEditDialogOpen(true);
+                        }
+                      }}
+                    >
                       <div className="flex items-center gap-3">
                         <Avatar className="h-10 w-10">
                           <AvatarImage src={member.profile?.avatar_url || undefined} />
@@ -623,27 +643,13 @@ export function OrganizationManagementPage() {
                         <Badge variant={member.org_role === "owner" ? "default" : "secondary"}>
                           {member.org_role}
                         </Badge>
-                        {isOrgAdmin && member.org_role !== "owner" && (
-                          <Select
-                            value={member.org_role}
-                            onValueChange={(value) => updateMemberRole.mutate({ 
-                              memberId: member.id, 
-                              newRole: value as "admin" | "member" 
-                            })}
-                          >
-                            <SelectTrigger className="w-24">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="admin">Admin</SelectItem>
-                              <SelectItem value="member">Member</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        )}
                         {!member.is_active && (
                           <Badge variant="outline" className="text-muted-foreground">
                             Inactive
                           </Badge>
+                        )}
+                        {canEdit && (
+                          <Pencil className="h-4 w-4 text-muted-foreground" />
                         )}
                       </div>
                     </div>
@@ -654,6 +660,140 @@ export function OrganizationManagementPage() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Edit Member Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Member</DialogTitle>
+            <DialogDescription>
+              Update the role or remove this member from the organization.
+            </DialogDescription>
+          </DialogHeader>
+          
+          {selectedMember && (
+            <div className="space-y-6 py-4">
+              <div className="flex items-center gap-4">
+                <Avatar className="h-14 w-14">
+                  <AvatarImage src={selectedMember.profile?.avatar_url || undefined} />
+                  <AvatarFallback>
+                    {selectedMember.profile?.first_name?.charAt(0) || "U"}
+                    {selectedMember.profile?.last_name?.charAt(0) || ""}
+                  </AvatarFallback>
+                </Avatar>
+                <div>
+                  <p className="font-semibold text-lg">
+                    {selectedMember.profile?.first_name || ""} {selectedMember.profile?.last_name || ""}
+                    {!selectedMember.profile?.first_name && !selectedMember.profile?.last_name && "Unknown User"}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    {selectedMember.profile?.email || selectedMember.user_id}
+                  </p>
+                </div>
+              </div>
+
+              {selectedMember.org_role !== "owner" && (
+                <div className="space-y-2">
+                  <Label>Role</Label>
+                  <Select value={editRole} onValueChange={(value) => setEditRole(value as "admin" | "member")}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="admin">Admin</SelectItem>
+                      <SelectItem value="member">Member</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Admins can manage organization settings and members.
+                  </p>
+                </div>
+              )}
+
+              {selectedMember.org_role === "owner" && (
+                <div className="text-sm text-muted-foreground bg-muted p-3 rounded-lg">
+                  The owner role cannot be changed. Transfer ownership from organization settings if needed.
+                </div>
+              )}
+
+              <div className="text-sm text-muted-foreground">
+                <p>Joined: {selectedMember.joined_at ? new Date(selectedMember.joined_at).toLocaleDateString() : "N/A"}</p>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            {selectedMember?.org_role !== "owner" && (
+              <Button 
+                variant="destructive" 
+                onClick={() => {
+                  setIsEditDialogOpen(false);
+                  setIsRemoveDialogOpen(true);
+                }}
+                className="sm:mr-auto"
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Remove Member
+              </Button>
+            )}
+            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+              Cancel
+            </Button>
+            {selectedMember?.org_role !== "owner" && (
+              <Button 
+                onClick={() => {
+                  if (selectedMember && editRole !== selectedMember.org_role) {
+                    updateMemberRole.mutate({ 
+                      memberId: selectedMember.id, 
+                      newRole: editRole 
+                    });
+                  }
+                  setIsEditDialogOpen(false);
+                }}
+                disabled={updateMemberRole.isPending}
+              >
+                {updateMemberRole.isPending ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Save className="h-4 w-4 mr-2" />
+                )}
+                Save Changes
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Remove Member Confirmation Dialog */}
+      <AlertDialog open={isRemoveDialogOpen} onOpenChange={setIsRemoveDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove Member</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to remove{" "}
+              <span className="font-medium">
+                {selectedMember?.profile?.first_name} {selectedMember?.profile?.last_name}
+              </span>{" "}
+              from the organization? They will lose access to all organization resources.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (selectedMember) {
+                  removeMember.mutate(selectedMember.id);
+                }
+                setIsRemoveDialogOpen(false);
+                setSelectedMember(null);
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Remove Member
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
