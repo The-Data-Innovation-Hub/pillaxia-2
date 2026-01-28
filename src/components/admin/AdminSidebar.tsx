@@ -17,15 +17,15 @@ import {
 } from "@/components/ui/sidebar";
 
 const menuItems = [
-  { title: "Overview", url: "/dashboard", icon: LayoutDashboard },
-  { title: "User Management", url: "/dashboard/users", icon: Users },
-  { title: "Organization", url: "/dashboard/organization", icon: Building2 },
-  { title: "License Compliance", url: "/dashboard/license-compliance", icon: BadgeCheck },
-  { title: "System Analytics", url: "/dashboard/analytics", icon: BarChart3 },
-  { title: "Notification Analytics", url: "/dashboard/notification-analytics", icon: TrendingUp },
-  { title: "Patient Engagement", url: "/dashboard/patient-engagement", icon: Activity },
-  { title: "A/B Testing", url: "/dashboard/ab-testing", icon: FlaskConical },
-  { title: "Security", url: "/dashboard/security", icon: ShieldCheck },
+  { title: "Overview", url: "/dashboard", icon: LayoutDashboard, adminOnly: false },
+  { title: "User Management", url: "/dashboard/users", icon: Users, adminOnly: false },
+  { title: "Organization", url: "/dashboard/organization", icon: Building2, adminOnly: true },
+  { title: "License Compliance", url: "/dashboard/license-compliance", icon: BadgeCheck, adminOnly: false },
+  { title: "System Analytics", url: "/dashboard/analytics", icon: BarChart3, adminOnly: false },
+  { title: "Notification Analytics", url: "/dashboard/notification-analytics", icon: TrendingUp, adminOnly: false },
+  { title: "Patient Engagement", url: "/dashboard/patient-engagement", icon: Activity, adminOnly: false },
+  { title: "A/B Testing", url: "/dashboard/ab-testing", icon: FlaskConical, adminOnly: false },
+  { title: "Security", url: "/dashboard/security", icon: ShieldCheck, adminOnly: false },
 ];
 
 export function AdminSidebar() {
@@ -57,21 +57,23 @@ export function AdminSidebar() {
           <SidebarGroupLabel>Navigation</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {menuItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild>
-                    <NavLink
-                      to={item.url}
-                      end={item.url === "/dashboard"}
-                      className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-muted/50 transition-colors"
-                      activeClassName="bg-primary/10 text-primary font-medium"
-                    >
-                      <item.icon className="h-4 w-4" />
-                      <span>{item.title}</span>
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
+              {menuItems
+                .filter((item) => !item.adminOnly || isAdmin)
+                .map((item) => (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton asChild>
+                      <NavLink
+                        to={item.url}
+                        end={item.url === "/dashboard"}
+                        className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-muted/50 transition-colors"
+                        activeClassName="bg-primary/10 text-primary font-medium"
+                      >
+                        <item.icon className="h-4 w-4" />
+                        <span>{item.title}</span>
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
