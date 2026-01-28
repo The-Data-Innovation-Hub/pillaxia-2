@@ -2,15 +2,27 @@ import * as Sentry from "@sentry/react";
 
 // Initialize Sentry for error tracking and performance monitoring
 export function initSentry() {
-  const dsn = import.meta.env.VITE_SENTRY_DSN;
-  
-  if (!dsn) {
-    console.warn("Sentry DSN not configured. Error tracking is disabled.");
-    return;
-  }
+  // In Lovable preview/dev, build-time Vite env vars may not always include VITE_SENTRY_DSN.
+  // We fall back to a backend function which reads the DSN from server-side env.
+  void ensureSentryInitialized();
+}
 
-  Sentry.init({
-    dsn,
+let sentryInitPromise: Promise<void> | null = null;
+let sentryInitialized = false;
+
+async function ensureSentryInitialized(): Promise<void> {
+  if (sentryInitialized) return;
+  if (sentryInitPromise) return sentryInitPromise;
+
+  sentryInitPromise = (async () => {
+    const dsn = await resolveSentryDsn();
+    if (!dsn) {
+      console.warn("Sentry DSN not configured. Error tracking is disabled.");
+      return;
+    }
+
+    Sentry.init({
+      dsn,
     
     // Performance Monitoring
     tracesSampleRate: import.meta.env.PROD ? 0.1 : 1.0, // 10% in production, 100% in dev
@@ -65,7 +77,54 @@ export function initSentry() {
     },
   });
 
-  console.log("[Sentry] Initialized successfully");
+    sentryInitialized = true;
+    console.log("[Sentry] Initialized successfully");
+  })();
+
+  return sentryInitPromise;
+}
+
+let cachedRuntimeDsn: string | null = null;
+
+async function resolveSentryDsn(): Promise<string | null> {
+  if (cachedRuntimeDsn) return cachedRuntimeDsn;
+
+  const fromEnv = (import.meta.env.VITE_SENTRY_DSN as string | undefined)?.trim();
+  if (fromEnv) {
+    cachedRuntimeDsn = fromEnv;
+    return cachedRuntimeDsn;
+  }
+
+  const fromBackend = await fetchSentryDsnFromBackend();
+  if (fromBackend) {
+    cachedRuntimeDsn = fromBackend;
+    return cachedRuntimeDsn;
+  }
+
+  return null;
+}
+
+async function fetchSentryDsnFromBackend(): Promise<string | null> {
+  try {
+    const baseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
+    const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined;
+    if (!baseUrl || !anonKey) return null;
+
+    const res = await fetch(`${baseUrl}/functions/v1/get-sentry-dsn`, {
+      method: "GET",
+      headers: {
+        apikey: anonKey,
+        authorization: `Bearer ${anonKey}`,
+      },
+    });
+
+    if (!res.ok) return null;
+    const json = (await res.json().catch(() => null)) as { dsn?: string | null } | null;
+    const dsn = (json?.dsn || "").trim();
+    return dsn.length > 0 ? dsn : null;
+  } catch {
+    return null;
+  }
 }
 
 // Helper to set user context when they log in

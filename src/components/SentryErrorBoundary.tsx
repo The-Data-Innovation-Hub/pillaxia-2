@@ -16,7 +16,6 @@ const ErrorFallback = forwardRef<HTMLDivElement, FallbackProps>(function ErrorFa
   ref
 ) {
   const safeError = error instanceof Error ? error : new Error(String(error));
-  const dsnConfigured = Boolean(import.meta.env.VITE_SENTRY_DSN);
 
   return (
     <div ref={ref} className="min-h-screen flex items-center justify-center bg-background p-4">
@@ -55,9 +54,7 @@ const ErrorFallback = forwardRef<HTMLDivElement, FallbackProps>(function ErrorFa
           </div>
           
           <p className="text-xs text-center text-muted-foreground">
-            {dsnConfigured
-              ? `Error ID: ${eventId || "Unknown"}`
-              : "Sentry DSN not configured (no Error ID)"}
+            Error ID: {eventId || "Unknown"}
           </p>
         </CardContent>
       </Card>
