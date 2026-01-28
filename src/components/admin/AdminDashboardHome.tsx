@@ -116,33 +116,35 @@ export function AdminDashboardHome() {
       </div>
 
       {/* Main Stats */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        {statCards.map((stat) => (
-          <Card key={stat.title} className="hover:shadow-md transition-shadow">
-            <CardHeader className="pb-2">
-              <div className={`p-2 rounded-lg ${stat.bgColor} mb-1`}>
-                <stat.icon className={`h-5 w-5 ${stat.color}`} />
-              </div>
-              <CardTitle className="text-sm">
-                {stat.title}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {isLoading ? (
-                <Skeleton className="h-8 w-16 mx-auto" />
-              ) : (
-                <div className="text-3xl font-bold">{stat.value}</div>
-              )}
-              {stat.link && (
-                <Link to={stat.link}>
-                  <Button variant="link" className="px-0 mt-1 h-auto text-xs">
-                    View details →
-                  </Button>
-                </Link>
-              )}
-            </CardContent>
-          </Card>
-        ))}
+      <div className={`grid gap-4 md:grid-cols-2 ${isManager && !isAdmin ? 'lg:grid-cols-3' : 'lg:grid-cols-4'}`}>
+        {statCards
+          .filter(stat => !(isManager && !isAdmin && stat.title === "Organizations"))
+          .map((stat) => (
+            <Card key={stat.title} className="hover:shadow-md transition-shadow">
+              <CardHeader className="pb-2">
+                <div className={`p-2 rounded-lg ${stat.bgColor} mb-1`}>
+                  <stat.icon className={`h-5 w-5 ${stat.color}`} />
+                </div>
+                <CardTitle className="text-sm">
+                  {stat.title}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {isLoading ? (
+                  <Skeleton className="h-8 w-16 mx-auto" />
+                ) : (
+                  <div className="text-3xl font-bold">{stat.value}</div>
+                )}
+                {stat.link && (
+                  <Link to={stat.link}>
+                    <Button variant="link" className="px-0 mt-1 h-auto text-xs">
+                      View details →
+                    </Button>
+                  </Link>
+                )}
+              </CardContent>
+            </Card>
+          ))}
       </div>
 
       {/* Role Distribution */}
