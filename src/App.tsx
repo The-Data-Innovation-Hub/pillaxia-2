@@ -36,7 +36,7 @@ import {
   EPrescribingPage,
   ClinicianSettingsPage,
 } from "@/components/clinician";
-import { TelemedicinePage, VideoRoom } from "@/components/telemedicine";
+import { VideoRoom } from "@/components/telemedicine";
 import {
   PharmacistLayout,
   PharmacistDashboardHome,
@@ -126,7 +126,6 @@ function AppRoutes() {
         <Route path="soap-notes" element={<SOAPNotesPage />} />
         <Route path="appointments" element={<AppointmentsPage />} />
         <Route path="clinician-settings" element={<ClinicianSettingsPage />} />
-        <Route path="telemedicine" element={<TelemedicinePage />} />
         <Route path="telemedicine/room/:roomId" element={<VideoRoom />} />
         {/* Pharmacist Routes */}
         <Route path="e-prescriptions" element={<PharmacyPrescriptionsPage />} />

@@ -1,8 +1,9 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { format, parseISO, isBefore, startOfToday } from "date-fns";
+import { format, parseISO, isBefore, startOfToday, isToday } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -22,7 +23,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Plus, Calendar, Clock, MoreVertical, CheckCircle, XCircle, Trash2 } from "lucide-react";
+import { Plus, Calendar, Clock, MoreVertical, CheckCircle, XCircle, Trash2, Video, MonitorPlay } from "lucide-react";
 import { toast } from "sonner";
 import { CreateAppointmentDialog } from "./CreateAppointmentDialog";
 
@@ -38,6 +39,8 @@ interface Appointment {
   status: string;
   location: string | null;
   created_at: string;
+  is_video_call?: boolean;
+  video_room_id?: string | null;
   patient?: {
     first_name: string | null;
     last_name: string | null;
@@ -55,6 +58,7 @@ const statusColors: Record<string, string> = {
 
 export function AppointmentsPage() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("upcoming");
@@ -130,6 +134,18 @@ export function AppointmentsPage() {
     (a) => isBefore(parseISO(a.appointment_date), today) || a.status === "cancelled"
   ) || [];
 
+  const canJoinVideoCall = (appointment: Appointment) => {
+    if (!appointment.is_video_call) return false;
+    if (appointment.status === "cancelled" || appointment.status === "completed") return false;
+    // Allow joining on the day of the appointment
+    return isToday(parseISO(appointment.appointment_date));
+  };
+
+  const handleJoinVideoCall = (appointment: Appointment) => {
+    // Navigate to video room - will use appointment ID as room identifier
+    navigate(`/dashboard/telemedicine/room/${appointment.id}`);
+  };
+
   const renderAppointmentRow = (appointment: Appointment) => (
     <TableRow key={appointment.id}>
       <TableCell>
@@ -163,7 +179,16 @@ export function AppointmentsPage() {
         </div>
       </TableCell>
       <TableCell>
-        {appointment.location || <span className="text-muted-foreground">-</span>}
+        <div className="flex items-center gap-2">
+          {appointment.is_video_call ? (
+            <Badge variant="outline" className="gap-1 bg-primary/5 text-primary border-primary/20">
+              <Video className="h-3 w-3" />
+              Video
+            </Badge>
+          ) : (
+            appointment.location || <span className="text-muted-foreground">-</span>
+          )}
+        </div>
       </TableCell>
       <TableCell>
         <Badge variant="outline" className={statusColors[appointment.status]}>
@@ -171,7 +196,18 @@ export function AppointmentsPage() {
         </Badge>
       </TableCell>
       <TableCell>
-        <DropdownMenu>
+        <div className="flex items-center gap-2">
+          {canJoinVideoCall(appointment) && (
+            <Button 
+              size="sm" 
+              onClick={() => handleJoinVideoCall(appointment)}
+              className="gap-1"
+            >
+              <MonitorPlay className="h-4 w-4" />
+              Join
+            </Button>
+          )}
+          <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon">
               <MoreVertical className="h-4 w-4" />
@@ -226,6 +262,7 @@ export function AppointmentsPage() {
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+        </div>
       </TableCell>
     </TableRow>
   );

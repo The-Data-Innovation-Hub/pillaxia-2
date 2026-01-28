@@ -1,12 +1,13 @@
+import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { format, parseISO, isBefore, startOfToday } from "date-fns";
+import { format, parseISO, isBefore, startOfToday, isToday } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Calendar, Clock, MapPin, User, Check, X } from "lucide-react";
+import { Calendar, Clock, MapPin, User, Check, X, Video, MonitorPlay } from "lucide-react";
 import { toast } from "sonner";
 
 interface Appointment {
@@ -20,6 +21,8 @@ interface Appointment {
   duration_minutes: number;
   status: string;
   location: string | null;
+  is_video_call?: boolean;
+  video_room_id?: string | null;
   clinician?: {
     first_name: string | null;
     last_name: string | null;
@@ -36,6 +39,7 @@ const statusColors: Record<string, string> = {
 
 export function AppointmentsCard() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
 
   const { data: appointments, isLoading } = useQuery({
@@ -95,6 +99,18 @@ export function AppointmentsCard() {
       a.status !== "cancelled" &&
       a.status !== "completed"
   ) || [];
+
+  const canJoinVideoCall = (appointment: Appointment) => {
+    if (!appointment.is_video_call) return false;
+    if (appointment.status === "cancelled" || appointment.status === "completed") return false;
+    // Allow joining on the day of the appointment when confirmed
+    return isToday(parseISO(appointment.appointment_date)) && 
+           (appointment.status === "confirmed" || appointment.status === "scheduled");
+  };
+
+  const handleJoinVideoCall = (appointment: Appointment) => {
+    navigate(`/dashboard/telemedicine/room/${appointment.id}`);
+  };
 
   if (isLoading) {
     return (
@@ -171,13 +187,29 @@ export function AppointmentsCard() {
                       {appointment.clinician.last_name}
                     </div>
                   )}
-                  {appointment.location && (
+                  {appointment.is_video_call ? (
+                    <div className="flex items-center gap-1.5 text-primary">
+                      <Video className="h-4 w-4" />
+                      Video Call
+                    </div>
+                  ) : appointment.location ? (
                     <div className="flex items-center gap-1.5">
                       <MapPin className="h-4 w-4" />
                       {appointment.location}
                     </div>
-                  )}
+                  ) : null}
                 </div>
+
+                {canJoinVideoCall(appointment) && (
+                  <Button
+                    size="sm"
+                    onClick={() => handleJoinVideoCall(appointment)}
+                    className="gap-1 w-full sm:w-auto"
+                  >
+                    <MonitorPlay className="h-4 w-4" />
+                    Join Video Call
+                  </Button>
+                )}
 
                 {appointment.status === "scheduled" && (
                   <div className="flex gap-2 pt-2">
