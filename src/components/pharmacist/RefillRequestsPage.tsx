@@ -267,8 +267,8 @@ export function RefillRequestsPage() {
       {/* Stats */}
       <div className="grid gap-4 sm:grid-cols-3">
         <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
+          <CardContent className="pt-6 text-center">
+            <div className="flex flex-col items-center gap-2">
               <div className="p-2 rounded-lg bg-amber-50">
                 <Clock className="h-5 w-5 text-amber-600" />
               </div>
@@ -280,8 +280,8 @@ export function RefillRequestsPage() {
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
+          <CardContent className="pt-6 text-center">
+            <div className="flex flex-col items-center gap-2">
               <div className="p-2 rounded-lg bg-green-50">
                 <CheckCircle className="h-5 w-5 text-green-600" />
               </div>
@@ -300,8 +300,8 @@ export function RefillRequestsPage() {
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
+          <CardContent className="pt-6 text-center">
+            <div className="flex flex-col items-center gap-2">
               <div className="p-2 rounded-lg bg-muted">
                 <RefreshCw className="h-5 w-5 text-muted-foreground" />
               </div>

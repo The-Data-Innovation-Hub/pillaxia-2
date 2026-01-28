@@ -157,7 +157,7 @@ export function EPrescribingPage() {
       {/* Stats Cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card>
-          <CardHeader className="pb-2">
+          <CardHeader className="pb-2 text-center">
             <CardDescription>Pending</CardDescription>
             <CardTitle className="text-2xl">
               {prescriptions?.filter(rx => ['draft', 'pending'].includes(rx.status)).length || 0}
@@ -165,7 +165,7 @@ export function EPrescribingPage() {
           </CardHeader>
         </Card>
         <Card>
-          <CardHeader className="pb-2">
+          <CardHeader className="pb-2 text-center">
             <CardDescription>Sent Today</CardDescription>
             <CardTitle className="text-2xl">
               {prescriptions?.filter(rx => 
@@ -175,7 +175,7 @@ export function EPrescribingPage() {
           </CardHeader>
         </Card>
         <Card>
-          <CardHeader className="pb-2">
+          <CardHeader className="pb-2 text-center">
             <CardDescription>In Processing</CardDescription>
             <CardTitle className="text-2xl">
               {prescriptions?.filter(rx => ['sent', 'received', 'processing'].includes(rx.status)).length || 0}
@@ -183,7 +183,7 @@ export function EPrescribingPage() {
           </CardHeader>
         </Card>
         <Card>
-          <CardHeader className="pb-2">
+          <CardHeader className="pb-2 text-center">
             <CardDescription>Dispensed This Week</CardDescription>
             <CardTitle className="text-2xl">
               {prescriptions?.filter(rx => {

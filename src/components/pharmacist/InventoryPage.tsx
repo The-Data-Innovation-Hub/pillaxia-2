@@ -182,8 +182,8 @@ export function InventoryPage() {
       {/* Stats */}
       <div className="grid gap-4 sm:grid-cols-4">
         <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
+          <CardContent className="pt-6 text-center">
+            <div className="flex flex-col items-center gap-2">
               <div className="p-2 rounded-lg bg-blue-50">
                 <Package className="h-5 w-5 text-blue-600" />
               </div>
@@ -195,8 +195,8 @@ export function InventoryPage() {
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
+          <CardContent className="pt-6 text-center">
+            <div className="flex flex-col items-center gap-2">
               <div className="p-2 rounded-lg bg-red-50">
                 <AlertTriangle className="h-5 w-5 text-red-600" />
               </div>
@@ -208,8 +208,8 @@ export function InventoryPage() {
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
+          <CardContent className="pt-6 text-center">
+            <div className="flex flex-col items-center gap-2">
               <div className="p-2 rounded-lg bg-amber-50">
                 <TrendingDown className="h-5 w-5 text-amber-600" />
               </div>
@@ -221,8 +221,8 @@ export function InventoryPage() {
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
+          <CardContent className="pt-6 text-center">
+            <div className="flex flex-col items-center gap-2">
               <div className="p-2 rounded-lg bg-green-50">
                 <CheckCircle className="h-5 w-5 text-green-600" />
               </div>

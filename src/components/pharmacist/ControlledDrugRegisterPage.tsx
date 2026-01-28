@@ -195,7 +195,7 @@ export function ControlledDrugRegisterPage() {
             <CardTitle className="text-sm font-medium">Total Items</CardTitle>
             <Package className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent>
+          <CardContent className="text-center">
             <div className="text-2xl font-bold">{drugs.length}</div>
             <p className="text-xs text-muted-foreground">
               Active controlled substances
@@ -208,7 +208,7 @@ export function ControlledDrugRegisterPage() {
             <CardTitle className="text-sm font-medium">Low Stock Alerts</CardTitle>
             <AlertTriangle className="h-4 w-4 text-destructive" />
           </CardHeader>
-          <CardContent>
+          <CardContent className="text-center">
             <div className="text-2xl font-bold text-destructive">{lowStockDrugs.length}</div>
             <p className="text-xs text-muted-foreground">
               Items below minimum threshold
@@ -221,7 +221,7 @@ export function ControlledDrugRegisterPage() {
             <CardTitle className="text-sm font-medium">Today's Dispensing</CardTitle>
             <TrendingDown className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent>
+          <CardContent className="text-center">
             <div className="text-2xl font-bold">
               {dispensingRecords.filter(r => 
                 new Date(r.dispensed_at).toDateString() === new Date().toDateString()
@@ -238,7 +238,7 @@ export function ControlledDrugRegisterPage() {
             <CardTitle className="text-sm font-medium">Schedule II Items</CardTitle>
             <Shield className="h-4 w-4 text-red-500" />
           </CardHeader>
-          <CardContent>
+          <CardContent className="text-center">
             <div className="text-2xl font-bold">
               {drugs.filter(d => d.schedule === "II").length}
             </div>
