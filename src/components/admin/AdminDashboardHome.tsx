@@ -100,13 +100,13 @@ export function AdminDashboardHome() {
       <div className="grid gap-4 md:grid-cols-3">
         {statCards.map((stat) => (
           <Card key={stat.title} className="hover:shadow-md transition-shadow">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
+            <CardHeader className="flex flex-col items-center justify-center pb-2">
+              <div className={`p-2 rounded-lg ${stat.bgColor} mb-1`}>
+                <stat.icon className={`h-5 w-5 ${stat.color}`} />
+              </div>
+              <CardTitle className="text-sm font-bold text-center">
                 {stat.title}
               </CardTitle>
-              <div className={`p-2 rounded-lg ${stat.bgColor}`}>
-                <stat.icon className={`h-4 w-4 ${stat.color}`} />
-              </div>
             </CardHeader>
             <CardContent className="text-center">
               {isLoading ? (

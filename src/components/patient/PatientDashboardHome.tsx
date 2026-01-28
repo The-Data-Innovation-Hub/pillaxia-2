@@ -213,11 +213,11 @@ export function PatientDashboardHome() {
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate("/dashboard/medications")}>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
+          <CardHeader className="flex flex-col items-center justify-center pb-2">
+            <Pill className="h-5 w-5 text-muted-foreground mb-1" />
+            <CardTitle className="text-sm font-bold text-center">
               Active Medications
             </CardTitle>
-            <Pill className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent className="text-center">
             <div className="text-2xl font-bold">{stats.totalMedications}</div>
@@ -226,28 +226,28 @@ export function PatientDashboardHome() {
         </Card>
 
         <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate("/dashboard/schedule")}>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-1.5">
-              Today's Progress
-              {isFromCache && !isOnline && (
-                <CloudOff className="h-3 w-3 text-warning" />
-              )}
-            </CardTitle>
+          <CardHeader className="flex flex-col items-center justify-center pb-2">
             {isFromCache && !isOnline ? (
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-6 w-6"
+                className="h-6 w-6 mb-1"
                 onClick={(e) => {
                   e.stopPropagation();
                   refreshSchedule();
                 }}
               >
-                <RefreshCw className="h-3 w-3 text-muted-foreground" />
+                <RefreshCw className="h-5 w-5 text-muted-foreground" />
               </Button>
             ) : (
-              <Calendar className="h-4 w-4 text-muted-foreground" />
+              <Calendar className="h-5 w-5 text-muted-foreground mb-1" />
             )}
+            <CardTitle className="text-sm font-bold text-center flex items-center gap-1.5">
+              Today's Progress
+              {isFromCache && !isOnline && (
+                <CloudOff className="h-3 w-3 text-warning" />
+              )}
+            </CardTitle>
           </CardHeader>
           <CardContent className="text-center">
             <div className="text-2xl font-bold">
@@ -261,11 +261,11 @@ export function PatientDashboardHome() {
         </Card>
 
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
+          <CardHeader className="flex flex-col items-center justify-center pb-2">
+            <TrendingUp className="h-5 w-5 text-muted-foreground mb-1" />
+            <CardTitle className="text-sm font-bold text-center">
               Adherence Rate
             </CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent className="text-center">
             <div className="text-2xl font-bold text-primary">{stats.adherenceRate}%</div>
@@ -274,11 +274,11 @@ export function PatientDashboardHome() {
         </Card>
 
         <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate("/dashboard/symptoms")}>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
+          <CardHeader className="flex flex-col items-center justify-center pb-2">
+            <ClipboardList className="h-5 w-5 text-muted-foreground mb-1" />
+            <CardTitle className="text-sm font-bold text-center">
               Symptoms Logged
             </CardTitle>
-            <ClipboardList className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent className="text-center">
             <div className="text-2xl font-bold">{stats.recentSymptoms}</div>
