@@ -657,6 +657,16 @@ export function SettingsPage() {
                   variant="destructive"
                   size="sm"
                   onClick={() => {
+                    throw new Error("This is your first Sentry test error!");
+                  }}
+                >
+                  <Bug className="h-4 w-4 mr-2" />
+                  Break the World
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => {
                     const testError = new Error("Test error from Admin Settings - Sentry integration check");
                     captureError(testError, { 
                       source: "admin_settings_test",
@@ -667,8 +677,8 @@ export function SettingsPage() {
                     });
                   }}
                 >
-                  <Bug className="h-4 w-4 mr-2" />
-                  Trigger Test Error
+                  <Send className="h-4 w-4 mr-2" />
+                  Send Captured Error
                 </Button>
                 <Button
                   variant="outline"
