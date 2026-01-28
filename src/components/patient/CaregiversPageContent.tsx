@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, UserPlus, Mail, Clock, Check, X, Trash2, Users } from "lucide-react";
+import { Loader2, UserPlus, Mail, Clock, Check, X, Trash2, Users, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
 import {
@@ -58,11 +58,18 @@ export function CaregiversPageContent() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
+  const [editingInvitation, setEditingInvitation] = useState<CaregiverInvitation | null>(null);
   const [deleteInvitation, setDeleteInvitation] = useState<CaregiverInvitation | null>(null);
   const [newEmail, setNewEmail] = useState("");
   const [newName, setNewName] = useState("");
   const [emailError, setEmailError] = useState("");
   const [permissions, setPermissions] = useState({
+    view_medications: true,
+    view_adherence: true,
+    view_symptoms: false,
+  });
+  const [editName, setEditName] = useState("");
+  const [editPermissions, setEditPermissions] = useState({
     view_medications: true,
     view_adherence: true,
     view_symptoms: false,
@@ -150,6 +157,29 @@ export function CaregiversPageContent() {
     },
   });
 
+  // Update invitation mutation
+  const updateInvitationMutation = useMutation({
+    mutationFn: async ({ id, name, perms }: { id: string; name: string; perms: typeof permissions }) => {
+      const { error } = await supabase
+        .from("caregiver_invitations")
+        .update({
+          caregiver_name: name.trim() || null,
+          permissions: perms,
+        })
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Caregiver updated successfully");
+      setEditingInvitation(null);
+      queryClient.invalidateQueries({ queryKey: ["caregiver-invitations"] });
+    },
+    onError: (error) => {
+      toast.error("Failed to update caregiver");
+      console.error("Update error:", error);
+    },
+  });
+
   const handleSendInvitation = () => {
     const result = emailSchema.safeParse(newEmail);
     if (!result.success) {
@@ -158,6 +188,25 @@ export function CaregiversPageContent() {
     }
     setEmailError("");
     sendInvitationMutation.mutate({ email: newEmail, name: newName, perms: permissions });
+  };
+
+  const handleEditCaregiver = (invitation: CaregiverInvitation) => {
+    setEditName(invitation.caregiver_name || "");
+    setEditPermissions({
+      view_medications: invitation.permissions?.view_medications ?? true,
+      view_adherence: invitation.permissions?.view_adherence ?? true,
+      view_symptoms: invitation.permissions?.view_symptoms ?? false,
+    });
+    setEditingInvitation(invitation);
+  };
+
+  const handleSaveEdit = () => {
+    if (!editingInvitation) return;
+    updateInvitationMutation.mutate({
+      id: editingInvitation.id,
+      name: editName,
+      perms: editPermissions,
+    });
   };
 
   const getStatusBadge = (status: string) => {
@@ -326,7 +375,8 @@ export function CaregiversPageContent() {
               {activeCaregiversList.map((invitation) => (
                 <div
                   key={invitation.id}
-                  className="flex items-center justify-between p-4 border rounded-lg"
+                  className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 cursor-pointer transition-colors"
+                  onClick={() => handleEditCaregiver(invitation)}
                 >
                   <div className="flex items-center gap-4">
                     <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
@@ -365,8 +415,21 @@ export function CaregiversPageContent() {
                     <Button
                       variant="ghost"
                       size="icon"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleEditCaregiver(invitation);
+                      }}
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
                       className="text-destructive hover:bg-destructive/10"
-                      onClick={() => setDeleteInvitation(invitation)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setDeleteInvitation(invitation);
+                      }}
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
@@ -483,6 +546,90 @@ export function CaregiversPageContent() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Edit Caregiver Dialog */}
+      <Dialog open={!!editingInvitation} onOpenChange={() => setEditingInvitation(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Caregiver</DialogTitle>
+            <DialogDescription>
+              Update the caregiver's name and permissions.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Email</Label>
+              <p className="text-sm text-muted-foreground">{editingInvitation?.caregiver_email}</p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-name">Name</Label>
+              <Input
+                id="edit-name"
+                type="text"
+                placeholder="John Doe"
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                maxLength={100}
+              />
+            </div>
+            <div className="space-y-3">
+              <Label>Permissions</Label>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="edit_view_medications" className="font-normal">
+                    View Medications
+                  </Label>
+                  <Switch
+                    id="edit_view_medications"
+                    checked={editPermissions.view_medications}
+                    onCheckedChange={(checked) =>
+                      setEditPermissions((p) => ({ ...p, view_medications: checked }))
+                    }
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="edit_view_adherence" className="font-normal">
+                    View Adherence
+                  </Label>
+                  <Switch
+                    id="edit_view_adherence"
+                    checked={editPermissions.view_adherence}
+                    onCheckedChange={(checked) =>
+                      setEditPermissions((p) => ({ ...p, view_adherence: checked }))
+                    }
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="edit_view_symptoms" className="font-normal">
+                    View Symptoms
+                  </Label>
+                  <Switch
+                    id="edit_view_symptoms"
+                    checked={editPermissions.view_symptoms}
+                    onCheckedChange={(checked) =>
+                      setEditPermissions((p) => ({ ...p, view_symptoms: checked }))
+                    }
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingInvitation(null)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSaveEdit}
+              disabled={updateInvitationMutation.isPending}
+            >
+              {updateInvitationMutation.isPending ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : null}
+              Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
