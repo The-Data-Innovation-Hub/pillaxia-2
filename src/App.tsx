@@ -62,6 +62,7 @@ import {
   LicenseCompliancePage,
   SecurityDashboardPage,
   SecuritySettingsPage,
+  ComplianceReportPage,
 } from "@/components/admin";
 import { HelpPage } from "@/components/shared";
 import { SessionTimeoutWarning } from "@/components/SessionTimeoutWarning";
@@ -147,6 +148,7 @@ function AppRoutes() {
         <Route path="patient-engagement" element={<PatientEngagementPage />} />
         <Route path="security" element={<SecurityDashboardPage />} />
         <Route path="security-settings" element={<SecuritySettingsPage />} />
+        <Route path="compliance-reports" element={<ComplianceReportPage />} />
         {/* Shared Routes */}
         <Route path="settings" element={<PatientSettingsPage />} />
         <Route path="sync-status" element={<SyncStatusPage />} />

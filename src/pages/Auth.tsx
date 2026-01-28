@@ -10,10 +10,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
 import { z } from "zod";
-import { Loader2, User, Stethoscope, Pill, Shield, Home, ShieldCheck, Key, Fingerprint, AlertTriangle } from "lucide-react";
+import { Loader2, User, Stethoscope, Pill, Shield, Home, ShieldCheck, Key, Fingerprint, AlertTriangle, ShieldAlert } from "lucide-react";
 import { useBiometricAuth } from "@/hooks/useBiometricAuth";
 import { useLoginAttempts } from "@/hooks/useLoginAttempts";
 import { useSecurityEvents } from "@/hooks/useSecurityEvents";
+import { usePasswordBreachCheck } from "@/hooks/usePasswordBreachCheck";
+import { PasswordBreachWarning } from "@/components/shared/PasswordBreachWarning";
 
 type AppRole = "patient" | "clinician" | "pharmacist" | "admin";
 
@@ -36,6 +38,7 @@ const Auth = () => {
   const { isAvailable, isEnabled, biometryName, getCredentials, isLoading: biometricLoading } = useBiometricAuth();
   const { checkAccountLocked, recordLoginAttempt, formatLockoutMessage } = useLoginAttempts();
   const { logSecurityEvent } = useSecurityEvents();
+  const { checkPassword, isChecking: isCheckingBreach, breachResult, clearResult: clearBreachResult } = usePasswordBreachCheck();
   
   const [isLogin, setIsLogin] = useState(true);
   const [loading, setLoading] = useState(false);
@@ -207,6 +210,11 @@ const Auth = () => {
           // Record successful login
           await recordLoginAttempt(email, true);
           
+          // Track login location for security (fire and forget)
+          supabase.functions.invoke('get-ip-geolocation', {
+            body: { action: 'login' },
+          }).catch(err => console.error('Geolocation tracking failed:', err));
+          
           // Check if MFA is required
           const { data: factorsData } = await supabase.auth.mfa.listFactors();
           const verifiedFactors = factorsData?.totp?.filter(f => f.status === "verified") || [];
@@ -223,6 +231,14 @@ const Auth = () => {
           navigate("/dashboard");
         }
       } else {
+        // For signup, check if password has been breached
+        const breachCheck = await checkPassword(password);
+        if (breachCheck.breached) {
+          toast.error("This password has been found in data breaches. Please choose a different password.");
+          setLoading(false);
+          return;
+        }
+        
         const { error } = await signUp(email, password, firstName, lastName, selectedRole);
         if (error) {
           if (error.message.includes("already registered")) {
@@ -641,22 +657,25 @@ const Auth = () => {
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className={errors.password ? "border-destructive" : ""}
+                  className={errors.password || breachResult?.breached ? "border-destructive" : ""}
                 />
                 {errors.password && (
                   <p className="text-sm text-destructive">{errors.password}</p>
+                )}
+                {!isLogin && breachResult?.breached && (
+                  <PasswordBreachWarning count={breachResult.count} className="mt-2" />
                 )}
               </div>
 
               <Button
                 type="submit"
                 className="w-full bg-primary hover:bg-pillaxia-navy-dark"
-                disabled={loading || !!lockoutMessage}
+                disabled={loading || !!lockoutMessage || isCheckingBreach || (!isLogin && breachResult?.breached)}
               >
-                {loading ? (
+                {loading || isCheckingBreach ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    {isLogin ? "Signing in..." : "Creating account..."}
+                    {isCheckingBreach ? "Checking password security..." : isLogin ? "Signing in..." : "Creating account..."}
                   </>
                 ) : (
                   <>{isLogin ? "Sign In" : "Create Account"}</>

@@ -116,3 +116,9 @@ verify_jwt = false
 
 [functions.fhir-api]
 verify_jwt = false
+
+[functions.check-password-breach]
+verify_jwt = false
+
+[functions.get-ip-geolocation]
+verify_jwt = false
