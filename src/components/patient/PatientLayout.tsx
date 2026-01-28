@@ -3,6 +3,7 @@ import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { PatientSidebar } from "./PatientSidebar";
 import { useActivityTracking } from "@/hooks/useActivityTracking";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { VersionBadge } from "@/components/VersionBadge";
 import pillaxiaLogo from "@/assets/pillaxia-logo.png";
 
 export function PatientLayout() {
@@ -18,6 +19,7 @@ export function PatientLayout() {
             <div className="flex items-center gap-4">
               <SidebarTrigger aria-label="Toggle sidebar" />
               <img src={pillaxiaLogo} alt="Pillaxia" className="h-7" />
+              <VersionBadge />
             </div>
             <ThemeToggle />
           </header>
