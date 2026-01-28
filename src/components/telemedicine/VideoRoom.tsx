@@ -9,7 +9,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { 
   Video, VideoOff, Mic, MicOff, PhoneOff, 
-  MonitorUp, Users, FileText, Pill, Clock,
+  MonitorUp, MonitorOff, Users, FileText, Pill, Clock,
   UserCheck, AlertCircle, Maximize, Minimize
 } from 'lucide-react';
 import { useVideoCall, useVideoCallNotes } from '@/hooks/useVideoCall';
@@ -40,8 +40,11 @@ export function VideoRoom() {
   const [activeTab, setActiveTab] = useState('waiting-room');
   
   const localVideoRef = useRef<HTMLVideoElement>(null);
+  const screenShareRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const cameraStreamRef = useRef<MediaStream | null>(null);
+  const screenStreamRef = useRef<MediaStream | null>(null);
 
   // Connect to room when we have token
   useEffect(() => {
@@ -58,6 +61,7 @@ export function VideoRoom() {
           video: true,
           audio: true,
         });
+        cameraStreamRef.current = stream;
         if (localVideoRef.current) {
           localVideoRef.current.srcObject = stream;
         }
@@ -73,17 +77,22 @@ export function VideoRoom() {
     }
 
     return () => {
-      if (localVideoRef.current?.srcObject) {
-        const stream = localVideoRef.current.srcObject as MediaStream;
-        stream.getTracks().forEach(track => track.stop());
+      // Cleanup camera stream
+      if (cameraStreamRef.current) {
+        cameraStreamRef.current.getTracks().forEach(track => track.stop());
+        cameraStreamRef.current = null;
+      }
+      // Cleanup screen share stream
+      if (screenStreamRef.current) {
+        screenStreamRef.current.getTracks().forEach(track => track.stop());
+        screenStreamRef.current = null;
       }
     };
   }, [accessToken]);
 
   const toggleVideo = useCallback(() => {
-    if (localVideoRef.current?.srcObject) {
-      const stream = localVideoRef.current.srcObject as MediaStream;
-      stream.getVideoTracks().forEach(track => {
+    if (cameraStreamRef.current) {
+      cameraStreamRef.current.getVideoTracks().forEach(track => {
         track.enabled = !isVideoEnabled;
       });
       setIsVideoEnabled(!isVideoEnabled);
@@ -91,33 +100,62 @@ export function VideoRoom() {
   }, [isVideoEnabled]);
 
   const toggleAudio = useCallback(() => {
-    if (localVideoRef.current?.srcObject) {
-      const stream = localVideoRef.current.srcObject as MediaStream;
-      stream.getAudioTracks().forEach(track => {
+    if (cameraStreamRef.current) {
+      cameraStreamRef.current.getAudioTracks().forEach(track => {
         track.enabled = !isAudioEnabled;
       });
       setIsAudioEnabled(!isAudioEnabled);
     }
   }, [isAudioEnabled]);
 
-  const handleScreenShare = async () => {
+  const handleScreenShare = useCallback(async () => {
     try {
       if (!isScreenSharing) {
+        // Start screen sharing
         const screenStream = await navigator.mediaDevices.getDisplayMedia({
           video: true,
+          audio: true, // Capture system audio if available
         });
-        // In a real implementation, you'd share this stream
+        
+        screenStreamRef.current = screenStream;
+        
+        // Display screen share in the dedicated video element
+        if (screenShareRef.current) {
+          screenShareRef.current.srcObject = screenStream;
+        }
+        
         setIsScreenSharing(true);
+        toast.success('Screen sharing started');
+        
+        // Handle when user stops sharing via browser UI
         screenStream.getVideoTracks()[0].onended = () => {
-          setIsScreenSharing(false);
+          stopScreenShare();
         };
       } else {
-        setIsScreenSharing(false);
+        stopScreenShare();
       }
-    } catch (error) {
-      console.error('Screen share error:', error);
+    } catch (error: any) {
+      // User cancelled screen share dialog
+      if (error.name === 'NotAllowedError') {
+        console.log('Screen share cancelled by user');
+      } else {
+        console.error('Screen share error:', error);
+        toast.error('Failed to start screen sharing');
+      }
     }
-  };
+  }, [isScreenSharing]);
+
+  const stopScreenShare = useCallback(() => {
+    if (screenStreamRef.current) {
+      screenStreamRef.current.getTracks().forEach(track => track.stop());
+      screenStreamRef.current = null;
+    }
+    if (screenShareRef.current) {
+      screenShareRef.current.srcObject = null;
+    }
+    setIsScreenSharing(false);
+    toast.info('Screen sharing stopped');
+  }, []);
 
   const handleEndCall = async () => {
     await endCall.mutateAsync();
@@ -171,6 +209,12 @@ export function VideoRoom() {
                 Recording
               </Badge>
             )}
+            {isScreenSharing && (
+              <Badge variant="default" className="gap-1">
+                <MonitorUp className="h-3 w-3" />
+                Sharing Screen
+              </Badge>
+            )}
           </div>
           <div className="flex items-center gap-2">
             <Button variant="ghost" size="icon" onClick={toggleFullscreen}>
@@ -181,28 +225,61 @@ export function VideoRoom() {
 
         {/* Video Grid */}
         <div className="flex-1 p-4 bg-muted/30">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 h-full">
-            {/* Remote Video */}
-            <div 
-              ref={remoteVideoRef}
-              className="relative bg-muted rounded-lg overflow-hidden flex items-center justify-center"
-            >
-              {activeParticipants.length > 0 ? (
-                <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black/50">
-                  <div className="absolute bottom-4 left-4 text-white">
-                    <p className="font-medium">Remote Participant</p>
+          <div className={cn(
+            "grid gap-4 h-full",
+            isScreenSharing ? "grid-cols-1 lg:grid-cols-3" : "grid-cols-1 md:grid-cols-2"
+          )}>
+            {/* Screen Share (when active) */}
+            {isScreenSharing && (
+              <div className="lg:col-span-2 relative bg-black rounded-lg overflow-hidden flex items-center justify-center">
+                <video
+                  ref={screenShareRef}
+                  autoPlay
+                  playsInline
+                  className="w-full h-full object-contain"
+                />
+                <div className="absolute bottom-4 left-4 text-white bg-black/50 px-2 py-1 rounded flex items-center gap-2">
+                  <MonitorUp className="h-4 w-4" />
+                  <p className="text-sm font-medium">Your Screen</p>
+                </div>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  className="absolute top-4 right-4"
+                  onClick={stopScreenShare}
+                >
+                  <MonitorOff className="h-4 w-4 mr-2" />
+                  Stop Sharing
+                </Button>
+              </div>
+            )}
+
+            {/* Remote Video / Waiting Area */}
+            {!isScreenSharing && (
+              <div 
+                ref={remoteVideoRef}
+                className="relative bg-muted rounded-lg overflow-hidden flex items-center justify-center"
+              >
+                {activeParticipants.length > 0 ? (
+                  <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black/50">
+                    <div className="absolute bottom-4 left-4 text-white">
+                      <p className="font-medium">Remote Participant</p>
+                    </div>
                   </div>
-                </div>
-              ) : (
-                <div className="text-center text-muted-foreground">
-                  <Users className="h-12 w-12 mx-auto mb-2" />
-                  <p>Waiting for participant to join...</p>
-                </div>
-              )}
-            </div>
+                ) : (
+                  <div className="text-center text-muted-foreground">
+                    <Users className="h-12 w-12 mx-auto mb-2" />
+                    <p>Waiting for participant to join...</p>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Local Video */}
-            <div className="relative bg-muted rounded-lg overflow-hidden">
+            <div className={cn(
+              "relative bg-muted rounded-lg overflow-hidden",
+              isScreenSharing && "aspect-video lg:aspect-auto"
+            )}>
               <video
                 ref={localVideoRef}
                 autoPlay
@@ -248,10 +325,14 @@ export function VideoRoom() {
           <Button
             variant={isScreenSharing ? 'default' : 'secondary'}
             size="lg"
-            className="rounded-full w-14 h-14"
+            className={cn(
+              "rounded-full w-14 h-14",
+              isScreenSharing && "ring-2 ring-primary ring-offset-2"
+            )}
             onClick={handleScreenShare}
+            title={isScreenSharing ? "Stop sharing screen" : "Share your screen"}
           >
-            <MonitorUp className="h-6 w-6" />
+            {isScreenSharing ? <MonitorOff className="h-6 w-6" /> : <MonitorUp className="h-6 w-6" />}
           </Button>
           
           <Button
