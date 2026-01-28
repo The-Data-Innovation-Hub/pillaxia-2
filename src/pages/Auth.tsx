@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -8,9 +8,10 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { z } from "zod";
-import { Loader2, User, Stethoscope, Pill, Shield, Home, ShieldCheck, Key, Fingerprint, AlertTriangle, ShieldAlert } from "lucide-react";
+import { Loader2, User, Stethoscope, Pill, Shield, Home, ShieldCheck, Key, Fingerprint, AlertTriangle, ShieldAlert, Monitor } from "lucide-react";
 import { useBiometricAuth } from "@/hooks/useBiometricAuth";
 import { useLoginAttempts } from "@/hooks/useLoginAttempts";
 import { useSecurityEvents } from "@/hooks/useSecurityEvents";
@@ -59,6 +60,97 @@ const Auth = () => {
   const [useRecoveryCode, setUseRecoveryCode] = useState(false);
   const [recoveryCode, setRecoveryCode] = useState("");
   const [remainingCodes, setRemainingCodes] = useState<number | null>(null);
+  const [trustDevice, setTrustDevice] = useState(false);
+  const [checkingDeviceTrust, setCheckingDeviceTrust] = useState(false);
+  const [pendingUserId, setPendingUserId] = useState<string | null>(null);
+
+  // Device trust functions
+  const DEVICE_TOKEN_KEY = "pillaxia_device_token";
+  
+  const getDeviceToken = useCallback((): string => {
+    let token = localStorage.getItem(DEVICE_TOKEN_KEY);
+    if (!token) {
+      const array = new Uint8Array(32);
+      crypto.getRandomValues(array);
+      token = Array.from(array, (b) => b.toString(16).padStart(2, "0")).join("");
+      localStorage.setItem(DEVICE_TOKEN_KEY, token);
+    }
+    return token;
+  }, []);
+
+  const hashToken = async (token: string): Promise<string> => {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(token);
+    const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+  };
+
+  const checkDeviceTrust = async (userId: string): Promise<boolean> => {
+    try {
+      const token = getDeviceToken();
+      const tokenHash = await hashToken(token);
+      
+      const { data, error } = await supabase.rpc("is_device_trusted", {
+        p_user_id: userId,
+        p_device_token_hash: tokenHash,
+      });
+      
+      if (error) {
+        console.error("Error checking device trust:", error);
+        return false;
+      }
+      
+      return data === true;
+    } catch (error) {
+      console.error("Error checking device trust:", error);
+      return false;
+    }
+  };
+
+  const trustCurrentDevice = async (userId: string): Promise<boolean> => {
+    try {
+      const token = getDeviceToken();
+      const tokenHash = await hashToken(token);
+      
+      // Get browser and OS info
+      const ua = navigator.userAgent;
+      let browser = "Unknown Browser";
+      if (ua.includes("Firefox")) browser = "Firefox";
+      else if (ua.includes("Edg")) browser = "Edge";
+      else if (ua.includes("Chrome")) browser = "Chrome";
+      else if (ua.includes("Safari")) browser = "Safari";
+      
+      let os = "Unknown OS";
+      if (ua.includes("Windows")) os = "Windows";
+      else if (ua.includes("Mac")) os = "macOS";
+      else if (ua.includes("Linux")) os = "Linux";
+      else if (ua.includes("Android")) os = "Android";
+      else if (ua.includes("iPhone") || ua.includes("iPad")) os = "iOS";
+      
+      const deviceName = `${browser} on ${os}`;
+      
+      const { error } = await supabase.rpc("trust_device", {
+        p_user_id: userId,
+        p_device_token_hash: tokenHash,
+        p_device_name: deviceName,
+        p_browser: browser,
+        p_os: os,
+        p_ip: null,
+        p_days: 30,
+      });
+      
+      if (error) {
+        console.error("Error trusting device:", error);
+        return false;
+      }
+      
+      return true;
+    } catch (error) {
+      console.error("Error trusting device:", error);
+      return false;
+    }
+  };
 
   // Redirect if already authenticated
   useEffect(() => {
@@ -77,11 +169,26 @@ const Auth = () => {
         if (error) {
           toast.error("Biometric login failed. Please sign in with your password.");
         } else {
+          // Get current user ID for device trust check
+          const { data: { user: currentUser } } = await supabase.auth.getUser();
+          
           // Check if MFA is required
           const { data: factorsData } = await supabase.auth.mfa.listFactors();
           const verifiedFactors = factorsData?.totp?.filter(f => f.status === "verified") || [];
           
-          if (verifiedFactors.length > 0) {
+          if (verifiedFactors.length > 0 && currentUser) {
+            // Check if device is trusted - skip MFA if so
+            const isTrusted = await checkDeviceTrust(currentUser.id);
+            
+            if (isTrusted) {
+              // Device is trusted, skip MFA
+              toast.success("Welcome back! (Trusted device)");
+              navigate("/dashboard");
+              return;
+            }
+            
+            // Device not trusted, need MFA
+            setPendingUserId(currentUser.id);
             setMfaFactorId(verifiedFactors[0].id);
             setShowMfaChallenge(true);
             return;
@@ -215,12 +322,28 @@ const Auth = () => {
             body: { action: 'login' },
           }).catch(err => console.error('Geolocation tracking failed:', err));
           
+          // Get current user ID for device trust check
+          const { data: { user: currentUser } } = await supabase.auth.getUser();
+          
           // Check if MFA is required
           const { data: factorsData } = await supabase.auth.mfa.listFactors();
           const verifiedFactors = factorsData?.totp?.filter(f => f.status === "verified") || [];
           
-          if (verifiedFactors.length > 0) {
-            // User has MFA enabled, need to verify
+          if (verifiedFactors.length > 0 && currentUser) {
+            // Check if device is trusted - skip MFA if so
+            setCheckingDeviceTrust(true);
+            const isTrusted = await checkDeviceTrust(currentUser.id);
+            setCheckingDeviceTrust(false);
+            
+            if (isTrusted) {
+              // Device is trusted, skip MFA
+              toast.success("Welcome back! (Trusted device)");
+              navigate("/dashboard");
+              return;
+            }
+            
+            // User has MFA enabled and device is not trusted, need to verify
+            setPendingUserId(currentUser.id);
             setMfaFactorId(verifiedFactors[0].id);
             setShowMfaChallenge(true);
             setLoading(false);
@@ -283,7 +406,13 @@ const Auth = () => {
 
       if (verifyError) throw verifyError;
 
-      toast.success("Welcome back!");
+      // Trust device if checkbox was checked
+      if (trustDevice && pendingUserId) {
+        await trustCurrentDevice(pendingUserId);
+        toast.success("Welcome back! Device trusted for 30 days.");
+      } else {
+        toast.success("Welcome back!");
+      }
       navigate("/dashboard");
     } catch (error: any) {
       console.error("MFA verification failed:", error);
@@ -365,7 +494,13 @@ const Auth = () => {
         });
       }
 
-      toast.success("Recovery code accepted!");
+      // Trust device if checkbox was checked
+      if (trustDevice && currentUser) {
+        await trustCurrentDevice(currentUser.id);
+        toast.success("Recovery code accepted! Device trusted for 30 days.");
+      } else {
+        toast.success("Recovery code accepted!");
+      }
       navigate("/dashboard");
     } catch (error: any) {
       console.error("Recovery code verification failed:", error);
@@ -383,6 +518,8 @@ const Auth = () => {
     setUseRecoveryCode(false);
     setRecoveryCode("");
     setRemainingCodes(null);
+    setTrustDevice(false);
+    setPendingUserId(null);
     // Sign out the partially authenticated session
     supabase.auth.signOut();
   };
@@ -448,6 +585,22 @@ const Auth = () => {
                   />
                 </div>
               )}
+
+              {/* Trust this device checkbox */}
+              <div className="flex items-center space-x-2 pt-2">
+                <Checkbox
+                  id="trust-device"
+                  checked={trustDevice}
+                  onCheckedChange={(checked) => setTrustDevice(checked === true)}
+                />
+                <Label
+                  htmlFor="trust-device"
+                  className="text-sm font-normal cursor-pointer flex items-center gap-2"
+                >
+                  <Monitor className="h-4 w-4 text-muted-foreground" />
+                  Trust this device for 30 days
+                </Label>
+              </div>
 
               <div className="flex gap-2">
                 <Button

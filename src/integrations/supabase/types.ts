@@ -2431,6 +2431,54 @@ export type Database = {
           },
         ]
       }
+      trusted_devices: {
+        Row: {
+          browser: string | null
+          created_at: string
+          device_name: string | null
+          device_token_hash: string
+          expires_at: string
+          id: string
+          ip_address: string | null
+          is_active: boolean
+          last_used_at: string
+          operating_system: string | null
+          revoked_at: string | null
+          trusted_at: string
+          user_id: string
+        }
+        Insert: {
+          browser?: string | null
+          created_at?: string
+          device_name?: string | null
+          device_token_hash: string
+          expires_at: string
+          id?: string
+          ip_address?: string | null
+          is_active?: boolean
+          last_used_at?: string
+          operating_system?: string | null
+          revoked_at?: string | null
+          trusted_at?: string
+          user_id: string
+        }
+        Update: {
+          browser?: string | null
+          created_at?: string
+          device_name?: string | null
+          device_token_hash?: string
+          expires_at?: string
+          id?: string
+          ip_address?: string | null
+          is_active?: boolean
+          last_used_at?: string
+          operating_system?: string | null
+          revoked_at?: string | null
+          trusted_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_login_locations: {
         Row: {
           action: string
@@ -2848,6 +2896,10 @@ export type Database = {
         Args: { _clinician_user_id: string; _patient_user_id: string }
         Returns: boolean
       }
+      is_device_trusted: {
+        Args: { p_device_token_hash: string; p_user_id: string }
+        Returns: boolean
+      }
       is_patient: { Args: { _user_id: string }; Returns: boolean }
       is_pharmacist: { Args: { _user_id: string }; Returns: boolean }
       log_data_access: {
@@ -2883,6 +2935,23 @@ export type Database = {
           p_user_agent?: string
         }
         Returns: Json
+      }
+      revoke_all_trusted_devices: {
+        Args: { p_user_id?: string }
+        Returns: number
+      }
+      revoke_trusted_device: { Args: { p_device_id: string }; Returns: boolean }
+      trust_device: {
+        Args: {
+          p_browser?: string
+          p_days?: number
+          p_device_name?: string
+          p_device_token_hash: string
+          p_ip?: string
+          p_os?: string
+          p_user_id: string
+        }
+        Returns: string
       }
       unlock_account: { Args: { p_email: string }; Returns: boolean }
     }
