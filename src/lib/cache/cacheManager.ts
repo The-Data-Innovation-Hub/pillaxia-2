@@ -18,14 +18,35 @@ type StoreName = (typeof STORES)[keyof typeof STORES];
 class CacheManager {
   private dbPromise: Promise<IDBDatabase> | null = null;
   private isUpgrading = false;
+  private db: IDBDatabase | null = null;
 
   /**
    * Opens the IndexedDB database, creating stores if needed.
    * All cache modules should use this single instance.
    */
   openDB(): Promise<IDBDatabase> {
+    // If we have a valid cached database connection, return it
+    if (this.db && !this.isUpgrading) {
+      try {
+        // Verify the connection is still valid by checking objectStoreNames
+        if (this.db.objectStoreNames.length > 0) {
+          return Promise.resolve(this.db);
+        }
+      } catch {
+        // Connection is invalid, reset and continue
+        this.db = null;
+        this.dbPromise = null;
+      }
+    }
+
+    // If we're currently opening, wait for that to complete
     if (this.dbPromise && !this.isUpgrading) {
       return this.dbPromise;
+    }
+
+    // Reset if we were upgrading
+    if (this.isUpgrading) {
+      this.dbPromise = null;
     }
 
     this.dbPromise = new Promise((resolve, reject) => {
@@ -37,6 +58,7 @@ class CacheManager {
         settled = true;
         this.isUpgrading = false;
         this.dbPromise = null;
+        this.db = null;
         reject(new Error(`IndexedDB open timed out after ${OPEN_DB_TIMEOUT_MS}ms`));
       }, OPEN_DB_TIMEOUT_MS);
 
@@ -59,10 +81,18 @@ class CacheManager {
             db.close();
           } finally {
             this.dbPromise = null;
+            this.db = null;
           }
         };
 
+        // Handle unexpected close
+        db.onclose = () => {
+          this.dbPromise = null;
+          this.db = null;
+        };
+
         this.isUpgrading = false;
+        this.db = db;
         resolve(db);
       };
 
@@ -72,6 +102,7 @@ class CacheManager {
         clearTimeout(timeoutId);
         this.isUpgrading = false;
         this.dbPromise = null;
+        this.db = null;
         reject(err);
       };
 
@@ -86,6 +117,12 @@ class CacheManager {
       request.onupgradeneeded = (event) => {
         this.isUpgrading = true;
         const db = (event.target as IDBOpenDBRequest).result;
+        
+        // Handle errors during upgrade
+        db.onerror = () => {
+          console.error("IndexedDB error during upgrade");
+        };
+        
         this.createStores(db);
       };
 
@@ -277,10 +314,15 @@ class CacheManager {
    * Clear the database connection (useful for testing or logout).
    */
   closeConnection(): void {
-    if (this.dbPromise) {
-      this.dbPromise.then((db) => db.close()).catch(() => {});
-      this.dbPromise = null;
+    if (this.db) {
+      try {
+        this.db.close();
+      } catch {
+        // ignore
+      }
+      this.db = null;
     }
+    this.dbPromise = null;
   }
 
   /**
