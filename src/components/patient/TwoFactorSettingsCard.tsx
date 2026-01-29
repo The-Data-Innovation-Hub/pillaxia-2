@@ -71,11 +71,14 @@ export function TwoFactorSettingsCard() {
   const [enrolling, setEnrolling] = useState(false);
   const [verifying, setVerifying] = useState(false);
   const [disabling, setDisabling] = useState(false);
+  const [suspending, setSuspending] = useState(false);
   const [showEnrollDialog, setShowEnrollDialog] = useState(false);
   const [showDisableDialog, setShowDisableDialog] = useState(false);
+  const [showSuspendDialog, setShowSuspendDialog] = useState(false);
   const [showMethodSelect, setShowMethodSelect] = useState(false);
   const [showRecoveryCodesDialog, setShowRecoveryCodesDialog] = useState(false);
   const [showRegenerateDialog, setShowRegenerateDialog] = useState(false);
+  const [suspendRecoveryCode, setSuspendRecoveryCode] = useState("");
   
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [secret, setSecret] = useState<string | null>(null);
@@ -401,6 +404,70 @@ export function TwoFactorSettingsCard() {
     }
   };
 
+  // Suspend 2FA using a recovery code (for users who lost their authenticator)
+  const handleSuspend2FA = async () => {
+    if (!user || !suspendRecoveryCode.trim()) return;
+
+    setSuspending(true);
+    try {
+      // Normalize the recovery code (remove dashes and uppercase)
+      const normalizedCode = suspendRecoveryCode.replace(/-/g, "").toUpperCase();
+      const codeHash = await hashCode(normalizedCode);
+
+      // Verify the recovery code exists and is unused
+      const { data: recoveryCodeRecord, error: fetchError } = await supabase
+        .from("mfa_recovery_codes")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("code_hash", codeHash)
+        .is("used_at", null)
+        .maybeSingle();
+
+      if (fetchError) throw fetchError;
+
+      if (!recoveryCodeRecord) {
+        throw new Error("Invalid or already used recovery code");
+      }
+
+      // Mark the recovery code as used
+      await supabase
+        .from("mfa_recovery_codes")
+        .update({ used_at: new Date().toISOString() })
+        .eq("id", recoveryCodeRecord.id);
+
+      // Unenroll all MFA factors
+      for (const factor of enabledFactors) {
+        const { error: unenrollError } = await supabase.auth.mfa.unenroll({
+          factorId: factor.id,
+        });
+        if (unenrollError) {
+          console.error("Error unenrolling factor:", unenrollError);
+        }
+      }
+
+      // Delete remaining recovery codes
+      await supabase.from("mfa_recovery_codes").delete().eq("user_id", user.id);
+
+      toast({
+        title: "Two-factor authentication suspended",
+        description: "2FA has been disabled. You can re-enable it anytime.",
+      });
+
+      setShowSuspendDialog(false);
+      setSuspendRecoveryCode("");
+      fetchFactors();
+    } catch (error: any) {
+      console.error("Error suspending MFA:", error);
+      toast({
+        title: "Failed to suspend 2FA",
+        description: error.message || "Invalid recovery code or error occurred.",
+        variant: "destructive",
+      });
+    } finally {
+      setSuspending(false);
+    }
+  };
+
   const downloadRecoveryCodes = () => {
     const content = [
       "Pillaxia 2FA Recovery Codes",
@@ -556,13 +623,22 @@ export function TwoFactorSettingsCard() {
                 </div>
               </div>
 
-              {enabledFactors.length === 1 && (
-                <div className="pt-2">
+              <div className="flex flex-wrap gap-2 pt-2">
+                {enabledFactors.length === 1 && (
                   <Button variant="outline" size="sm" onClick={() => setShowMethodSelect(true)}>
                     Add another method
                   </Button>
-                </div>
-              )}
+                )}
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={() => setShowSuspendDialog(true)}
+                  className="text-muted-foreground hover:text-destructive"
+                >
+                  <ShieldOff className="h-4 w-4 mr-2" />
+                  Lost your authenticator?
+                </Button>
+              </div>
             </>
           ) : (
             <>
@@ -875,6 +951,63 @@ export function TwoFactorSettingsCard() {
               >
                 {disabling && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
                 Disable 2FA
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Suspend 2FA Dialog (using recovery code) */}
+      <Dialog open={showSuspendDialog} onOpenChange={(open) => {
+        setShowSuspendDialog(open);
+        if (!open) setSuspendRecoveryCode("");
+      }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ShieldOff className="h-5 w-5 text-destructive" />
+              Suspend Two-Factor Authentication
+            </DialogTitle>
+            <DialogDescription>
+              Lost access to your authenticator? Enter one of your recovery codes to disable 2FA.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <Alert>
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>
+                This will disable all 2FA methods and invalidate your remaining recovery codes.
+              </AlertDescription>
+            </Alert>
+            <div className="space-y-2">
+              <Label htmlFor="suspend-recovery-code">Recovery Code</Label>
+              <Input
+                id="suspend-recovery-code"
+                placeholder="XXXXX-XXXXX"
+                value={suspendRecoveryCode}
+                onChange={(e) => setSuspendRecoveryCode(e.target.value.toUpperCase())}
+                className="text-center text-lg tracking-widest font-mono"
+              />
+              <p className="text-xs text-muted-foreground">
+                Enter one of your 10-character recovery codes
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <Button 
+                variant="outline" 
+                onClick={() => { setShowSuspendDialog(false); setSuspendRecoveryCode(""); }} 
+                className="flex-1"
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={handleSuspend2FA}
+                disabled={suspending || suspendRecoveryCode.replace(/-/g, "").length < 10}
+                className="flex-1"
+              >
+                {suspending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                Suspend 2FA
               </Button>
             </div>
           </div>
