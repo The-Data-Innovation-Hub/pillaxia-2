@@ -1,7 +1,7 @@
 // Centralized IndexedDB cache manager - single source of truth for versioning and stores
 
 const DB_NAME = "pillaxia-cache";
-const DB_VERSION = 5; // Increment this when adding new stores or changing schema
+const DB_VERSION = 6; // Increment this when adding new stores or changing schema
 const OPEN_DB_TIMEOUT_MS = 5000;
 
 // Store names - all defined in one place
@@ -10,6 +10,7 @@ export const STORES = {
   SCHEDULE: "today-schedule",
   SYMPTOMS: "symptoms",
   META: "cache-meta",
+  CONFLICTS: "sync-conflicts",
 } as const;
 
 type StoreName = (typeof STORES)[keyof typeof STORES];
@@ -131,6 +132,14 @@ class CacheManager {
     // Cache metadata store (timestamps, counts, etc.)
     if (!db.objectStoreNames.contains(STORES.META)) {
       db.createObjectStore(STORES.META, { keyPath: "key" });
+    }
+
+    // Sync conflicts store
+    if (!db.objectStoreNames.contains(STORES.CONFLICTS)) {
+      const conflictsStore = db.createObjectStore(STORES.CONFLICTS, { keyPath: "id" });
+      conflictsStore.createIndex("type", "type", { unique: false });
+      conflictsStore.createIndex("resolved", "resolved", { unique: false });
+      conflictsStore.createIndex("actionId", "actionId", { unique: false });
     }
   }
 
