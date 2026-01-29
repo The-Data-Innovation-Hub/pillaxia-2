@@ -3,6 +3,7 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import { getAutoResolutionPreferences, type AutoResolutionPreferences } from "@/hooks/useAutoResolutionPreferences";
+import { cacheManager, STORES } from "@/lib/cache";
 
 export interface ConflictEntry {
   id: string;
@@ -18,55 +19,20 @@ export interface ConflictEntry {
   createdAt: string;
 }
 
-const DB_NAME = "pillaxia-cache";
-const DB_VERSION = 4; // Increment for new store
-const CONFLICTS_STORE = "sync-conflicts";
-
 class ConflictResolutionManager {
-  private dbPromise: Promise<IDBDatabase> | null = null;
-
-  private openDB(): Promise<IDBDatabase> {
-    if (this.dbPromise) return this.dbPromise;
-
-    this.dbPromise = new Promise((resolve, reject) => {
-      const request = indexedDB.open(DB_NAME, DB_VERSION);
-
-      request.onerror = () => reject(request.error);
-      request.onsuccess = () => resolve(request.result);
-
-      request.onupgradeneeded = (event) => {
-        const db = (event.target as IDBOpenDBRequest).result;
-        
-        // Create conflicts store
-        if (!db.objectStoreNames.contains(CONFLICTS_STORE)) {
-          const store = db.createObjectStore(CONFLICTS_STORE, { keyPath: "id" });
-          store.createIndex("type", "type", { unique: false });
-          store.createIndex("resolved", "resolved", { unique: false });
-          store.createIndex("actionId", "actionId", { unique: false });
-        }
-
-        // Ensure other stores exist (maintain compatibility)
-        if (!db.objectStoreNames.contains("symptoms")) {
-          const symptomsStore = db.createObjectStore("symptoms", { keyPath: "id" });
-          symptomsStore.createIndex("user_id", "user_id", { unique: false });
-          symptomsStore.createIndex("pending", "_pending", { unique: false });
-        }
-        if (!db.objectStoreNames.contains("cache-meta")) {
-          db.createObjectStore("cache-meta", { keyPath: "key" });
-        }
-        if (!db.objectStoreNames.contains("medications")) {
-          const medStore = db.createObjectStore("medications", { keyPath: "id" });
-          medStore.createIndex("user_id", "user_id", { unique: false });
-        }
-        if (!db.objectStoreNames.contains("today-schedule")) {
-          const schedStore = db.createObjectStore("today-schedule", { keyPath: "id" });
-          schedStore.createIndex("user_id", "user_id", { unique: false });
-          schedStore.createIndex("date_key", "date_key", { unique: false });
-        }
-      };
+  /**
+   * Helper to execute operations on the conflicts store using the centralized cacheManager.
+   */
+  private async withConflictsStore<T>(
+    mode: "readonly" | "readwrite",
+    callback: (store: IDBObjectStore) => Promise<T>
+  ): Promise<T> {
+    const db = await cacheManager.openDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction([STORES.CONFLICTS], mode);
+      const store = transaction.objectStore(STORES.CONFLICTS);
+      callback(store).then(resolve).catch(reject);
     });
-
-    return this.dbPromise;
   }
 
   async addConflict(conflict: Omit<ConflictEntry, "id" | "createdAt" | "resolved">): Promise<string | null> {
@@ -79,11 +45,11 @@ class ConflictResolutionManager {
       return null;
     }
 
-    const db = await this.openDB();
+    const db = await cacheManager.openDB();
     
     return new Promise((resolve, reject) => {
-      const transaction = db.transaction([CONFLICTS_STORE], "readwrite");
-      const store = transaction.objectStore(CONFLICTS_STORE);
+      const transaction = db.transaction([STORES.CONFLICTS], "readwrite");
+      const store = transaction.objectStore(STORES.CONFLICTS);
 
       const id = crypto.randomUUID();
       const entry: ConflictEntry = {
@@ -354,11 +320,11 @@ class ConflictResolutionManager {
   }
 
   async getUnresolvedConflicts(): Promise<ConflictEntry[]> {
-    const db = await this.openDB();
+    const db = await cacheManager.openDB();
     
     return new Promise((resolve, reject) => {
-      const transaction = db.transaction([CONFLICTS_STORE], "readonly");
-      const store = transaction.objectStore(CONFLICTS_STORE);
+      const transaction = db.transaction([STORES.CONFLICTS], "readonly");
+      const store = transaction.objectStore(STORES.CONFLICTS);
       const index = store.index("resolved");
       const request = index.getAll(IDBKeyRange.only(false));
 
@@ -368,11 +334,11 @@ class ConflictResolutionManager {
   }
 
   async getAllConflicts(): Promise<ConflictEntry[]> {
-    const db = await this.openDB();
+    const db = await cacheManager.openDB();
     
     return new Promise((resolve, reject) => {
-      const transaction = db.transaction([CONFLICTS_STORE], "readonly");
-      const store = transaction.objectStore(CONFLICTS_STORE);
+      const transaction = db.transaction([STORES.CONFLICTS], "readonly");
+      const store = transaction.objectStore(STORES.CONFLICTS);
       const request = store.getAll();
 
       request.onerror = () => reject(request.error);
@@ -388,11 +354,11 @@ class ConflictResolutionManager {
   }
 
   async getConflict(id: string): Promise<ConflictEntry | null> {
-    const db = await this.openDB();
+    const db = await cacheManager.openDB();
     
     return new Promise((resolve, reject) => {
-      const transaction = db.transaction([CONFLICTS_STORE], "readonly");
-      const store = transaction.objectStore(CONFLICTS_STORE);
+      const transaction = db.transaction([STORES.CONFLICTS], "readonly");
+      const store = transaction.objectStore(STORES.CONFLICTS);
       const request = store.get(id);
 
       request.onerror = () => reject(request.error);
@@ -404,11 +370,11 @@ class ConflictResolutionManager {
     id: string, 
     resolution: "keep_local" | "keep_server" | "merge"
   ): Promise<void> {
-    const db = await this.openDB();
+    const db = await cacheManager.openDB();
     
     return new Promise((resolve, reject) => {
-      const transaction = db.transaction([CONFLICTS_STORE], "readwrite");
-      const store = transaction.objectStore(CONFLICTS_STORE);
+      const transaction = db.transaction([STORES.CONFLICTS], "readwrite");
+      const store = transaction.objectStore(STORES.CONFLICTS);
       
       const getRequest = store.get(id);
       getRequest.onsuccess = () => {
@@ -430,11 +396,11 @@ class ConflictResolutionManager {
   }
 
   async removeConflict(id: string): Promise<void> {
-    const db = await this.openDB();
+    const db = await cacheManager.openDB();
     
     return new Promise((resolve, reject) => {
-      const transaction = db.transaction([CONFLICTS_STORE], "readwrite");
-      const store = transaction.objectStore(CONFLICTS_STORE);
+      const transaction = db.transaction([STORES.CONFLICTS], "readwrite");
+      const store = transaction.objectStore(STORES.CONFLICTS);
       const request = store.delete(id);
 
       request.onerror = () => reject(request.error);
@@ -443,11 +409,11 @@ class ConflictResolutionManager {
   }
 
   async clearResolvedConflicts(): Promise<void> {
-    const db = await this.openDB();
+    const db = await cacheManager.openDB();
     
     return new Promise((resolve, reject) => {
-      const transaction = db.transaction([CONFLICTS_STORE], "readwrite");
-      const store = transaction.objectStore(CONFLICTS_STORE);
+      const transaction = db.transaction([STORES.CONFLICTS], "readwrite");
+      const store = transaction.objectStore(STORES.CONFLICTS);
       const index = store.index("resolved");
       const cursorRequest = index.openCursor(IDBKeyRange.only(true));
 
@@ -465,11 +431,11 @@ class ConflictResolutionManager {
   }
 
   async getConflictCount(): Promise<{ total: number; unresolved: number }> {
-    const db = await this.openDB();
+    const db = await cacheManager.openDB();
     
     return new Promise((resolve, reject) => {
-      const transaction = db.transaction([CONFLICTS_STORE], "readonly");
-      const store = transaction.objectStore(CONFLICTS_STORE);
+      const transaction = db.transaction([STORES.CONFLICTS], "readonly");
+      const store = transaction.objectStore(STORES.CONFLICTS);
       const totalRequest = store.count();
       
       totalRequest.onsuccess = () => {
