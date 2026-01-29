@@ -19,6 +19,7 @@ import {
   User
 } from "lucide-react";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 import angelaImage from "@/assets/hero-angela.png";
 import ReactMarkdown from "react-markdown";
 
@@ -115,11 +116,17 @@ export function ClinicalDecisionSupport({ patient, onClose }: ClinicalDecisionSu
       const conversationHistory = messages
         .map((m) => ({ role: m.role, content: m.content }));
 
+      // Get the user's session token for authenticated requests
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        throw new Error("Please log in to use Clinical Decision Support");
+      }
+
       const response = await fetch(CDS_URL, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          Authorization: `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({ 
           patientContext, 
