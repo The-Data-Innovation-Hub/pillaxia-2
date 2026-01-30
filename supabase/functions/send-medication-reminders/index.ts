@@ -1,11 +1,20 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getCorsHeaders, handleCorsPreflightRequest } from "../_shared/cors.ts";
+import { withSentry, captureException } from "../_shared/sentry.ts";
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+// HTML escape function to prevent XSS
+function escapeHtml(text: string): string {
+  const map: Record<string, string> = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#039;',
+  };
+  return text.replace(/[&<>"']/g, (m) => map[m]);
+}
 
 async function sendEmail(to: string[], subject: string, html: string): Promise<{ id: string }> {
   const res = await fetch("https://api.resend.com/emails", {
@@ -80,11 +89,12 @@ function isInQuietHours(prefs: PatientPreferences): boolean {
   return currentTime >= start && currentTime < end;
 }
 
-Deno.serve(async (req: Request) => {
+Deno.serve(withSentry("send-medication-reminders", async (req: Request) => {
+  const corsHeaders = getCorsHeaders(req.headers.get("origin"));
+  
   // Handle CORS preflight
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
-  }
+  const preflightResponse = handleCorsPreflightRequest(req);
+  if (preflightResponse) return preflightResponse;
 
   try {
     console.log("Starting medication reminder job...");
@@ -103,6 +113,7 @@ Deno.serve(async (req: Request) => {
 
     if (settingError) {
       console.error("Error checking notification settings:", settingError);
+      captureException(settingError);
     }
 
     if (settingData && !settingData.is_enabled) {
@@ -135,6 +146,7 @@ Deno.serve(async (req: Request) => {
 
     if (dosesError) {
       console.error("Error fetching doses:", dosesError);
+      captureException(dosesError);
       throw dosesError;
     }
 
@@ -168,6 +180,7 @@ Deno.serve(async (req: Request) => {
 
     if (prefsError) {
       console.error("Error fetching patient preferences:", prefsError);
+      captureException(prefsError);
     }
 
     // Create a map of user preferences
@@ -217,7 +230,7 @@ Deno.serve(async (req: Request) => {
         continue;
       }
 
-      // Build medication list HTML
+      // Build medication list HTML with XSS protection
       const medicationListHtml = userDoses.map((dose) => {
         const medsData = dose.medications;
         const schedulesData = dose.medication_schedules;
@@ -238,12 +251,18 @@ Deno.serve(async (req: Request) => {
           hour12: true,
         });
 
+        // Escape all dynamic content
+        const safeName = escapeHtml(med.name);
+        const safeDosage = escapeHtml(med.dosage);
+        const safeDosageUnit = escapeHtml(med.dosage_unit);
+        const safeForm = escapeHtml(med.form);
+
         return `
           <tr>
             <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">
-              <strong>${med.name}</strong><br/>
+              <strong>${safeName}</strong><br/>
               <span style="color: #6b7280; font-size: 14px;">
-                ${schedule?.quantity || 1}x ${med.dosage} ${med.dosage_unit} ${med.form}
+                ${schedule?.quantity || 1}x ${safeDosage} ${safeDosageUnit} ${safeForm}
                 ${schedule?.with_food ? " • Take with food" : ""}
               </span>
             </td>
@@ -254,7 +273,7 @@ Deno.serve(async (req: Request) => {
         `;
       }).join("");
 
-      const firstName = profile.first_name || "there";
+      const firstName = escapeHtml(profile.first_name || "there");
 
       const emailHtml = `
         <!DOCTYPE html>
@@ -439,6 +458,9 @@ Deno.serve(async (req: Request) => {
         }
       } catch (emailError) {
         console.error(`Failed to send email to ${profile.email}:`, emailError);
+        if (emailError instanceof Error) {
+          captureException(emailError);
+        }
         emailResults.push({ userId, email: profile.email, success: false, error: String(emailError) });
 
         // Log failed email notification
@@ -456,30 +478,39 @@ Deno.serve(async (req: Request) => {
     }
 
     const successCount = emailResults.filter((r) => r.success && !r.skipped).length;
+    const failedCount = emailResults.filter((r) => !r.success).length;
     const skippedCount = emailResults.filter((r) => r.skipped).length;
-    const smsSuccessCount = smsResults.filter((r) => r.success && !r.skipped).length;
-    const smsSkippedCount = smsResults.filter((r) => r.skipped).length;
-    const waSuccessCount = whatsappResults.filter((r) => r.success && !r.skipped).length;
-    const waSkippedCount = whatsappResults.filter((r) => r.skipped).length;
-    
-    console.log(`Sent ${successCount}/${emailResults.length} reminder emails, ${skippedCount} skipped`);
-    console.log(`Sent ${smsSuccessCount}/${smsResults.length} reminder SMS, ${smsSkippedCount} skipped`);
-    console.log(`Sent ${waSuccessCount}/${whatsappResults.length} WhatsApp messages, ${waSkippedCount} skipped`);
+
+    console.log(`Medication reminder job complete: ${successCount} sent, ${failedCount} failed, ${skippedCount} skipped`);
 
     return new Response(
       JSON.stringify({
-        message: `Processed ${doses.length} doses, sent ${successCount} emails, ${smsSuccessCount} SMS, ${waSuccessCount} WhatsApp`,
-        emailResults,
-        smsResults,
-        whatsappResults,
+        success: true,
+        summary: {
+          email: { sent: successCount, failed: failedCount, skipped: skippedCount },
+          sms: {
+            sent: smsResults.filter((r) => r.success && !r.skipped).length,
+            failed: smsResults.filter((r) => !r.success).length,
+            skipped: smsResults.filter((r) => r.skipped).length,
+          },
+          whatsapp: {
+            sent: whatsappResults.filter((r) => r.success && !r.skipped).length,
+            failed: whatsappResults.filter((r) => !r.success).length,
+            skipped: whatsappResults.filter((r) => r.skipped).length,
+          },
+        },
+        details: emailResults,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {
-    console.error("Error in medication reminder job:", error);
+    console.error("Error in send-medication-reminders:", error);
+    if (error instanceof Error) {
+      captureException(error);
+    }
     return new Response(
-      JSON.stringify({ error: String(error) }),
+      JSON.stringify({ error: error instanceof Error ? error.message : String(error) }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
-});
+}));

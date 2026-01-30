@@ -2,14 +2,23 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { Resend } from "https://esm.sh/resend@2.0.0";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { format, subDays, startOfDay, endOfDay } from "https://esm.sh/date-fns@3.6.0";
-import { formatInTimeZone, fromZonedTime, toZonedTime } from "https://esm.sh/date-fns-tz@3.1.3";
+import { fromZonedTime, toZonedTime } from "https://esm.sh/date-fns-tz@3.1.3";
+import { getCorsHeaders, handleCorsPreflightRequest } from "../_shared/cors.ts";
+import { withSentry, captureException } from "../_shared/sentry.ts";
 
 const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+// HTML escape function to prevent XSS
+function escapeHtml(text: string): string {
+  const map: Record<string, string> = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#039;',
+  };
+  return text.replace(/[&<>"']/g, (m) => map[m]);
+}
 
 /**
  * Daily Email Digest with Timezone Support
@@ -23,21 +32,6 @@ const corsHeaders = {
  * This function is called hourly by a cron job.
  * It only sends emails to patients whose local time is 8am (between 8:00-8:59).
  */
-
-interface DigestData {
-  takenCount: number;
-  missedCount: number;
-  totalScheduled: number;
-  todayMedications: Array<{
-    name: string;
-    dosage: string;
-    time: string;
-  }>;
-  missedMedications: Array<{
-    name: string;
-    scheduledTime: string;
-  }>;
-}
 
 // Get the current hour in a specific timezone
 function getCurrentHourInTimezone(timezone: string): number {
@@ -78,10 +72,12 @@ function getYesterdayBoundsInTimezone(timezone: string): { start: string; end: s
   }
 }
 
-serve(async (req: Request): Promise<Response> => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
-  }
+serve(withSentry("send-daily-digest", async (req: Request): Promise<Response> => {
+  const corsHeaders = getCorsHeaders(req.headers.get("origin"));
+  
+  // Handle CORS preflight
+  const preflightResponse = handleCorsPreflightRequest(req);
+  if (preflightResponse) return preflightResponse;
 
   try {
     const supabase = createClient(
@@ -107,6 +103,7 @@ serve(async (req: Request): Promise<Response> => {
 
     if (patientsError) {
       console.error("Error fetching patients:", patientsError);
+      captureException(patientsError);
       throw patientsError;
     }
 
@@ -237,17 +234,24 @@ serve(async (req: Request): Promise<Response> => {
 
         const clickTrackerBase = `${supabaseUrl}/functions/v1/email-click-tracker?id=${notificationRecord?.id}&uid=${patient.user_id}&url=`;
 
-        // Generate email HTML
+        // Generate email HTML with XSS protection
         const emailHtml = generateDigestEmail({
-          patientName: patient.first_name || "there",
+          patientName: escapeHtml(patient.first_name || "there"),
           yesterday: format(patientYesterday, "MMMM d"),
           today: format(patientNow, "EEEE, MMMM d"),
           adherencePercent,
           takenCount,
           missedCount,
           totalScheduled,
-          todayMedications,
-          missedMedications,
+          todayMedications: todayMedications.map(m => ({
+            name: escapeHtml(m.name),
+            dosage: escapeHtml(m.dosage),
+            time: m.time,
+          })),
+          missedMedications: missedMedications.map(m => ({
+            name: escapeHtml(m.name),
+            scheduledTime: m.scheduledTime,
+          })),
           trackingPixelUrl,
           clickTrackerBase,
         });
@@ -287,6 +291,9 @@ serve(async (req: Request): Promise<Response> => {
         }
       } catch (patientError) {
         console.error(`Error processing patient ${patient.user_id}:`, patientError);
+        if (patientError instanceof Error) {
+          captureException(patientError);
+        }
       }
     }
 
@@ -303,12 +310,15 @@ serve(async (req: Request): Promise<Response> => {
     );
   } catch (error) {
     console.error("Error in send-daily-digest:", error);
+    if (error instanceof Error) {
+      captureException(error);
+    }
     return new Response(
       JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
-});
+}));
 
 interface EmailParams {
   patientName: string;
