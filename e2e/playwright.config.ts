@@ -72,13 +72,15 @@ export default defineConfig({
     },
   ],
 
-  /* Run your local dev server before starting the tests */
-  webServer: {
-    command: "npm run dev",
-    url: "http://localhost:5173",
-    reuseExistingServer: !process.env.CI,
-    timeout: 120 * 1000,
-  },
+  /* Run your local dev server before starting the tests - skip if testing against staging */
+  webServer: process.env.PLAYWRIGHT_BASE_URL?.includes("localhost") || !process.env.PLAYWRIGHT_BASE_URL
+    ? {
+        command: "npm run dev",
+        url: "http://localhost:5173",
+        reuseExistingServer: !process.env.CI,
+        timeout: 120 * 1000,
+      }
+    : undefined,
 
   /* Global timeout for each test */
   timeout: 60 * 1000,
