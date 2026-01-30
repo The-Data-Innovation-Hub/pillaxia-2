@@ -41,6 +41,37 @@ serve(withSentry("calculate-engagement-scores", async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  // Create authenticated client for user verification
+  const authHeader = req.headers.get("Authorization");
+  if (!authHeader?.startsWith("Bearer ")) {
+    return new Response(
+      JSON.stringify({ error: "Unauthorized - missing or invalid authorization header" }),
+      { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+
+  const anonClient = createClient(
+    Deno.env.get("SUPABASE_URL") ?? "",
+    Deno.env.get("SUPABASE_ANON_KEY") ?? "",
+    { global: { headers: { Authorization: authHeader } } }
+  );
+
+  // Validate JWT and get caller identity
+  const token = authHeader.replace("Bearer ", "");
+  const { data: claimsData, error: claimsError } = await anonClient.auth.getClaims(token);
+  
+  if (claimsError || !claimsData?.claims?.sub) {
+    console.error("[ENGAGEMENT] JWT validation failed:", claimsError);
+    return new Response(
+      JSON.stringify({ error: "Unauthorized - invalid token" }),
+      { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+
+  const callerId = claimsData.claims.sub as string;
+  console.log(`[ENGAGEMENT] Request from user: ${callerId}`);
+
+  // Service role client for privileged operations
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL") ?? "",
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
@@ -58,6 +89,42 @@ serve(withSentry("calculate-engagement-scores", async (req) => {
   const userId = validation.success ? validation.data.userId : undefined;
   const days = (validation.success ? validation.data.days : undefined) ?? 7;
   
+  // Check if caller is admin
+  const { data: isAdminResult } = await supabase.rpc("is_admin", { _user_id: callerId });
+  const callerIsAdmin = isAdminResult === true;
+
+  // Authorization check for specific patient access
+  if (userId) {
+    if (!callerIsAdmin) {
+      // Check if caller is an assigned clinician for this patient
+      const { data: assignment } = await supabase
+        .from("clinician_patient_assignments")
+        .select("id")
+        .eq("patient_user_id", userId)
+        .eq("clinician_user_id", callerId)
+        .maybeSingle();
+      
+      if (!assignment) {
+        console.warn(`[ENGAGEMENT] Unauthorized access attempt: ${callerId} tried to access patient ${userId}`);
+        return new Response(
+          JSON.stringify({ error: "Not authorized to access this patient's data" }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    }
+    console.log(`[ENGAGEMENT] Authorized access to patient ${userId} by ${callerIsAdmin ? "admin" : "clinician"} ${callerId}`);
+  } else {
+    // Batch processing - admin only
+    if (!callerIsAdmin) {
+      console.warn(`[ENGAGEMENT] Batch processing denied for non-admin: ${callerId}`);
+      return new Response(
+        JSON.stringify({ error: "Batch processing requires admin privileges" }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    console.log(`[ENGAGEMENT] Admin ${callerId} initiating batch engagement score calculation`);
+  }
+
   const startDate = new Date();
   startDate.setDate(startDate.getDate() - days);
   const startDateStr = startDate.toISOString();
