@@ -8,6 +8,18 @@
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="format-detection" content="telephone=no" />
     <meta name="msapplication-tap-highlight" content="no" />
+    <!-- Content Security Policy -->
+    <meta http-equiv="Content-Security-Policy" content="
+      default-src 'self';
+      script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.sentry-cdn.com https://*.sentry.io;
+      style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+      font-src 'self' https://fonts.gstatic.com data:;
+      img-src 'self' data: blob: https: http:;
+      connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.sentry.io https://api.twilio.com https://*.lovable.app https://*.lovableproject.com;
+      frame-src 'self' https://*.stripe.com;
+      media-src 'self' blob:;
+      worker-src 'self' blob:;
+    " />
     <title>Pillaxia - Empowering Your Health Journey With Every Reminder</title>
     <meta name="description" content="Angela is Pillaxia's intelligent assistant that helps you stay on track with daily pill reminders, symptom logs, and voice alerts — all in one easy-to-use app." />
     <meta name="author" content="Pillaxia" />

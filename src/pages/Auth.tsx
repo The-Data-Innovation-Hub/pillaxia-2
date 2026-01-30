@@ -21,14 +21,17 @@ import { PasswordBreachWarning } from "@/components/shared/PasswordBreachWarning
 
 type AppRole = "patient" | "clinician" | "pharmacist" | "admin" | "manager";
 
-// Demo users for testing
-const DEMO_USERS = [
+// Demo mode flag - set VITE_ENABLE_DEMO=true in .env for development/testing
+const DEMO_MODE_ENABLED = import.meta.env.VITE_ENABLE_DEMO === 'true';
+
+// Demo users for testing (only used when DEMO_MODE_ENABLED is true)
+const DEMO_USERS = DEMO_MODE_ENABLED ? [
   { email: "patient@demo.pillaxia.com", password: "DemoPatient2026!", role: "patient" as const, label: "Patient", icon: User, color: "bg-blue-500" },
   { email: "clinician@demo.pillaxia.com", password: "DemoClinician2026!", role: "clinician" as const, label: "Clinician", icon: Stethoscope, color: "bg-green-500" },
   { email: "pharmacist@demo.pillaxia.com", password: "DemoPharmacist2026!", role: "pharmacist" as const, label: "Pharmacist", icon: Pill, color: "bg-purple-500" },
   { email: "manager@demo.pillaxia.com", password: "DemoManager2026!", role: "manager" as const, label: "Manager", icon: Building2, color: "bg-violet-500" },
   { email: "admin@demo.pillaxia.com", password: "DemoAdmin2026!", role: "admin" as const, label: "Admin", icon: Shield, color: "bg-red-500" },
-];
+] : [];
 
 // Validation schemas
 const emailSchema = z.string().email("Please enter a valid email address");
@@ -685,38 +688,40 @@ const Auth = () => {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-pillaxia-navy-light/10 via-background to-pillaxia-purple/10 p-4">
       <div className="w-full max-w-md space-y-6">
-        {/* Demo Users Section */}
-        <Card className="shadow-pillaxia-card border-pillaxia-cyan/20">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-lg">Demo Accounts</CardTitle>
-            <CardDescription className="text-sm">
-              Click to auto-fill credentials, then click Sign In
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <div className="grid grid-cols-2 gap-2">
-              {DEMO_USERS.map((demoUser) => {
-                const Icon = demoUser.icon;
-                return (
-                  <button
-                    key={demoUser.role}
-                    onClick={() => handleDemoLogin(demoUser)}
-                    className={`flex items-center gap-2 p-3 rounded-lg border transition-all hover:scale-105 hover:shadow-md ${
-                      email === demoUser.email
-                        ? "border-primary bg-primary/10"
-                        : "border-border hover:border-primary/50"
-                    }`}
-                  >
-                    <div className={`p-1.5 rounded-full ${demoUser.color} text-white`}>
-                      <Icon className="h-4 w-4" />
-                    </div>
-                    <span className="font-medium text-sm">{demoUser.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
+        {/* Demo Users Section - Only shown when VITE_ENABLE_DEMO=true */}
+        {DEMO_MODE_ENABLED && DEMO_USERS.length > 0 && (
+          <Card className="shadow-pillaxia-card border-pillaxia-cyan/20">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg">Demo Accounts</CardTitle>
+              <CardDescription className="text-sm">
+                Click to auto-fill credentials, then click Sign In
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <div className="grid grid-cols-2 gap-2">
+                {DEMO_USERS.map((demoUser) => {
+                  const Icon = demoUser.icon;
+                  return (
+                    <button
+                      key={demoUser.role}
+                      onClick={() => handleDemoLogin(demoUser)}
+                      className={`flex items-center gap-2 p-3 rounded-lg border transition-all hover:scale-105 hover:shadow-md ${
+                        email === demoUser.email
+                          ? "border-primary bg-primary/10"
+                          : "border-border hover:border-primary/50"
+                      }`}
+                    >
+                      <div className={`p-1.5 rounded-full ${demoUser.color} text-white`}>
+                        <Icon className="h-4 w-4" />
+                      </div>
+                      <span className="font-medium text-sm">{demoUser.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Auth Form */}
         <Card className="shadow-pillaxia-card border-pillaxia-cyan/20">

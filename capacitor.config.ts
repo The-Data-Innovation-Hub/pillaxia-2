@@ -28,7 +28,9 @@ const config: CapacitorConfig = {
   android: {
     allowMixedContent: true,
     backgroundColor: '#8B5CF6',
-    webContentsDebuggingEnabled: true,
+    // SECURITY: Disable WebView debugging in production builds
+    // Enable only for local development by uncommenting
+    webContentsDebuggingEnabled: false,
     initialFocus: false,
     overrideUserAgent: undefined,
     appendUserAgent: undefined,
