@@ -1,17 +1,16 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getCorsHeaders, handleCorsPreflightRequest } from "../_shared/cors.ts";
+import { validators, validateSchema, validationErrorResponse } from "../_shared/validation.ts";
+import { withSentry, captureException } from "../_shared/sentry.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+// Input validation schema
+const notificationSchema = {
+  recipientId: validators.uuid(),
+  senderName: validators.string({ minLength: 1, maxLength: 100 }),
+  message: validators.string({ minLength: 1, maxLength: 2000 }),
+  notificationType: validators.optional(validators.string({ maxLength: 50 })),
 };
-
-interface NotificationRequest {
-  recipientId: string;
-  senderName: string;
-  message: string;
-  notificationType?: "encouragement" | "clinician_message" | "medication_reminder";
-}
 
 // Send WhatsApp via Twilio
 async function sendViaTwilio(
@@ -112,18 +111,31 @@ async function sendViaMeta(
   }
 }
 
-serve(async (req: Request): Promise<Response> => {
+serve(withSentry("send-whatsapp-notification", async (req: Request): Promise<Response> => {
+  const corsHeaders = getCorsHeaders(req.headers.get("origin"));
+  
   // Handle CORS preflight
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
-  }
+  const preflightResponse = handleCorsPreflightRequest(req);
+  if (preflightResponse) return preflightResponse;
 
   try {
-    const { recipientId, senderName, message, notificationType = "encouragement" }: NotificationRequest = await req.json();
-
-    if (!recipientId || !senderName || !message) {
-      throw new Error("Missing required fields");
+    // Parse and validate input
+    let body: unknown;
+    try {
+      body = await req.json();
+    } catch {
+      return new Response(
+        JSON.stringify({ error: "Invalid JSON body" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
+
+    const validation = validateSchema(notificationSchema, body);
+    if (!validation.success) {
+      return validationErrorResponse(validation, corsHeaders);
+    }
+
+    const { recipientId, senderName, message, notificationType = "encouragement" } = validation.data;
 
     // Create Supabase client
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -140,6 +152,7 @@ serve(async (req: Request): Promise<Response> => {
 
       if (prefError) {
         console.error("Error checking patient preferences:", prefError);
+        captureException(prefError);
       }
 
       if (prefData && prefData.whatsapp_clinician_messages === false) {
@@ -150,7 +163,7 @@ serve(async (req: Request): Promise<Response> => {
             reason: "user_disabled",
             message: "Patient has disabled WhatsApp notifications for clinician messages" 
           }),
-          { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
     } else if (notificationType === "medication_reminder") {
@@ -162,6 +175,7 @@ serve(async (req: Request): Promise<Response> => {
 
       if (prefError) {
         console.error("Error checking patient preferences:", prefError);
+        captureException(prefError);
       }
 
       if (prefData && prefData.whatsapp_reminders === false) {
@@ -172,7 +186,7 @@ serve(async (req: Request): Promise<Response> => {
             reason: "user_disabled",
             message: "Patient has disabled WhatsApp reminders" 
           }),
-          { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
     } else {
@@ -185,6 +199,7 @@ serve(async (req: Request): Promise<Response> => {
 
       if (settingError) {
         console.error("Error checking notification settings:", settingError);
+        captureException(settingError);
       }
 
       if (settingData && !settingData.is_enabled) {
@@ -195,7 +210,7 @@ serve(async (req: Request): Promise<Response> => {
             reason: "disabled",
             message: "Encouragement messages are disabled in settings" 
           }),
-          { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
     }
@@ -209,6 +224,7 @@ serve(async (req: Request): Promise<Response> => {
 
     if (profileError) {
       console.error("Error fetching profile:", profileError);
+      captureException(profileError);
       throw profileError;
     }
 
@@ -220,7 +236,7 @@ serve(async (req: Request): Promise<Response> => {
           reason: "no_phone",
           message: "Recipient has no phone number configured" 
         }),
-        { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
@@ -230,12 +246,15 @@ serve(async (req: Request): Promise<Response> => {
       phoneNumber = `+${phoneNumber}`;
     }
 
-    // Build message body
+    // Build message body (truncate to safe length)
+    const safeMessage = message.substring(0, 500);
+    const safeSenderName = senderName.substring(0, 50);
+    
     let messageBody: string;
     if (notificationType === "medication_reminder") {
-      messageBody = `💊 Pillaxia Reminder\n\n${message}\n\nOpen the app to mark as taken.`;
+      messageBody = `💊 Pillaxia Reminder\n\n${safeMessage}\n\nOpen the app to mark as taken.`;
     } else {
-      messageBody = `💬 New message from ${senderName} on Pillaxia:\n\n"${message.substring(0, 500)}"\n\nOpen the app to reply.`;
+      messageBody = `💬 New message from ${safeSenderName} on Pillaxia:\n\n"${safeMessage}"\n\nOpen the app to reply.`;
     }
 
     // Try Twilio first (primary), then Meta (fallback)
@@ -263,11 +282,11 @@ serve(async (req: Request): Promise<Response> => {
         notification_type: notifType,
         title: notificationType === "medication_reminder" 
           ? "Medication Reminder" 
-          : `Message from ${senderName}`,
-        body: message.substring(0, 200),
+          : `Message from ${safeSenderName}`,
+        body: safeMessage.substring(0, 200),
         status: "sent",
         metadata: { 
-          sender_name: senderName, 
+          sender_name: safeSenderName, 
           message_id: result.messageId,
           provider 
         },
@@ -280,7 +299,7 @@ serve(async (req: Request): Promise<Response> => {
           messageId: result.messageId,
           provider
         }),
-        { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     } else {
       // Both providers failed
@@ -290,11 +309,11 @@ serve(async (req: Request): Promise<Response> => {
         notification_type: notifType,
         title: notificationType === "medication_reminder" 
           ? "Medication Reminder" 
-          : `Message from ${senderName}`,
-        body: message.substring(0, 200),
+          : `Message from ${safeSenderName}`,
+        body: safeMessage.substring(0, 200),
         status: "failed",
         error_message: result.error?.slice(0, 500),
-        metadata: { sender_name: senderName, provider },
+        metadata: { sender_name: safeSenderName, provider },
       });
 
       // If neither is configured, return gracefully
@@ -306,7 +325,7 @@ serve(async (req: Request): Promise<Response> => {
             reason: "not_configured",
             message: "WhatsApp API credentials not configured" 
           }),
-          { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
 
@@ -314,9 +333,12 @@ serve(async (req: Request): Promise<Response> => {
     }
   } catch (error: unknown) {
     console.error("Error in send-whatsapp-notification:", error);
+    if (error instanceof Error) {
+      captureException(error);
+    }
     return new Response(
       JSON.stringify({ error: error instanceof Error ? error.message : String(error) }),
-      { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      { status: 500, headers: { ...getCorsHeaders(req.headers.get("origin")), "Content-Type": "application/json" } }
     );
   }
-});
+}));
