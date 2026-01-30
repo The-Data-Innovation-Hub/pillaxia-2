@@ -19,7 +19,7 @@ interface PatientInfo {
 
 export function useMissedDoseAlerts(
   patientInfoList: PatientInfo[],
-  enabled: boolean = true
+  enabled = true
 ) {
   const { toast } = useToast();
   const patientMapRef = useRef<Map<string, PatientInfo>>(new Map());

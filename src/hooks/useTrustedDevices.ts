@@ -98,7 +98,7 @@ export function useTrustedDevices() {
   }, [getDeviceToken]);
 
   // Trust the current device
-  const trustDevice = useCallback(async (days: number = 30): Promise<boolean> => {
+  const trustDevice = useCallback(async (days = 30): Promise<boolean> => {
     if (!user) return false;
     
     try {

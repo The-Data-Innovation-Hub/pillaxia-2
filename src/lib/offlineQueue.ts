@@ -332,7 +332,7 @@ class OfflineQueue {
   }
 
   // Request background sync if available
-  async requestBackgroundSync(tag: string = "sync-pending-actions"): Promise<boolean> {
+  async requestBackgroundSync(tag = "sync-pending-actions"): Promise<boolean> {
     if ("serviceWorker" in navigator && "sync" in ServiceWorkerRegistration.prototype) {
       try {
         const registration = await navigator.serviceWorker.ready;
