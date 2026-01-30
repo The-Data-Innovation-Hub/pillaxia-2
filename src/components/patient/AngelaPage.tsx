@@ -104,9 +104,13 @@ export function AngelaPage() {
         { id: assistantMessageId, role: "assistant", content: "", timestamp: new Date() },
       ]);
 
-      while (true) {
+      let streaming = true;
+      while (streaming) {
         const { done, value } = await reader.read();
-        if (done) break;
+        if (done) {
+          streaming = false;
+          break;
+        }
 
         textBuffer += decoder.decode(value, { stream: true });
 
