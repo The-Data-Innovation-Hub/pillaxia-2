@@ -71,7 +71,8 @@ serve(withSentry(FUNCTION_NAME, async (req: Request): Promise<Response> => {
       }
       
       try {
-        event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
+        // IMPORTANT: Use async version for Deno SubtleCrypto compatibility
+        event = await stripe.webhooks.constructEventAsync(body, signature, webhookSecret);
       } catch (signatureError) {
         logStep("ERROR", { message: "Invalid signature", error: String(signatureError) });
         await captureMessage("Invalid Stripe webhook signature", "warning", { 

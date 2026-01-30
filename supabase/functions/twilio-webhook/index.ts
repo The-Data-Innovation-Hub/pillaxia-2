@@ -1,7 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { withSentry, captureMessage } from "../_shared/sentry.ts";
-import { getCorsHeaders } from "../_shared/cors.ts";
+import { withSentry, captureMessage, captureException } from "../_shared/sentry.ts";
+import { getCorsHeaders, handleCorsPreflightRequest } from "../_shared/cors.ts";
 
 const FUNCTION_NAME = "twilio-webhook";
 
@@ -114,6 +114,7 @@ function validateCallback(formData: FormData): {
   const to = formData.get("To") as string;
   const accountSid = formData.get("AccountSid") as string;
 
+  // Validate MessageSid format (should start with SM or MM)
   if (!messageSid || typeof messageSid !== "string" || messageSid.length < 10) {
     return { valid: false, error: "Invalid or missing MessageSid" };
   }
@@ -191,6 +192,7 @@ async function processNotificationUpdate(
 
   if (updateError) {
     logStep(`Error updating notification ${notificationId}`, { error: updateError.message });
+    captureException(updateError);
   } else {
     logStep(`Updated notification ${notificationId} to status: ${newStatus}`);
   }
@@ -200,15 +202,14 @@ serve(withSentry(FUNCTION_NAME, async (req: Request): Promise<Response> => {
   const corsHeaders = getCorsHeaders(req.headers.get("origin"));
   
   // Handle CORS preflight
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
-  }
+  const preflightResponse = handleCorsPreflightRequest(req);
+  if (preflightResponse) return preflightResponse;
 
   try {
     // Read raw body for signature verification
     const rawBody = await req.text();
     
-    // Verify Twilio signature
+    // SECURITY: Verify Twilio signature (HMAC-SHA1)
     const signatureResult = await validateTwilioSignature(req, rawBody);
     if (!signatureResult.valid) {
       logStep("Signature validation failed", { reason: signatureResult.reason });
@@ -262,6 +263,7 @@ serve(withSentry(FUNCTION_NAME, async (req: Request): Promise<Response> => {
 
     if (fetchError) {
       logStep("Error fetching notifications", { error: fetchError.message });
+      captureException(fetchError);
       return new Response(JSON.stringify({ error: fetchError.message }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -302,6 +304,7 @@ serve(withSentry(FUNCTION_NAME, async (req: Request): Promise<Response> => {
     });
   } catch (error: unknown) {
     logStep("ERROR", { message: error instanceof Error ? error.message : String(error) });
+    if (error instanceof Error) captureException(error);
     return new Response(
       JSON.stringify({ error: error instanceof Error ? error.message : String(error) }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
