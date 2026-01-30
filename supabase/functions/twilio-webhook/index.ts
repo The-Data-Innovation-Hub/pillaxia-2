@@ -1,10 +1,9 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { captureException, captureMessage } from "../_shared/sentry.ts";
+import { getCorsHeaders } from "../_shared/cors.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+const FUNCTION_NAME = "twilio-webhook";
 
 /**
  * Twilio SMS/WhatsApp Status Callback Webhook
@@ -49,7 +48,50 @@ function mapTwilioStatus(twilioStatus: string): string {
   return statusMap[twilioStatus] || twilioStatus;
 }
 
+// Validate Twilio request signature
+async function validateTwilioSignature(
+  req: Request,
+  body: string
+): Promise<boolean> {
+  const twilioAuthToken = Deno.env.get("TWILIO_AUTH_TOKEN");
+  if (!twilioAuthToken) {
+    console.warn("[twilio-webhook] TWILIO_AUTH_TOKEN not set, skipping signature validation");
+    return true; // Allow in development
+  }
+
+  const signature = req.headers.get("X-Twilio-Signature");
+  if (!signature) {
+    console.error("[twilio-webhook] Missing X-Twilio-Signature header");
+    return false;
+  }
+
+  // Build the URL that Twilio signed (must match exactly)
+  const url = req.url;
+  
+  // Sort form parameters and create signature base
+  const params = new URLSearchParams(body);
+  const sortedParams = Array.from(params.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+  const paramString = sortedParams.map(([k, v]) => `${k}${v}`).join("");
+  const signatureBase = url + paramString;
+
+  // Generate HMAC-SHA1
+  const encoder = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    "raw",
+    encoder.encode(twilioAuthToken),
+    { name: "HMAC", hash: "SHA-1" },
+    false,
+    ["sign"]
+  );
+  const signatureBytes = await crypto.subtle.sign("HMAC", key, encoder.encode(signatureBase));
+  const expectedSignature = btoa(String.fromCharCode(...new Uint8Array(signatureBytes)));
+
+  return signature === expectedSignature;
+}
+
 serve(async (req: Request): Promise<Response> => {
+  const corsHeaders = getCorsHeaders(req.headers.get("origin"));
+  
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });

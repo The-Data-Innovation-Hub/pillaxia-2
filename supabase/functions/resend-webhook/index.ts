@@ -1,11 +1,10 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { encode as encodeBase64, decode as decodeBase64 } from "https://deno.land/std@0.190.0/encoding/base64.ts";
+import { decode as decodeBase64 } from "https://deno.land/std@0.190.0/encoding/base64.ts";
+import { captureException, captureMessage } from "../_shared/sentry.ts";
+import { getCorsHeaders } from "../_shared/cors.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, svix-id, svix-timestamp, svix-signature",
-};
+const FUNCTION_NAME = "resend-webhook";
 
 // Resend webhook event types we care about
 type ResendEventType = 
@@ -35,6 +34,11 @@ interface ResendWebhookEvent {
       feedback_type: string;
     };
   };
+}
+
+// Encode to base64 helper
+function encodeBase64(data: ArrayBuffer): string {
+  return btoa(String.fromCharCode(...new Uint8Array(data)));
 }
 
 // Verify webhook signature using Svix HMAC
@@ -120,6 +124,8 @@ function mapEventToStatus(eventType: ResendEventType): string {
 }
 
 serve(async (req: Request): Promise<Response> => {
+  const corsHeaders = getCorsHeaders(req.headers.get("origin"));
+  
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -136,12 +142,29 @@ serve(async (req: Request): Promise<Response> => {
     // Read the raw body for signature verification
     const payload = await req.text();
     
-    // Verify webhook signature if secret is configured
-    if (webhookSecret) {
+    // SECURITY: Require webhook secret in production
+    if (!webhookSecret) {
+      const isProduction = Deno.env.get("ENVIRONMENT") === "production";
+      if (isProduction) {
+        console.error("RESEND_WEBHOOK_SECRET required in production");
+        await captureMessage("RESEND_WEBHOOK_SECRET not configured in production", "fatal", { 
+          functionName: FUNCTION_NAME 
+        });
+        return new Response(
+          JSON.stringify({ error: "Configuration error" }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      console.warn("RESEND_WEBHOOK_SECRET not configured - skipping signature verification (development)");
+    } else {
+      // Verify webhook signature
       const isValid = await verifyWebhookSignature(payload, req.headers, webhookSecret);
       
       if (!isValid) {
         console.error("Invalid webhook signature");
+        await captureMessage("Invalid Resend webhook signature", "warning", { 
+          functionName: FUNCTION_NAME 
+        });
         return new Response(
           JSON.stringify({ error: "Invalid webhook signature" }),
           { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -149,8 +172,6 @@ serve(async (req: Request): Promise<Response> => {
       }
       
       console.log("Webhook signature verified successfully");
-    } else {
-      console.warn("RESEND_WEBHOOK_SECRET not configured - skipping signature verification");
     }
 
     const event: ResendWebhookEvent = JSON.parse(payload);

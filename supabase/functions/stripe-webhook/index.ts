@@ -1,11 +1,10 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@18.5.0";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
+import { captureException, captureMessage } from "../_shared/sentry.ts";
+import { getCorsHeaders } from "../_shared/cors.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, stripe-signature",
-};
+const FUNCTION_NAME = "stripe-webhook";
 
 const logStep = (step: string, details?: unknown) => {
   const detailsStr = details ? ` - ${JSON.stringify(details)}` : '';
@@ -13,6 +12,8 @@ const logStep = (step: string, details?: unknown) => {
 };
 
 serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req.headers.get("origin"));
+  
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -22,7 +23,27 @@ serve(async (req) => {
   
   if (!stripeKey) {
     logStep("ERROR", { message: "STRIPE_SECRET_KEY not configured" });
-    return new Response(JSON.stringify({ error: "Configuration error" }), { status: 500 });
+    await captureMessage("STRIPE_SECRET_KEY not configured", "error", { functionName: FUNCTION_NAME });
+    return new Response(JSON.stringify({ error: "Configuration error" }), { 
+      status: 500, 
+      headers: { ...corsHeaders, "Content-Type": "application/json" } 
+    });
+  }
+
+  // SECURITY: Require webhook secret in production
+  if (!webhookSecret) {
+    const isProduction = Deno.env.get("ENVIRONMENT") === "production";
+    if (isProduction) {
+      logStep("ERROR", { message: "STRIPE_WEBHOOK_SECRET required in production" });
+      await captureMessage("STRIPE_WEBHOOK_SECRET not configured in production", "fatal", { 
+        functionName: FUNCTION_NAME 
+      });
+      return new Response(JSON.stringify({ error: "Configuration error" }), { 
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" }
+      });
+    }
+    logStep("WARNING: Webhook signature verification disabled (development only)");
   }
 
   const stripe = new Stripe(stripeKey, { apiVersion: "2025-08-27.basil" });
@@ -37,17 +58,32 @@ serve(async (req) => {
     const body = await req.text();
     let event: Stripe.Event;
 
-    // Verify webhook signature if secret is configured
+    // Verify webhook signature
     if (webhookSecret) {
       const signature = req.headers.get("stripe-signature");
       if (!signature) {
-        throw new Error("No Stripe signature found");
+        logStep("ERROR", { message: "Missing stripe-signature header" });
+        return new Response(JSON.stringify({ error: "No Stripe signature found" }), { 
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
       }
-      event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
+      
+      try {
+        event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
+      } catch (signatureError) {
+        logStep("ERROR", { message: "Invalid signature", error: String(signatureError) });
+        await captureMessage("Invalid Stripe webhook signature", "warning", { 
+          functionName: FUNCTION_NAME 
+        });
+        return new Response(JSON.stringify({ error: "Invalid signature" }), { 
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      }
     } else {
-      // For development, parse without verification
+      // Development fallback
       event = JSON.parse(body);
-      logStep("WARNING: Webhook signature verification skipped (no secret configured)");
     }
 
     logStep("Event received", { type: event.type, id: event.id });
@@ -286,6 +322,12 @@ serve(async (req) => {
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     logStep("ERROR", { message: errorMessage });
+    
+    await captureException(error instanceof Error ? error : new Error(errorMessage), {
+      functionName: FUNCTION_NAME,
+      request: req,
+    });
+    
     return new Response(JSON.stringify({ error: errorMessage }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 400,
