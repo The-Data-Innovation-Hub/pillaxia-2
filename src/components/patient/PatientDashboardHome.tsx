@@ -1,12 +1,16 @@
+/**
+ * Patient Dashboard Home - Main dashboard view for patients.
+ * Refactored to use smaller, focused sub-components for maintainability.
+ */
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
-import { Pill, Calendar, ClipboardList, TrendingUp, Plus, Bot, CloudOff, RefreshCw, Settings } from "lucide-react";
-import { format } from "date-fns";
-import { useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+
+// Dashboard sub-components
+import { DashboardStats, QuickActions, WelcomeSection, SetupPrompt } from "./dashboard";
+
+// Feature components
 import { CaregiverInvitationsReceived } from "./CaregiverInvitationsReceived";
 import { PatientMessagesCard } from "./PatientMessagesCard";
 import { ClinicianMessagesCard } from "./ClinicianMessagesCard";
@@ -18,9 +22,10 @@ import { EngagementScoreCard } from "./EngagementScoreCard";
 import { AppointmentsCard } from "./AppointmentsCard";
 import { PrescriptionStatusCard } from "./PrescriptionStatusCard";
 import { NotificationCenterCard } from "./NotificationCenterCard";
+
+// Hooks
 import { useCachedTodaysSchedule } from "@/hooks/useCachedTodaysSchedule";
 import { useOfflineStatus } from "@/hooks/useOfflineStatus";
-import { useQuery } from "@tanstack/react-query";
 
 interface DashboardStats {
   totalMedications: number;
@@ -32,7 +37,6 @@ interface DashboardStats {
 
 export function PatientDashboardHome() {
   const { user, profile } = useAuth();
-  const navigate = useNavigate();
   const { isOnline } = useOfflineStatus();
   const { logs: cachedLogs, isFromCache, refresh: refreshSchedule } = useCachedTodaysSchedule();
   const [showSetupWizard, setShowSetupWizard] = useState(false);
@@ -49,7 +53,7 @@ export function PatientDashboardHome() {
   const { data: hasPreferences, isLoading: checkingPrefs } = useQuery({
     queryKey: ["check-notification-preferences", user?.id],
     queryFn: async () => {
-      if (!user) return true; // Assume set up if no user
+      if (!user) return true;
       const { data, error } = await supabase
         .from("patient_notification_preferences")
         .select("id")
@@ -57,7 +61,7 @@ export function PatientDashboardHome() {
         .maybeSingle();
       if (error) {
         console.error("Error checking preferences:", error);
-        return true; // Assume set up on error
+        return true;
       }
       return !!data;
     },
@@ -134,20 +138,13 @@ export function PatientDashboardHome() {
     }
   };
 
-  const greeting = () => {
-    const hour = new Date().getHours();
-    if (hour < 12) return "Good morning";
-    if (hour < 18) return "Good afternoon";
-    return "Good evening";
-  };
-
   const handleSyncComplete = async () => {
     await fetchStats();
     await refreshSchedule();
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" role="main" aria-label="Patient Dashboard">
       {/* Full Onboarding Flow for new users */}
       <OnboardingFlow />
 
@@ -159,24 +156,7 @@ export function PatientDashboardHome() {
 
       {/* Setup Prompt for New Users */}
       {!checkingPrefs && !hasPreferences && (
-        <Card className="border-primary/30 bg-primary/5">
-          <CardContent className="flex items-center justify-between py-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-primary/20 rounded-full flex items-center justify-center">
-                <Settings className="h-5 w-5 text-primary" />
-              </div>
-              <div>
-                <h3 className="font-semibold">Set up your notifications</h3>
-                <p className="text-sm text-muted-foreground">
-                  Configure how you'd like to receive medication reminders
-                </p>
-              </div>
-            </div>
-            <Button onClick={() => setShowSetupWizard(true)}>
-              Get Started
-            </Button>
-          </CardContent>
-        </Card>
+        <SetupPrompt onSetupClick={() => setShowSetupWizard(true)} />
       )}
 
       {/* Sync Status Indicator */}
@@ -192,100 +172,15 @@ export function PatientDashboardHome() {
       <ClinicianMessagesCard />
 
       {/* Welcome Section */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="min-w-0">
-          <h1 className="text-2xl font-bold break-words">
-            {greeting()}, {profile?.first_name || "there"}! 👋
-          </h1>
-          <p className="text-muted-foreground">
-            {format(new Date(), "EEEE, MMMM d, yyyy")}
-          </p>
-        </div>
-        <Button
-          onClick={() => navigate("/dashboard/angela")}
-          className="gap-2 w-full sm:w-auto shrink-0"
-        >
-          <Bot className="h-4 w-4" />
-          Ask Angela
-        </Button>
-      </div>
+      <WelcomeSection profile={profile} />
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate("/dashboard/medications")}>
-          <CardHeader className="flex flex-col items-center justify-center pb-2">
-            <Pill className="h-5 w-5 text-muted-foreground mb-1" />
-            <CardTitle className="text-sm font-bold text-center">
-              Active Medications
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="text-center">
-            <div className="text-2xl font-bold">{stats.totalMedications}</div>
-            <p className="text-xs text-muted-foreground">medications being tracked</p>
-          </CardContent>
-        </Card>
-
-        <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate("/dashboard/schedule")}>
-          <CardHeader className="flex flex-col items-center justify-center pb-2">
-            {isFromCache && !isOnline ? (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6 mb-1"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  refreshSchedule();
-                }}
-              >
-                <RefreshCw className="h-5 w-5 text-muted-foreground" />
-              </Button>
-            ) : (
-              <Calendar className="h-5 w-5 text-muted-foreground mb-1" />
-            )}
-            <CardTitle className="text-sm font-bold text-center flex items-center gap-1.5">
-              Today's Progress
-              {isFromCache && !isOnline && (
-                <CloudOff className="h-3 w-3 text-warning" />
-              )}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="text-center">
-            <div className="text-2xl font-bold">
-              {stats.takenDoses}/{stats.todaysDoses}
-            </div>
-            <Progress value={stats.adherenceRate} className="mt-2" />
-            {isFromCache && !isOnline && (
-              <p className="text-xs text-warning mt-1">Cached data</p>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-col items-center justify-center pb-2">
-            <TrendingUp className="h-5 w-5 text-muted-foreground mb-1" />
-            <CardTitle className="text-sm font-bold text-center">
-              Adherence Rate
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="text-center">
-            <div className="text-2xl font-bold text-primary">{stats.adherenceRate}%</div>
-            <p className="text-xs text-muted-foreground">today's completion</p>
-          </CardContent>
-        </Card>
-
-        <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate("/dashboard/symptoms")}>
-          <CardHeader className="flex flex-col items-center justify-center pb-2">
-            <ClipboardList className="h-5 w-5 text-muted-foreground mb-1" />
-            <CardTitle className="text-sm font-bold text-center">
-              Symptoms Logged
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="text-center">
-            <div className="text-2xl font-bold">{stats.recentSymptoms}</div>
-            <p className="text-xs text-muted-foreground">in the last 7 days</p>
-          </CardContent>
-        </Card>
-      </div>
+      <DashboardStats
+        stats={stats}
+        isFromCache={isFromCache}
+        isOnline={isOnline}
+        onRefresh={refreshSchedule}
+      />
 
       {/* Prescription Status */}
       <PrescriptionStatusCard />
@@ -303,31 +198,7 @@ export function PatientDashboardHome() {
       <NotificationChannelsCard />
 
       {/* Quick Actions */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Quick Actions</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <Button variant="outline" className="h-auto py-4 flex-col gap-2" onClick={() => navigate("/dashboard/medications")}>
-              <Plus className="h-5 w-5" />
-              <span>Add Medication</span>
-            </Button>
-            <Button variant="outline" className="h-auto py-4 flex-col gap-2" onClick={() => navigate("/dashboard/schedule")}>
-              <Calendar className="h-5 w-5" />
-              <span>View Schedule</span>
-            </Button>
-            <Button variant="outline" className="h-auto py-4 flex-col gap-2" onClick={() => navigate("/dashboard/symptoms")}>
-              <ClipboardList className="h-5 w-5" />
-              <span>Log Symptom</span>
-            </Button>
-            <Button variant="outline" className="h-auto py-4 flex-col gap-2" onClick={() => navigate("/dashboard/angela")}>
-              <Bot className="h-5 w-5" />
-              <span>Ask Angela</span>
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+      <QuickActions />
     </div>
   );
 }

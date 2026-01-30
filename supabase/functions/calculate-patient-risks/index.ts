@@ -1,7 +1,26 @@
+/**
+ * Edge function to calculate patient risk flags for clinicians.
+ * Optimized to use batch queries instead of N+1 individual queries.
+ */
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders } from "../_shared/cors.ts";
 import { withSentry, captureException } from "../_shared/sentry.ts";
+
+interface Assignment {
+  clinician_user_id: string;
+  patient_user_id: string;
+}
+
+interface RiskFlag {
+  patient_user_id: string;
+  clinician_user_id: string;
+  flag_type: string;
+  severity: string;
+  description: string;
+  metric_value?: number;
+  days_since_last_log?: number;
+}
 
 serve(withSentry("calculate-patient-risks", async (req) => {
   const corsHeaders = getCorsHeaders(req.headers.get("origin"));
@@ -11,7 +30,7 @@ serve(withSentry("calculate-patient-risks", async (req) => {
   }
 
   try {
-    console.log("Calculating patient risk flags...");
+    console.log("Calculating patient risk flags (optimized batch queries)...");
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
@@ -31,48 +50,98 @@ serve(withSentry("calculate-patient-risks", async (req) => {
       throw assignError;
     }
 
-    console.log(`Found ${assignments?.length || 0} clinician-patient assignments`);
+    if (!assignments || assignments.length === 0) {
+      return new Response(
+        JSON.stringify({ success: true, flagsProcessed: 0, message: "No assignments found" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
-    const riskFlags: Array<{
-      patient_user_id: string;
-      clinician_user_id: string;
-      flag_type: string;
-      severity: string;
-      description: string;
-      metric_value?: number;
-      days_since_last_log?: number;
-    }> = [];
+    console.log(`Found ${assignments.length} clinician-patient assignments`);
 
-    for (const assignment of assignments || []) {
-      const { patient_user_id, clinician_user_id } = assignment;
+    // Extract unique patient IDs
+    const patientIds = [...new Set(assignments.map((a: Assignment) => a.patient_user_id))];
 
-      // Check for 3+ days no logging
-      const { data: recentLogs, error: logError } = await supabase
+    // BATCH QUERY 1: Get recent logs (last 3 days) for all patients at once
+    const { data: recentLogs, error: recentLogsError } = await supabase
+      .from("medication_logs")
+      .select("user_id, created_at")
+      .in("user_id", patientIds)
+      .gte("created_at", threeDaysAgo.toISOString());
+
+    if (recentLogsError) {
+      console.error("Error fetching recent logs:", recentLogsError);
+      throw recentLogsError;
+    }
+
+    // Create set of patients with recent activity
+    const patientsWithRecentActivity = new Set(
+      (recentLogs || []).map((log: { user_id: string }) => log.user_id)
+    );
+
+    // BATCH QUERY 2: Get last log date for patients without recent activity
+    const inactivePatients = patientIds.filter(
+      (id) => !patientsWithRecentActivity.has(id)
+    );
+
+    const lastLogByPatient: Record<string, Date | null> = {};
+
+    if (inactivePatients.length > 0) {
+      // Get the most recent log for each inactive patient
+      const { data: lastLogs, error: lastLogsError } = await supabase
         .from("medication_logs")
-        .select("created_at")
-        .eq("user_id", patient_user_id)
-        .gte("created_at", threeDaysAgo.toISOString())
-        .limit(1);
+        .select("user_id, created_at")
+        .in("user_id", inactivePatients)
+        .order("created_at", { ascending: false });
 
-      if (logError) {
-        console.error(`Error checking logs for patient ${patient_user_id}:`, logError);
-        continue;
+      if (lastLogsError) {
+        console.error("Error fetching last logs:", lastLogsError);
+        // Don't throw - continue with partial data
       }
 
-      if (!recentLogs || recentLogs.length === 0) {
-        // Get the last log date
-        const { data: lastLog } = await supabase
-          .from("medication_logs")
-          .select("created_at")
-          .eq("user_id", patient_user_id)
-          .order("created_at", { ascending: false })
-          .limit(1);
+      // Build map of last log per patient
+      for (const log of lastLogs || []) {
+        if (!lastLogByPatient[log.user_id]) {
+          lastLogByPatient[log.user_id] = new Date(log.created_at);
+        }
+      }
+    }
 
-        const lastLogDate = lastLog?.[0]?.created_at 
-          ? new Date(lastLog[0].created_at)
-          : null;
+    // BATCH QUERY 3: Get 2-week adherence data for all patients
+    const { data: adherenceLogs, error: adherenceError } = await supabase
+      .from("medication_logs")
+      .select("user_id, status")
+      .in("user_id", patientIds)
+      .gte("scheduled_time", twoWeeksAgo.toISOString())
+      .lte("scheduled_time", now.toISOString());
 
-        const daysSinceLastLog = lastLogDate 
+    if (adherenceError) {
+      console.error("Error fetching adherence logs:", adherenceError);
+      throw adherenceError;
+    }
+
+    // Calculate adherence per patient
+    const adherenceByPatient: Record<string, { total: number; taken: number }> = {};
+    for (const log of adherenceLogs || []) {
+      if (!adherenceByPatient[log.user_id]) {
+        adherenceByPatient[log.user_id] = { total: 0, taken: 0 };
+      }
+      adherenceByPatient[log.user_id].total++;
+      if (log.status === "taken") {
+        adherenceByPatient[log.user_id].taken++;
+      }
+    }
+
+    // Build risk flags from aggregated data
+    const riskFlags: RiskFlag[] = [];
+
+    for (const assignment of assignments as Assignment[]) {
+      const { patient_user_id, clinician_user_id } = assignment;
+
+      // Check for no logging (3+ days)
+      if (!patientsWithRecentActivity.has(patient_user_id)) {
+        const lastLogDate = lastLogByPatient[patient_user_id] || null;
+        const daysSinceLastLog = lastLogDate
           ? Math.floor((now.getTime() - lastLogDate.getTime()) / (1000 * 60 * 60 * 24))
           : 999;
 
@@ -88,22 +157,10 @@ serve(withSentry("calculate-patient-risks", async (req) => {
         }
       }
 
-      // Check for <70% adherence over 2 weeks
-      const { data: twoWeekLogs, error: adherenceError } = await supabase
-        .from("medication_logs")
-        .select("status")
-        .eq("user_id", patient_user_id)
-        .gte("scheduled_time", twoWeeksAgo.toISOString())
-        .lte("scheduled_time", now.toISOString());
-
-      if (adherenceError) {
-        console.error(`Error checking adherence for patient ${patient_user_id}:`, adherenceError);
-        continue;
-      }
-
-      if (twoWeekLogs && twoWeekLogs.length > 0) {
-        const takenCount = twoWeekLogs.filter(log => log.status === "taken").length;
-        const adherenceRate = (takenCount / twoWeekLogs.length) * 100;
+      // Check for low adherence (<70%)
+      const adherence = adherenceByPatient[patient_user_id];
+      if (adherence && adherence.total > 0) {
+        const adherenceRate = (adherence.taken / adherence.total) * 100;
 
         if (adherenceRate < 70) {
           riskFlags.push({
@@ -118,83 +175,111 @@ serve(withSentry("calculate-patient-risks", async (req) => {
       }
     }
 
-    console.log(`Found ${riskFlags.length} risk flags to upsert`);
+    console.log(`Found ${riskFlags.length} risk flags to process`);
 
-    // Upsert risk flags (resolve old ones first, then insert new)
-    if (riskFlags.length > 0) {
-      for (const flag of riskFlags) {
-        const { data: existing } = await supabase
-          .from("patient_risk_flags")
-          .select("id")
-          .eq("patient_user_id", flag.patient_user_id)
-          .eq("clinician_user_id", flag.clinician_user_id)
-          .eq("flag_type", flag.flag_type)
-          .eq("is_resolved", false)
-          .maybeSingle();
-
-        if (!existing) {
-          const { error: insertError } = await supabase
-            .from("patient_risk_flags")
-            .insert(flag);
-
-          if (insertError) {
-            console.error("Error inserting risk flag:", insertError);
-          }
-        } else {
-          const { error: updateError } = await supabase
-            .from("patient_risk_flags")
-            .update({
-              severity: flag.severity,
-              description: flag.description,
-              metric_value: flag.metric_value,
-              days_since_last_log: flag.days_since_last_log,
-            })
-            .eq("id", existing.id);
-
-          if (updateError) {
-            console.error("Error updating risk flag:", updateError);
-          }
-        }
-      }
-    }
-
-    // Auto-resolve flags that no longer apply
-    const patientClinicianPairs = riskFlags.map(f => ({
-      patient: f.patient_user_id,
-      clinician: f.clinician_user_id,
-      type: f.flag_type,
-    }));
-
-    const { data: unresolvedFlags } = await supabase
+    // BATCH QUERY 4: Get existing unresolved flags
+    const { data: existingFlags, error: existingError } = await supabase
       .from("patient_risk_flags")
       .select("id, patient_user_id, clinician_user_id, flag_type")
       .eq("is_resolved", false);
 
-    for (const flag of unresolvedFlags || []) {
-      const stillApplies = patientClinicianPairs.some(
-        p => p.patient === flag.patient_user_id && 
-             p.clinician === flag.clinician_user_id && 
-             p.type === flag.flag_type
-      );
+    if (existingError) {
+      console.error("Error fetching existing flags:", existingError);
+      throw existingError;
+    }
 
-      if (!stillApplies) {
-        await supabase
-          .from("patient_risk_flags")
-          .update({ 
-            is_resolved: true, 
-            resolved_at: new Date().toISOString(),
-            description: "Auto-resolved: condition no longer applies"
-          })
-          .eq("id", flag.id);
-        console.log(`Auto-resolved flag ${flag.id}`);
+    // Build lookup for existing flags
+    const existingFlagKeys = new Set(
+      (existingFlags || []).map(
+        (f: { patient_user_id: string; clinician_user_id: string; flag_type: string }) =>
+          `${f.patient_user_id}:${f.clinician_user_id}:${f.flag_type}`
+      )
+    );
+
+    // Separate new flags from updates
+    const newFlags: RiskFlag[] = [];
+    const updateFlags: RiskFlag[] = [];
+
+    for (const flag of riskFlags) {
+      const key = `${flag.patient_user_id}:${flag.clinician_user_id}:${flag.flag_type}`;
+      if (existingFlagKeys.has(key)) {
+        updateFlags.push(flag);
+      } else {
+        newFlags.push(flag);
+      }
+    }
+
+    // BATCH INSERT new flags
+    if (newFlags.length > 0) {
+      const { error: insertError } = await supabase
+        .from("patient_risk_flags")
+        .insert(newFlags);
+
+      if (insertError) {
+        console.error("Error batch inserting risk flags:", insertError);
+      } else {
+        console.log(`Inserted ${newFlags.length} new risk flags`);
+      }
+    }
+
+    // UPDATE existing flags (batch by similar updates)
+    for (const flag of updateFlags) {
+      const { error: updateError } = await supabase
+        .from("patient_risk_flags")
+        .update({
+          severity: flag.severity,
+          description: flag.description,
+          metric_value: flag.metric_value,
+          days_since_last_log: flag.days_since_last_log,
+        })
+        .eq("patient_user_id", flag.patient_user_id)
+        .eq("clinician_user_id", flag.clinician_user_id)
+        .eq("flag_type", flag.flag_type)
+        .eq("is_resolved", false);
+
+      if (updateError) {
+        console.error("Error updating risk flag:", updateError);
+      }
+    }
+
+    // Auto-resolve flags that no longer apply
+    const currentFlagKeys = new Set(
+      riskFlags.map((f) => `${f.patient_user_id}:${f.clinician_user_id}:${f.flag_type}`)
+    );
+
+    const flagsToResolve = (existingFlags || []).filter(
+      (f: { patient_user_id: string; clinician_user_id: string; flag_type: string }) => {
+        const key = `${f.patient_user_id}:${f.clinician_user_id}:${f.flag_type}`;
+        return !currentFlagKeys.has(key);
+      }
+    );
+
+    if (flagsToResolve.length > 0) {
+      const idsToResolve = flagsToResolve.map((f: { id: string }) => f.id);
+      const { error: resolveError } = await supabase
+        .from("patient_risk_flags")
+        .update({
+          is_resolved: true,
+          resolved_at: new Date().toISOString(),
+          description: "Auto-resolved: condition no longer applies",
+        })
+        .in("id", idsToResolve);
+
+      if (resolveError) {
+        console.error("Error resolving flags:", resolveError);
+      } else {
+        console.log(`Auto-resolved ${flagsToResolve.length} flags`);
       }
     }
 
     return new Response(
-      JSON.stringify({ 
-        success: true, 
+      JSON.stringify({
+        success: true,
         flagsProcessed: riskFlags.length,
-        message: `Processed ${riskFlags.length} risk flags`
+        newFlags: newFlags.length,
+        updatedFlags: updateFlags.length,
+        resolvedFlags: flagsToResolve.length,
+        message: `Processed ${riskFlags.length} risk flags using batch queries`,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
