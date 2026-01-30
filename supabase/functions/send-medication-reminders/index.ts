@@ -1,513 +1,288 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+/**
+ * Send Medication Reminders Edge Function
+ * 
+ * Orchestrates multi-channel medication reminders (email, SMS, WhatsApp, push)
+ * using shared modules for reusable logic.
+ */
+
+import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders, handleCorsPreflightRequest } from "../_shared/cors.ts";
 import { withSentry, captureException } from "../_shared/sentry.ts";
+import { sendEmail } from "../_shared/email/sendEmail.ts";
+import { isInQuietHours } from "../_shared/notifications/quietHours.ts";
+import { fetchUserPreferences, PatientNotificationPreferences } from "../_shared/notifications/userPreferences.ts";
+import { fetchUpcomingDoses, groupDosesByUser, getMedicationNames, MedicationDose } from "../_shared/medications/upcomingDoses.ts";
+import { generateMedicationReminderHtml, generateMedicationReminderSubject } from "../_shared/email/templates/medicationReminder.ts";
 
-const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
+// deno-lint-ignore no-explicit-any
+type AnySupabaseClient = SupabaseClient<any, any, any>;
 
-// HTML escape function to prevent XSS
-function escapeHtml(text: string): string {
-  const map: Record<string, string> = {
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    '"': '&quot;',
-    "'": '&#039;',
-  };
-  return text.replace(/[&<>"']/g, (m) => map[m]);
+interface NotificationResult {
+  userId: string;
+  success: boolean;
+  email?: string;
+  result?: unknown;
+  error?: string;
+  skipped?: string;
 }
 
-async function sendEmail(to: string[], subject: string, html: string): Promise<{ id: string }> {
-  const res = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${RESEND_API_KEY}`,
+interface ProfileData {
+  email: string | null;
+  first_name: string | null;
+}
+
+async function sendPushNotifications(
+  supabase: AnySupabaseClient,
+  userId: string,
+  medNames: string,
+  doseCount: number
+): Promise<void> {
+  // Web push
+  await supabase.functions.invoke("send-push-notification", {
+    body: {
+      user_ids: [userId],
+      payload: {
+        title: "💊 Medication Reminder",
+        body: `Time to take: ${medNames}`,
+        tag: "medication-reminder",
+        data: { url: "/dashboard/schedule" },
+      },
     },
-    body: JSON.stringify({
-      from: "Pillaxia <noreply@thedatainnovationhub.com>",
-      to,
-      subject,
-      html,
-    }),
   });
-  
-  if (!res.ok) {
-    const error = await res.text();
-    throw new Error(`Resend API error: ${error}`);
+
+  // Native iOS push
+  try {
+    await supabase.functions.invoke("send-native-push", {
+      body: {
+        user_ids: [userId],
+        payload: {
+          title: "💊 Medication Reminder",
+          body: `Time to take: ${medNames}`,
+          badge: doseCount,
+          sound: "default",
+          data: { url: "/dashboard/schedule" },
+        },
+      },
+    });
+  } catch (err) {
+    console.error(`Native iOS push error for user ${userId}:`, err);
   }
-  
-  const data = await res.json();
-  return { id: data.id };
 }
 
-interface MedicationInfo {
-  name: string;
-  dosage: string;
-  dosage_unit: string;
-  form: string;
-  instructions: string | null;
+async function sendSmsNotification(
+  supabase: AnySupabaseClient,
+  userId: string,
+  medNames: string,
+  doseCount: number
+): Promise<NotificationResult> {
+  try {
+    const message = `Pillaxia Reminder: Time to take ${medNames}. ${doseCount} dose${doseCount > 1 ? "s" : ""} scheduled now.`;
+    const { data, error } = await supabase.functions.invoke("send-sms-notification", {
+      body: { user_id: userId, message, notification_type: "medication_reminder", metadata: { dose_count: doseCount } },
+    });
+
+    if (error) return { userId, success: false, error: String(error) };
+    if (data?.skipped) return { userId, success: true, skipped: data.error };
+    return { userId, success: true };
+  } catch (err) {
+    return { userId, success: false, error: String(err) };
+  }
 }
 
-interface ScheduleInfo {
-  quantity: number;
-  with_food: boolean;
+async function sendWhatsAppNotification(
+  supabase: AnySupabaseClient,
+  userId: string,
+  medNames: string,
+  doseCount: number
+): Promise<NotificationResult> {
+  try {
+    const message = `Time to take ${medNames}. ${doseCount} dose${doseCount > 1 ? "s" : ""} scheduled now.`;
+    const { data, error } = await supabase.functions.invoke("send-whatsapp-notification", {
+      body: { recipientId: userId, senderName: "Pillaxia", message, notificationType: "medication_reminder" },
+    });
+
+    if (error) return { userId, success: false, error: String(error) };
+    if (data?.reason === "no_phone" || data?.reason === "not_configured" || data?.reason === "user_disabled") {
+      return { userId, success: true, skipped: data.reason };
+    }
+    if (data?.success) return { userId, success: true };
+    return { userId, success: false, error: data?.message || "unknown" };
+  } catch (err) {
+    return { userId, success: false, error: String(err) };
+  }
 }
 
-interface MedicationDose {
-  id: string;
-  scheduled_time: string;
-  user_id: string;
-  medications: MedicationInfo | MedicationInfo[] | null;
-  medication_schedules: ScheduleInfo | ScheduleInfo[] | null;
-}
+async function processUserReminder(
+  supabase: AnySupabaseClient,
+  userId: string,
+  userDoses: MedicationDose[],
+  prefs: PatientNotificationPreferences | undefined
+): Promise<{ email: NotificationResult; sms: NotificationResult; whatsapp: NotificationResult }> {
+  const medNames = getMedicationNames(userDoses);
+  const doseCount = userDoses.length;
 
-interface PatientPreferences {
-  email_reminders: boolean;
-  sms_reminders: boolean;
-  whatsapp_reminders: boolean;
-  in_app_reminders: boolean;
-  quiet_hours_enabled: boolean;
-  quiet_hours_start: string | null;
-  quiet_hours_end: string | null;
-}
-
-function isInQuietHours(prefs: PatientPreferences): boolean {
-  if (!prefs.quiet_hours_enabled || !prefs.quiet_hours_start || !prefs.quiet_hours_end) {
-    return false;
+  // Check preferences and quiet hours
+  if (prefs && !prefs.email_reminders) {
+    return {
+      email: { userId, success: true, skipped: "email_reminders_disabled" },
+      sms: { userId, success: true, skipped: "email_skipped" },
+      whatsapp: { userId, success: true, skipped: "email_skipped" },
+    };
   }
 
-  const now = new Date();
-  const currentTime = now.toTimeString().slice(0, 5); // HH:MM format
-  const start = prefs.quiet_hours_start.slice(0, 5);
-  const end = prefs.quiet_hours_end.slice(0, 5);
-
-  // Handle overnight quiet hours (e.g., 22:00 to 07:00)
-  if (start > end) {
-    return currentTime >= start || currentTime < end;
+  if (prefs && isInQuietHours(prefs)) {
+    return {
+      email: { userId, success: true, skipped: "quiet_hours" },
+      sms: { userId, success: true, skipped: "quiet_hours" },
+      whatsapp: { userId, success: true, skipped: "quiet_hours" },
+    };
   }
-  
-  return currentTime >= start && currentTime < end;
+
+  // Get user profile
+  const { data: profileData, error: profileError } = await supabase
+    .from("profiles")
+    .select("email, first_name")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  const profile = profileData as ProfileData | null;
+
+  if (profileError || !profile?.email) {
+    return {
+      email: { userId, success: false, error: "no_email" },
+      sms: { userId, success: true, skipped: "no_profile" },
+      whatsapp: { userId, success: true, skipped: "no_profile" },
+    };
+  }
+
+  // Send email
+  let emailResult: NotificationResult;
+  try {
+    const html = generateMedicationReminderHtml({ firstName: profile.first_name || "there", doses: userDoses });
+    const subject = generateMedicationReminderSubject(doseCount);
+    const result = await sendEmail({ to: [profile.email], subject, html });
+
+    emailResult = { userId, email: profile.email, success: true, result };
+
+    // Log successful notification
+    await supabase.from("notification_history").insert({
+      user_id: userId,
+      channel: "email",
+      notification_type: "medication_reminder",
+      title: subject,
+      body: `Upcoming medication${doseCount > 1 ? "s" : ""} to take soon`,
+      status: "sent",
+      metadata: { recipient_email: profile.email, dose_count: doseCount, resend_email_id: result.id },
+    });
+
+    // Send push notifications if enabled
+    if (!prefs || prefs.in_app_reminders) {
+      await sendPushNotifications(supabase, userId, medNames, doseCount);
+    }
+  } catch (err) {
+    emailResult = { userId, email: profile.email, success: false, error: String(err) };
+    if (err instanceof Error) captureException(err);
+    await supabase.from("notification_history").insert({
+      user_id: userId,
+      channel: "email",
+      notification_type: "medication_reminder",
+      title: generateMedicationReminderSubject(doseCount),
+      status: "failed",
+      error_message: String(err).slice(0, 500),
+      metadata: { recipient_email: profile.email, dose_count: doseCount },
+    });
+  }
+
+  // Send SMS and WhatsApp
+  const smsResult = (!prefs || prefs.sms_reminders)
+    ? await sendSmsNotification(supabase, userId, medNames, doseCount)
+    : { userId, success: true, skipped: "sms_reminders_disabled" };
+
+  const whatsappResult = (!prefs || prefs.whatsapp_reminders)
+    ? await sendWhatsAppNotification(supabase, userId, medNames, doseCount)
+    : { userId, success: true, skipped: "whatsapp_reminders_disabled" };
+
+  return { email: emailResult, sms: smsResult, whatsapp: whatsappResult };
 }
 
 Deno.serve(withSentry("send-medication-reminders", async (req: Request) => {
   const corsHeaders = getCorsHeaders(req.headers.get("origin"));
-  
-  // Handle CORS preflight
   const preflightResponse = handleCorsPreflightRequest(req);
   if (preflightResponse) return preflightResponse;
 
   try {
     console.log("Starting medication reminder job...");
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+    );
 
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
-
-    // Check if medication reminders are enabled globally
-    const { data: settingData, error: settingError } = await supabase
+    // Check global setting
+    const { data: settingData } = await supabase
       .from("notification_settings")
       .select("is_enabled")
       .eq("setting_key", "medication_reminders")
       .maybeSingle();
 
-    if (settingError) {
-      console.error("Error checking notification settings:", settingError);
-      captureException(settingError);
-    }
-
     if (settingData && !settingData.is_enabled) {
-      console.log("Medication reminders are disabled globally, skipping...");
       return new Response(
         JSON.stringify({ message: "Medication reminders are disabled" }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Get current time and look 30 minutes ahead for upcoming doses
+    // Fetch upcoming doses (30 min window)
     const now = new Date();
     const thirtyMinutesLater = new Date(now.getTime() + 30 * 60 * 1000);
+    const doses = await fetchUpcomingDoses(supabase, now, thirtyMinutesLater);
 
-    console.log(`Looking for doses between ${now.toISOString()} and ${thirtyMinutesLater.toISOString()}`);
-
-    // Find pending medication logs that are scheduled within the next 30 minutes
-    const { data: upcomingDoses, error: dosesError } = await supabase
-      .from("medication_logs")
-      .select(`
-        id,
-        scheduled_time,
-        user_id,
-        medications (name, dosage, dosage_unit, form, instructions),
-        medication_schedules (quantity, with_food)
-      `)
-      .eq("status", "pending")
-      .gte("scheduled_time", now.toISOString())
-      .lte("scheduled_time", thirtyMinutesLater.toISOString());
-
-    if (dosesError) {
-      console.error("Error fetching doses:", dosesError);
-      captureException(dosesError);
-      throw dosesError;
-    }
-
-    const doses = upcomingDoses as MedicationDose[] | null;
-
-    console.log(`Found ${doses?.length || 0} upcoming doses`);
-
-    if (!doses || doses.length === 0) {
+    if (doses.length === 0) {
       return new Response(
         JSON.stringify({ message: "No upcoming doses to remind" }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Group doses by user
-    const dosesByUser = new Map<string, MedicationDose[]>();
-    for (const dose of doses) {
-      const existing = dosesByUser.get(dose.user_id) || [];
-      existing.push(dose);
-      dosesByUser.set(dose.user_id, existing);
-    }
-
-    // Get all user IDs to fetch their preferences
+    const dosesByUser = groupDosesByUser(doses);
     const userIds = Array.from(dosesByUser.keys());
-
-    // Fetch patient notification preferences for all users
-    const { data: allPreferences, error: prefsError } = await supabase
-      .from("patient_notification_preferences")
-      .select("user_id, email_reminders, sms_reminders, whatsapp_reminders, in_app_reminders, quiet_hours_enabled, quiet_hours_start, quiet_hours_end")
-      .in("user_id", userIds);
-
-    if (prefsError) {
-      console.error("Error fetching patient preferences:", prefsError);
-      captureException(prefsError);
-    }
-
-    // Create a map of user preferences
-    const preferencesMap = new Map<string, PatientPreferences>();
-    if (allPreferences) {
-      for (const pref of allPreferences) {
-        preferencesMap.set(pref.user_id, pref);
-      }
-    }
+    const preferencesMap = await fetchUserPreferences(supabase, userIds);
 
     console.log(`Sending reminders to ${dosesByUser.size} users`);
 
-    const emailResults: { userId: string; email: string; success: boolean; result?: unknown; error?: string; skipped?: string }[] = [];
-    const smsResults: { userId: string; success: boolean; error?: string; skipped?: string }[] = [];
-    const whatsappResults: { userId: string; success: boolean; error?: string; skipped?: string }[] = [];
+    const emailResults: NotificationResult[] = [];
+    const smsResults: NotificationResult[] = [];
+    const whatsappResults: NotificationResult[] = [];
 
     for (const [userId, userDoses] of dosesByUser) {
-      // Check patient notification preferences
       const prefs = preferencesMap.get(userId);
-      
-      // Default to sending if no preferences exist
-      if (prefs) {
-        // Check if email reminders are disabled
-        if (!prefs.email_reminders) {
-          console.log(`User ${userId} has email reminders disabled, skipping...`);
-          emailResults.push({ userId, email: "", success: true, skipped: "email_reminders_disabled" });
-          continue;
-        }
-
-        // Check quiet hours
-        if (isInQuietHours(prefs)) {
-          console.log(`User ${userId} is in quiet hours, skipping...`);
-          emailResults.push({ userId, email: "", success: true, skipped: "quiet_hours" });
-          continue;
-        }
-      }
-
-      // Get user's profile for email
-      const { data: profile, error: profileError } = await supabase
-        .from("profiles")
-        .select("email, first_name")
-        .eq("user_id", userId)
-        .maybeSingle();
-
-      if (profileError || !profile?.email) {
-        console.error(`Could not find email for user ${userId}:`, profileError);
-        continue;
-      }
-
-      // Build medication list HTML with XSS protection
-      const medicationListHtml = userDoses.map((dose) => {
-        const medsData = dose.medications;
-        const schedulesData = dose.medication_schedules;
-        
-        // Handle both array and object formats from Supabase
-        const med: MedicationInfo | null = Array.isArray(medsData) 
-          ? (medsData[0] || null) 
-          : medsData;
-        const schedule: ScheduleInfo | null = Array.isArray(schedulesData) 
-          ? (schedulesData[0] || null) 
-          : schedulesData;
-        
-        if (!med) return "";
-        
-        const scheduledTime = new Date(dose.scheduled_time).toLocaleTimeString("en-US", {
-          hour: "numeric",
-          minute: "2-digit",
-          hour12: true,
-        });
-
-        // Escape all dynamic content
-        const safeName = escapeHtml(med.name);
-        const safeDosage = escapeHtml(med.dosage);
-        const safeDosageUnit = escapeHtml(med.dosage_unit);
-        const safeForm = escapeHtml(med.form);
-
-        return `
-          <tr>
-            <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">
-              <strong>${safeName}</strong><br/>
-              <span style="color: #6b7280; font-size: 14px;">
-                ${schedule?.quantity || 1}x ${safeDosage} ${safeDosageUnit} ${safeForm}
-                ${schedule?.with_food ? " • Take with food" : ""}
-              </span>
-            </td>
-            <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right;">
-              <strong>${scheduledTime}</strong>
-            </td>
-          </tr>
-        `;
-      }).join("");
-
-      const firstName = escapeHtml(profile.first_name || "there");
-
-      const emailHtml = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta charset="utf-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        </head>
-        <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 0; background-color: #f3f4f6;">
-          <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
-            <div style="background-color: #ffffff; border-radius: 8px; padding: 32px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-              <div style="text-align: center; margin-bottom: 24px;">
-                <h1 style="color: #1f2937; font-size: 24px; margin: 0;">💊 Medication Reminder</h1>
-              </div>
-              
-              <p style="color: #374151; font-size: 16px; line-height: 1.5;">
-                Hi ${firstName},
-              </p>
-              
-              <p style="color: #374151; font-size: 16px; line-height: 1.5;">
-                You have upcoming medication${userDoses.length > 1 ? "s" : ""} to take soon:
-              </p>
-
-              <table style="width: 100%; border-collapse: collapse; margin: 24px 0;">
-                <thead>
-                  <tr style="background-color: #f9fafb;">
-                    <th style="padding: 12px; text-align: left; font-weight: 600; color: #374151;">Medication</th>
-                    <th style="padding: 12px; text-align: right; font-weight: 600; color: #374151;">Time</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  ${medicationListHtml}
-                </tbody>
-              </table>
-
-              <p style="color: #6b7280; font-size: 14px; line-height: 1.5; margin-top: 24px;">
-                Remember to mark your doses as taken in the Pillaxia app to track your adherence.
-              </p>
-
-              <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;" />
-
-              <p style="color: #9ca3af; font-size: 12px; text-align: center;">
-                This reminder was sent by Pillaxia. If you no longer wish to receive these reminders, 
-                please update your notification preferences in the app.
-              </p>
-            </div>
-          </div>
-        </body>
-        </html>
-      `;
-
-      try {
-        const emailResult = await sendEmail(
-          [profile.email],
-          `💊 Medication Reminder: ${userDoses.length} dose${userDoses.length > 1 ? "s" : ""} coming up`,
-          emailHtml
-        );
-
-        console.log(`Email sent to ${profile.email}:`, emailResult);
-        emailResults.push({ userId, email: profile.email, success: true, result: emailResult });
-
-        // Log successful email notification with Resend email ID for webhook tracking
-        await supabase.from("notification_history").insert({
-          user_id: userId,
-          channel: "email",
-          notification_type: "medication_reminder",
-          title: `Medication Reminder: ${userDoses.length} dose${userDoses.length > 1 ? "s" : ""}`,
-          body: `Upcoming medication${userDoses.length > 1 ? "s" : ""} to take soon`,
-          status: "sent",
-          metadata: { 
-            recipient_email: profile.email, 
-            dose_count: userDoses.length,
-            resend_email_id: emailResult.id 
-          },
-        });
-
-        const medNames = userDoses.map((dose) => {
-          const medsData = dose.medications;
-          const med = Array.isArray(medsData) ? medsData[0] : medsData;
-          return med?.name || "medication";
-        }).join(", ");
-
-        // Send push notification if in_app_reminders is enabled
-        if (!prefs || prefs.in_app_reminders) {
-          // Send web push notification
-          await supabase.functions.invoke("send-push-notification", {
-            body: {
-              user_ids: [userId],
-              payload: {
-                title: "💊 Medication Reminder",
-                body: `Time to take: ${medNames}`,
-                tag: "medication-reminder",
-                data: { url: "/dashboard/schedule" },
-              },
-            },
-          });
-
-          // Send native iOS push notification
-          try {
-            await supabase.functions.invoke("send-native-push", {
-              body: {
-                user_ids: [userId],
-                payload: {
-                  title: "💊 Medication Reminder",
-                  body: `Time to take: ${medNames}`,
-                  badge: userDoses.length,
-                  sound: "default",
-                  data: { url: "/dashboard/schedule" },
-                },
-              },
-            });
-            console.log(`Native iOS push sent to user ${userId}`);
-          } catch (nativePushErr) {
-            console.error(`Native iOS push error for user ${userId}:`, nativePushErr);
-          }
-        }
-
-        // Send SMS notification if sms_reminders is enabled
-        if (!prefs || prefs.sms_reminders) {
-          try {
-            const smsMessage = `Pillaxia Reminder: Time to take ${medNames}. ${userDoses.length} dose${userDoses.length > 1 ? "s" : ""} scheduled now.`;
-            
-            const { data: smsData, error: smsError } = await supabase.functions.invoke("send-sms-notification", {
-              body: {
-                user_id: userId,
-                message: smsMessage,
-                notification_type: "medication_reminder",
-                metadata: { dose_count: userDoses.length },
-              },
-            });
-
-            if (smsError) {
-              console.error(`SMS error for user ${userId}:`, smsError);
-              smsResults.push({ userId, success: false, error: String(smsError) });
-            } else if (smsData?.skipped) {
-              console.log(`SMS skipped for user ${userId}: ${smsData.error || "no phone"}`);
-              smsResults.push({ userId, success: true, skipped: smsData.error });
-            } else {
-              console.log(`SMS reminder sent to user ${userId}`);
-              smsResults.push({ userId, success: true });
-            }
-          } catch (smsErr) {
-            console.error(`SMS exception for user ${userId}:`, smsErr);
-            smsResults.push({ userId, success: false, error: String(smsErr) });
-          }
-        } else {
-          smsResults.push({ userId, success: true, skipped: "sms_reminders_disabled" });
-        }
-
-        // Send WhatsApp notification if whatsapp_reminders is enabled
-        if (!prefs || prefs.whatsapp_reminders) {
-          try {
-            const whatsappMessage = `Time to take ${medNames}. ${userDoses.length} dose${userDoses.length > 1 ? "s" : ""} scheduled now.`;
-            
-            const { data: waData, error: waError } = await supabase.functions.invoke("send-whatsapp-notification", {
-              body: {
-                recipientId: userId,
-                senderName: "Pillaxia",
-                message: whatsappMessage,
-                notificationType: "medication_reminder",
-              },
-            });
-
-            if (waError) {
-              console.error(`WhatsApp error for user ${userId}:`, waError);
-              whatsappResults.push({ userId, success: false, error: String(waError) });
-            } else if (waData?.reason === "no_phone" || waData?.reason === "not_configured" || waData?.reason === "user_disabled") {
-              console.log(`WhatsApp skipped for user ${userId}: ${waData.reason}`);
-              whatsappResults.push({ userId, success: true, skipped: waData.reason });
-            } else if (waData?.success) {
-              console.log(`WhatsApp reminder sent to user ${userId} via ${waData.provider}`);
-              whatsappResults.push({ userId, success: true });
-            } else {
-              whatsappResults.push({ userId, success: false, error: waData?.message || "unknown" });
-            }
-          } catch (waErr) {
-            console.error(`WhatsApp exception for user ${userId}:`, waErr);
-            whatsappResults.push({ userId, success: false, error: String(waErr) });
-          }
-        } else {
-          whatsappResults.push({ userId, success: true, skipped: "whatsapp_reminders_disabled" });
-        }
-      } catch (emailError) {
-        console.error(`Failed to send email to ${profile.email}:`, emailError);
-        if (emailError instanceof Error) {
-          captureException(emailError);
-        }
-        emailResults.push({ userId, email: profile.email, success: false, error: String(emailError) });
-
-        // Log failed email notification
-        await supabase.from("notification_history").insert({
-          user_id: userId,
-          channel: "email",
-          notification_type: "medication_reminder",
-          title: `Medication Reminder: ${userDoses.length} dose${userDoses.length > 1 ? "s" : ""}`,
-          body: `Upcoming medication${userDoses.length > 1 ? "s" : ""} to take soon`,
-          status: "failed",
-          error_message: String(emailError).slice(0, 500),
-          metadata: { recipient_email: profile.email, dose_count: userDoses.length },
-        });
-      }
+      const results = await processUserReminder(supabase, userId, userDoses, prefs);
+      emailResults.push(results.email);
+      smsResults.push(results.sms);
+      whatsappResults.push(results.whatsapp);
     }
 
-    const successCount = emailResults.filter((r) => r.success && !r.skipped).length;
-    const failedCount = emailResults.filter((r) => !r.success).length;
-    const skippedCount = emailResults.filter((r) => r.skipped).length;
-
-    console.log(`Medication reminder job complete: ${successCount} sent, ${failedCount} failed, ${skippedCount} skipped`);
+    const summarize = (results: NotificationResult[]) => ({
+      sent: results.filter(r => r.success && !r.skipped).length,
+      failed: results.filter(r => !r.success).length,
+      skipped: results.filter(r => r.skipped).length,
+    });
 
     return new Response(
       JSON.stringify({
         success: true,
         summary: {
-          email: { sent: successCount, failed: failedCount, skipped: skippedCount },
-          sms: {
-            sent: smsResults.filter((r) => r.success && !r.skipped).length,
-            failed: smsResults.filter((r) => !r.success).length,
-            skipped: smsResults.filter((r) => r.skipped).length,
-          },
-          whatsapp: {
-            sent: whatsappResults.filter((r) => r.success && !r.skipped).length,
-            failed: whatsappResults.filter((r) => !r.success).length,
-            skipped: whatsappResults.filter((r) => r.skipped).length,
-          },
+          email: summarize(emailResults),
+          sms: summarize(smsResults),
+          whatsapp: summarize(whatsappResults),
         },
         details: emailResults,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
+
   } catch (error) {
     console.error("Error in send-medication-reminders:", error);
-    if (error instanceof Error) {
-      captureException(error);
-    }
+    if (error instanceof Error) captureException(error);
     return new Response(
       JSON.stringify({ error: error instanceof Error ? error.message : String(error) }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
