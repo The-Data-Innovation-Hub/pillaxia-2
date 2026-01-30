@@ -1,23 +1,44 @@
+import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getCorsHeaders, handleCorsPreflightRequest } from "../_shared/cors.ts";
+import { withSentry, captureException } from "../_shared/sentry.ts";
+import { validators, validateSchema, validationErrorResponse } from "../_shared/validation.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+// Input validation schema
+const alertRequestSchema = {
+  availability_id: validators.uuid(),
+  medication_name: validators.string({ minLength: 1, maxLength: 200 }),
+  pharmacy_id: validators.uuid(),
 };
 
-interface AlertRequest {
-  availability_id: string;
-  medication_name: string;
-  pharmacy_id: string;
+// XSS prevention utility
+function escapeHtml(text: string): string {
+  const htmlEscapes: Record<string, string> = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  };
+  return text.replace(/[&<>"']/g, (char) => htmlEscapes[char] || char);
 }
 
-Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
-  }
+serve(withSentry("send-availability-alert", async (req) => {
+  const corsResponse = handleCorsPreflightRequest(req);
+  if (corsResponse) return corsResponse;
+
+  const origin = req.headers.get("Origin");
+  const corsHeaders = getCorsHeaders(origin);
 
   try {
-    const { availability_id, medication_name, pharmacy_id }: AlertRequest = await req.json();
+    const body = await req.json();
+    const validation = validateSchema(alertRequestSchema, body);
+    
+    if (!validation.success) {
+      return validationErrorResponse(validation, corsHeaders);
+    }
+
+    const { availability_id, medication_name, pharmacy_id } = validation.data;
 
     console.log(`Processing availability alert for: ${medication_name} at pharmacy ${pharmacy_id}`);
 
@@ -34,6 +55,7 @@ Deno.serve(async (req) => {
 
     if (pharmacyError) {
       console.error("Failed to fetch pharmacy:", pharmacyError);
+      captureException(new Error(`Failed to fetch pharmacy: ${pharmacyError.message}`));
       throw pharmacyError;
     }
 
@@ -68,6 +90,7 @@ Deno.serve(async (req) => {
 
     if (subError) {
       console.error("Failed to fetch subscriptions:", subError);
+      captureException(new Error(`Failed to fetch subscriptions: ${subError.message}`));
       throw subError;
     }
 
@@ -135,14 +158,20 @@ Deno.serve(async (req) => {
 
       if (!profile) continue;
 
-      const patientName = profile.first_name || "there";
+      const patientName = escapeHtml(profile.first_name || "there");
       const channelsUsed: string[] = [];
 
-      // Build notification content
-      const dosageInfo = availability?.dosage ? ` (${availability.dosage})` : "";
+      // Build notification content with escaped values
+      const safeMedicationName = escapeHtml(medication_name);
+      const safePharmacyName = escapeHtml(pharmacy.name || "");
+      const safeCity = escapeHtml(pharmacy.city || "");
+      const safeState = escapeHtml(pharmacy.state || "");
+      const safePhone = escapeHtml(pharmacy.phone || "");
+      const dosageInfo = availability?.dosage ? ` (${escapeHtml(availability.dosage)})` : "";
+      const formInfo = availability?.form ? escapeHtml(availability.form) : "";
       const priceInfo = availability?.price_naira ? ` - ₦${availability.price_naira.toLocaleString()}` : "";
-      const subject = `${medication_name}${dosageInfo} is now available!`;
-      const message = `Good news, ${patientName}! ${medication_name}${dosageInfo} is now in stock at ${pharmacy.name} in ${pharmacy.city}, ${pharmacy.state}.${priceInfo}${pharmacy.phone ? ` Contact: ${pharmacy.phone}` : ""}`;
+      const subject = `${safeMedicationName}${dosageInfo} is now available!`;
+      const message = `Good news, ${patientName}! ${safeMedicationName}${dosageInfo} is now in stock at ${safePharmacyName} in ${safeCity}, ${safeState}.${priceInfo}${safePhone ? ` Contact: ${safePhone}` : ""}`;
 
       // Send Email
       if (patient.notifyEmail && profile.email) {
@@ -160,14 +189,14 @@ Deno.serve(async (req) => {
                     <p style="font-size: 16px; color: #374151;">Hi ${patientName},</p>
                     <p style="font-size: 16px; color: #374151;">Great news! A medication you've been looking for is now in stock:</p>
                     <div style="background: white; padding: 20px; border-radius: 8px; border-left: 4px solid #10b981; margin: 20px 0;">
-                      <p style="margin: 0 0 10px 0;"><strong style="font-size: 18px; color: #059669;">${medication_name}${dosageInfo}</strong></p>
-                      ${availability?.form ? `<p style="margin: 0 0 5px 0; color: #6b7280;">Form: ${availability.form}</p>` : ""}
+                      <p style="margin: 0 0 10px 0;"><strong style="font-size: 18px; color: #059669;">${safeMedicationName}${dosageInfo}</strong></p>
+                      ${formInfo ? `<p style="margin: 0 0 5px 0; color: #6b7280;">Form: ${formInfo}</p>` : ""}
                       ${priceInfo ? `<p style="margin: 0 0 5px 0; color: #059669; font-weight: bold;">Price: ₦${availability?.price_naira?.toLocaleString()}</p>` : ""}
                     </div>
                     <div style="background: white; padding: 20px; border-radius: 8px; margin: 20px 0;">
-                      <p style="margin: 0 0 5px 0;"><strong>📍 ${pharmacy.name}</strong></p>
-                      <p style="margin: 0 0 5px 0; color: #6b7280;">${pharmacy.city}, ${pharmacy.state}</p>
-                      ${pharmacy.phone ? `<p style="margin: 0; color: #6b7280;">📞 ${pharmacy.phone}</p>` : ""}
+                      <p style="margin: 0 0 5px 0;"><strong>📍 ${safePharmacyName}</strong></p>
+                      <p style="margin: 0 0 5px 0; color: #6b7280;">${safeCity}, ${safeState}</p>
+                      ${safePhone ? `<p style="margin: 0; color: #6b7280;">📞 ${safePhone}</p>` : ""}
                     </div>
                     <p style="font-size: 14px; color: #6b7280; margin-top: 20px;">Act fast - medication availability may change. Visit your preferred pharmacy soon!</p>
                   </div>
@@ -176,25 +205,31 @@ Deno.serve(async (req) => {
             },
           }).then(() => {
             channelsUsed.push("email");
-          }).catch((err) => console.error("Email error:", err))
+          }).catch((err) => {
+            console.error("Email error:", err);
+            captureException(err instanceof Error ? err : new Error(String(err)));
+          })
         );
       }
 
       // Send SMS
       if (patient.notifySms && profile.phone) {
-        const smsMessage = `Pillaxia: ${medication_name}${dosageInfo} is now available at ${pharmacy.name}, ${pharmacy.city}.${priceInfo ? ` Price: ₦${availability?.price_naira?.toLocaleString()}` : ""} Visit soon!`;
+        const smsMessage = `Pillaxia: ${medication_name}${availability?.dosage ? ` (${availability.dosage})` : ""} is now available at ${pharmacy.name}, ${pharmacy.city}.${priceInfo ? ` Price: ₦${availability?.price_naira?.toLocaleString()}` : ""} Visit soon!`;
         notificationPromises.push(
           supabase.functions.invoke("send-sms-notification", {
             body: { to: profile.phone, message: smsMessage },
           }).then(() => {
             channelsUsed.push("sms");
-          }).catch((err) => console.error("SMS error:", err))
+          }).catch((err) => {
+            console.error("SMS error:", err);
+            captureException(err instanceof Error ? err : new Error(String(err)));
+          })
         );
       }
 
       // Send WhatsApp
       if (patient.notifyWhatsapp && profile.phone) {
-        const whatsappMessage = `💊 Good news! ${medication_name}${dosageInfo} is now available at ${pharmacy.name} in ${pharmacy.city}, ${pharmacy.state}.${priceInfo ? ` Price: ₦${availability?.price_naira?.toLocaleString()}` : ""}${pharmacy.phone ? ` Call: ${pharmacy.phone}` : ""} - Pillaxia`;
+        const whatsappMessage = `💊 Good news! ${medication_name}${availability?.dosage ? ` (${availability.dosage})` : ""} is now available at ${pharmacy.name} in ${pharmacy.city}, ${pharmacy.state}.${priceInfo ? ` Price: ₦${availability?.price_naira?.toLocaleString()}` : ""}${pharmacy.phone ? ` Call: ${pharmacy.phone}` : ""} - Pillaxia`;
         notificationPromises.push(
           supabase.functions.invoke("send-whatsapp-notification", {
             body: {
@@ -205,7 +240,10 @@ Deno.serve(async (req) => {
             },
           }).then(() => {
             channelsUsed.push("whatsapp");
-          }).catch((err) => console.error("WhatsApp error:", err))
+          }).catch((err) => {
+            console.error("WhatsApp error:", err);
+            captureException(err instanceof Error ? err : new Error(String(err)));
+          })
         );
       }
 
@@ -221,7 +259,10 @@ Deno.serve(async (req) => {
             },
           }).then(() => {
             channelsUsed.push("push");
-          }).catch((err) => console.error("Push error:", err))
+          }).catch((err) => {
+            console.error("Push error:", err);
+            captureException(err instanceof Error ? err : new Error(String(err)));
+          })
         );
       }
 
@@ -260,10 +301,11 @@ Deno.serve(async (req) => {
     );
   } catch (error: unknown) {
     console.error("Error in send-availability-alert:", error);
+    captureException(error instanceof Error ? error : new Error(String(error)));
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
     return new Response(
       JSON.stringify({ success: false, error: errorMessage }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
-});
+}));
