@@ -26,7 +26,7 @@ serve(withSentry("check-red-flag-symptoms", async (req) => {
   }
 
   try {
-    console.log("Checking for red flag symptoms...");
+    console.info("Checking for red flag symptoms...");
 
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
@@ -69,7 +69,7 @@ serve(withSentry("check-red-flag-symptoms", async (req) => {
       throw symptomsError;
     }
 
-    console.log(`Found ${severeSymptoms?.length || 0} severe symptoms to check`);
+    console.info(`Found ${severeSymptoms?.length || 0} severe symptoms to check`);
 
     if (!severeSymptoms || severeSymptoms.length === 0) {
       return new Response(
@@ -89,7 +89,7 @@ serve(withSentry("check-red-flag-symptoms", async (req) => {
         .maybeSingle();
 
       if (existingAlert) {
-        console.log(`Alert already exists for symptom ${symptom.id}`);
+        console.info(`Alert already exists for symptom ${symptom.id}`);
         continue;
       }
 
@@ -101,7 +101,7 @@ serve(withSentry("check-red-flag-symptoms", async (req) => {
         .maybeSingle();
 
       if (!assignment) {
-        console.log(`No clinician assigned to patient ${symptom.user_id}`);
+        console.info(`No clinician assigned to patient ${symptom.user_id}`);
         continue;
       }
 
@@ -139,7 +139,7 @@ serve(withSentry("check-red-flag-symptoms", async (req) => {
         .single();
 
       if (!clinicianProfile?.email) {
-        console.log(`No email for clinician ${assignment.clinician_user_id}`);
+        console.info(`No email for clinician ${assignment.clinician_user_id}`);
         continue;
       }
 
@@ -197,7 +197,7 @@ serve(withSentry("check-red-flag-symptoms", async (req) => {
         });
 
         if (emailResponse.ok) {
-          console.log(`Red flag alert sent to ${clinicianProfile.email}`);
+          console.info(`Red flag alert sent to ${clinicianProfile.email}`);
           
           await supabase.from("notification_history").insert({
             user_id: assignment.clinician_user_id,
@@ -232,7 +232,7 @@ serve(withSentry("check-red-flag-symptoms", async (req) => {
       });
     }
 
-    console.log(`Created ${alertsCreated} new red flag alerts`);
+    console.info(`Created ${alertsCreated} new red flag alerts`);
 
     return new Response(
       JSON.stringify({ message: "Red flag check complete", alerts_created: alertsCreated }),

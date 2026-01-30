@@ -130,7 +130,7 @@ serve(withSentry("clinical-decision-support", async (req) => {
     }
 
     const userId = claimsData.claims.sub;
-    console.log(`CDS request authenticated for user: ${userId}`);
+    console.info(`CDS request authenticated for user: ${userId}`);
     // ========== END AUTHENTICATION ==========
 
     // Parse and validate request body
@@ -228,7 +228,7 @@ serve(withSentry("clinical-decision-support", async (req) => {
       { role: "user", content: contextMessage }
     ];
 
-    console.log("Sending CDS request to Lovable AI Gateway");
+    console.info("Sending CDS request to Lovable AI Gateway");
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -269,7 +269,7 @@ serve(withSentry("clinical-decision-support", async (req) => {
       );
     }
 
-    console.log("Successfully connected to AI gateway, streaming CDS response");
+    console.info("Successfully connected to AI gateway, streaming CDS response");
 
     return new Response(response.body, {
       headers: { ...corsHeaders, "Content-Type": "text/event-stream" },

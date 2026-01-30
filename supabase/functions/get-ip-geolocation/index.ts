@@ -60,7 +60,7 @@ serve(async (req) => {
     const clientIp = ip_address || req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 
                      req.headers.get('cf-connecting-ip') || 'unknown';
 
-    console.log(`Getting geolocation for IP: ${clientIp}`);
+    console.info(`Getting geolocation for IP: ${clientIp}`);
 
     // Query free IP geolocation API (ip-api.com - 45 requests/minute limit)
     let geoData: Partial<GeoLocation> = {};
@@ -119,7 +119,7 @@ serve(async (req) => {
 
     // If new location or new country, trigger security alert
     if (isNewLocation || isNewCountry) {
-      console.log(`New ${isNewCountry ? 'country' : 'location'} detected for user ${user.id}`);
+      console.info(`New ${isNewCountry ? 'country' : 'location'} detected for user ${user.id}`);
 
       // Log security event
       await supabase.rpc('log_security_event', {

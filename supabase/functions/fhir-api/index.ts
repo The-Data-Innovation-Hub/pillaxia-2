@@ -402,7 +402,7 @@ serve(withSentry("fhir-api", async (req: Request): Promise<Response> => {
       isPatient: roles.includes("patient"),
     };
 
-    console.log(`FHIR API request from user ${userId} with roles: ${roles.join(", ")}`);
+    console.info(`FHIR API request from user ${userId} with roles: ${roles.join(", ")}`);
 
     const url = new URL(req.url);
     const pathParts = url.pathname.split("/").filter(Boolean);

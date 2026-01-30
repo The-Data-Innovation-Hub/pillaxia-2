@@ -93,8 +93,8 @@ Deno.serve(async (req) => {
     const results: CleanupResult[] = [];
     const now = new Date();
     
-    console.log("[CLEANUP] Starting audit log retention cleanup");
-    console.log(`[CLEANUP] Current time: ${now.toISOString()}`);
+    console.info("[CLEANUP] Starting audit log retention cleanup");
+    console.info(`[CLEANUP] Current time: ${now.toISOString()}`);
     
     // Cleanup audit_log
     const auditCutoff = new Date(now.getTime() - RETENTION_POLICIES.audit_log * 24 * 60 * 60 * 1000);
@@ -108,7 +108,7 @@ Deno.serve(async (req) => {
       deleted: auditDeleted || 0,
       retentionDays: RETENTION_POLICIES.audit_log,
     });
-    console.log(`[CLEANUP] audit_log: deleted ${auditDeleted || 0} records older than ${auditCutoff.toISOString()}`);
+    console.info(`[CLEANUP] audit_log: deleted ${auditDeleted || 0} records older than ${auditCutoff.toISOString()}`);
     
     // Cleanup data_access_log
     const accessCutoff = new Date(now.getTime() - RETENTION_POLICIES.data_access_log * 24 * 60 * 60 * 1000);
@@ -122,7 +122,7 @@ Deno.serve(async (req) => {
       deleted: accessDeleted || 0,
       retentionDays: RETENTION_POLICIES.data_access_log,
     });
-    console.log(`[CLEANUP] data_access_log: deleted ${accessDeleted || 0} records older than ${accessCutoff.toISOString()}`);
+    console.info(`[CLEANUP] data_access_log: deleted ${accessDeleted || 0} records older than ${accessCutoff.toISOString()}`);
     
     // Cleanup security_events
     const securityCutoff = new Date(now.getTime() - RETENTION_POLICIES.security_events * 24 * 60 * 60 * 1000);
@@ -136,7 +136,7 @@ Deno.serve(async (req) => {
       deleted: securityDeleted || 0,
       retentionDays: RETENTION_POLICIES.security_events,
     });
-    console.log(`[CLEANUP] security_events: deleted ${securityDeleted || 0} records older than ${securityCutoff.toISOString()}`);
+    console.info(`[CLEANUP] security_events: deleted ${securityDeleted || 0} records older than ${securityCutoff.toISOString()}`);
     
     // Cleanup login_attempts (shorter retention)
     const loginCutoff = new Date(now.getTime() - RETENTION_POLICIES.login_attempts * 24 * 60 * 60 * 1000);
@@ -150,7 +150,7 @@ Deno.serve(async (req) => {
       deleted: loginDeleted || 0,
       retentionDays: RETENTION_POLICIES.login_attempts,
     });
-    console.log(`[CLEANUP] login_attempts: deleted ${loginDeleted || 0} records older than ${loginCutoff.toISOString()}`);
+    console.info(`[CLEANUP] login_attempts: deleted ${loginDeleted || 0} records older than ${loginCutoff.toISOString()}`);
     
     // Cleanup notification_history
     const notifCutoff = new Date(now.getTime() - RETENTION_POLICIES.notification_history * 24 * 60 * 60 * 1000);
@@ -164,7 +164,7 @@ Deno.serve(async (req) => {
       deleted: notifDeleted || 0,
       retentionDays: RETENTION_POLICIES.notification_history,
     });
-    console.log(`[CLEANUP] notification_history: deleted ${notifDeleted || 0} records older than ${notifCutoff.toISOString()}`);
+    console.info(`[CLEANUP] notification_history: deleted ${notifDeleted || 0} records older than ${notifCutoff.toISOString()}`);
     
     // Cleanup unlocked account_lockouts
     const lockoutCutoff = new Date(now.getTime() - RETENTION_POLICIES.account_lockouts_unlocked * 24 * 60 * 60 * 1000);
@@ -179,12 +179,12 @@ Deno.serve(async (req) => {
       deleted: lockoutDeleted || 0,
       retentionDays: RETENTION_POLICIES.account_lockouts_unlocked,
     });
-    console.log(`[CLEANUP] account_lockouts: deleted ${lockoutDeleted || 0} unlocked records older than ${lockoutCutoff.toISOString()}`);
+    console.info(`[CLEANUP] account_lockouts: deleted ${lockoutDeleted || 0} unlocked records older than ${lockoutCutoff.toISOString()}`);
     
     // Calculate totals
     const totalDeleted = results.reduce((sum, r) => sum + r.deleted, 0);
     
-    console.log(`[CLEANUP] Complete. Total records deleted: ${totalDeleted}`);
+    console.info(`[CLEANUP] Complete. Total records deleted: ${totalDeleted}`);
     
     // Log cleanup event to audit
     await supabase.from("audit_log").insert({

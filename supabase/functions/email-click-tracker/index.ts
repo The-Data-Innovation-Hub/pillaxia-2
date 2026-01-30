@@ -58,7 +58,7 @@ serve(withSentry("email-click-tracker", async (req) => {
     const userId = url.searchParams.get("uid");
     const targetUrl = url.searchParams.get("url");
 
-    console.log(`Click tracker - notification: ${notificationId}, user: ${userId}, target: ${targetUrl ? "[REDACTED]" : "none"}`);
+    console.info(`Click tracker - notification: ${notificationId}, user: ${userId}, target: ${targetUrl ? "[REDACTED]" : "none"}`);
 
     // Validate and decode target URL
     let redirectTo = DEFAULT_REDIRECT;
@@ -97,7 +97,7 @@ serve(withSentry("email-click-tracker", async (req) => {
         console.error("Failed to update notification click status:", error);
         captureException(new Error(`Click tracking failed: ${error.message}`));
       } else {
-        console.log(`Notification ${notificationId} marked as clicked`);
+        console.info(`Notification ${notificationId} marked as clicked`);
       }
     } else if (notificationId || userId) {
       console.warn("Invalid notification or user ID format");

@@ -35,7 +35,7 @@ serve(async (req: Request): Promise<Response> => {
   }
 
   try {
-    console.log("Processing notification retries...");
+    console.info("Processing notification retries...");
 
     const serviceClient = createClient(
       Deno.env.get("SUPABASE_URL")!,
@@ -61,14 +61,14 @@ serve(async (req: Request): Promise<Response> => {
     }
 
     if (!notifications || notifications.length === 0) {
-      console.log("No notifications due for retry");
+      console.info("No notifications due for retry");
       return new Response(
         JSON.stringify({ success: true, processed: 0, message: "No notifications due for retry" }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    console.log(`Found ${notifications.length} notifications to retry`);
+    console.info(`Found ${notifications.length} notifications to retry`);
 
     let successCount = 0;
     let failCount = 0;
@@ -88,7 +88,7 @@ serve(async (req: Request): Promise<Response> => {
           retrySuccess = await retryPushNotification(notification, serviceClient);
         } else if (notification.channel === "whatsapp") {
           // WhatsApp retries would require additional setup
-          console.log(`WhatsApp retry not implemented for notification ${notification.id}`);
+          console.info(`WhatsApp retry not implemented for notification ${notification.id}`);
           retrySuccess = false;
         }
 
@@ -106,7 +106,7 @@ serve(async (req: Request): Promise<Response> => {
             .eq("id", notification.id);
           
           successCount++;
-          console.log(`Successfully retried notification ${notification.id}`);
+          console.info(`Successfully retried notification ${notification.id}`);
         } else {
           throw new Error("Retry failed");
         }
@@ -127,7 +127,7 @@ serve(async (req: Request): Promise<Response> => {
             .eq("id", notification.id);
           
           permanentFailCount++;
-          console.log(`Notification ${notification.id} permanently failed after ${newRetryCount} attempts`);
+          console.info(`Notification ${notification.id} permanently failed after ${newRetryCount} attempts`);
         } else {
           // Schedule next retry with exponential backoff
           const nextRetryDelay = getNextRetryDelay(newRetryCount);
@@ -144,7 +144,7 @@ serve(async (req: Request): Promise<Response> => {
             .eq("id", notification.id);
           
           failCount++;
-          console.log(`Notification ${notification.id} failed, scheduled retry ${newRetryCount + 1} at ${nextRetryAt}`);
+          console.info(`Notification ${notification.id} failed, scheduled retry ${newRetryCount + 1} at ${nextRetryAt}`);
         }
       }
     }
@@ -157,7 +157,7 @@ serve(async (req: Request): Promise<Response> => {
       permanentlyFailed: permanentFailCount,
     };
 
-    console.log("Retry processing complete:", summary);
+    console.info("Retry processing complete:", summary);
 
     return new Response(
       JSON.stringify(summary),
@@ -183,7 +183,7 @@ async function retryEmailNotification(
   const recipientEmail = metadata?.recipient_email;
 
   if (!recipientEmail) {
-    console.error(`No recipient email for notification ${notification.id}`);
+    console.info(`No recipient email for notification ${notification.id}`);
     return false;
   }
 
@@ -235,7 +235,7 @@ async function retryPushNotification(
     .eq("user_id", notification.user_id);
 
   if (subError || !subscriptions || subscriptions.length === 0) {
-    console.log(`No push subscriptions for user ${notification.user_id}`);
+    console.info(`No push subscriptions for user ${notification.user_id}`);
     return false;
   }
 

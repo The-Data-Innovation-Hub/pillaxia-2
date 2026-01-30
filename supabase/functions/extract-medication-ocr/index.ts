@@ -34,7 +34,7 @@ serve(async (req) => {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
 
-    console.log("Analyzing prescription image with AI vision...");
+    console.info("Analyzing prescription image with AI vision...");
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -131,12 +131,12 @@ Only extract what you can clearly read. Do not guess or make up information.`,
     }
 
     const aiResponse = await response.json();
-    console.log("AI response received");
+    console.info("AI response received");
 
     // Extract the tool call result
     const toolCall = aiResponse.choices?.[0]?.message?.tool_calls?.[0];
     if (!toolCall) {
-      console.log("No tool call in response, returning empty medications");
+      console.info("No tool call in response, returning empty medications");
       return new Response(
         JSON.stringify({ medications: [] }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -144,7 +144,7 @@ Only extract what you can clearly read. Do not guess or make up information.`,
     }
 
     const medications: ExtractedMedication[] = JSON.parse(toolCall.function.arguments).medications || [];
-    console.log(`Extracted ${medications.length} medication(s)`);
+    console.info(`Extracted ${medications.length} medication(s)`);
 
     return new Response(
       JSON.stringify({ medications }),
