@@ -1,10 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
-};
+import { getCorsHeaders, withSentry, captureException } from "../_shared/sentry.ts";
+import { validators, validateSchema, validationErrorResponse } from "../_shared/validation.ts";
 
 // Generate SHA-1 hash of password
 async function sha1Hash(password: string): Promise<string> {
@@ -15,7 +12,14 @@ async function sha1Hash(password: string): Promise<string> {
   return hashArray.map(b => b.toString(16).padStart(2, '0')).join('').toUpperCase();
 }
 
-serve(async (req) => {
+// Input validation schema
+const passwordBreachSchema = {
+  password: validators.string({ minLength: 1, maxLength: 200 }),
+};
+
+serve(withSentry("check-password-breach", async (req) => {
+  const corsHeaders = getCorsHeaders(req.headers.get("origin"));
+
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -53,14 +57,15 @@ serve(async (req) => {
     console.log(`Password breach check requested by user: ${userId}`);
     // ========== END AUTHENTICATION ==========
 
-    const { password } = await req.json();
+    // Parse and validate request body
+    const body = await req.json().catch(() => ({}));
+    const validation = validateSchema(passwordBreachSchema, body);
 
-    if (!password || typeof password !== 'string') {
-      return new Response(
-        JSON.stringify({ error: 'Password is required' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    if (!validation.success) {
+      return validationErrorResponse(validation, corsHeaders);
     }
+
+    const { password } = body as { password: string };
 
     // Hash the password using SHA-1
     const hash = await sha1Hash(password);
@@ -120,9 +125,10 @@ serve(async (req) => {
 
   } catch (error) {
     console.error('Error checking password breach:', error);
+    captureException(error instanceof Error ? error : new Error(String(error)));
     return new Response(
       JSON.stringify({ error: 'Failed to check password', breached: false }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
-});
+}));

@@ -1,10 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
+import { getCorsHeaders, withSentry, captureException } from "../_shared/sentry.ts";
+import { validators, validateSchema, validationErrorResponse } from "../_shared/validation.ts";
 
 const CDS_SYSTEM_PROMPT = `You are a Clinical Decision Support AI assistant integrated into Pillaxia, a healthcare platform. You assist clinicians by analyzing patient data and providing evidence-based insights.
 
@@ -71,7 +68,35 @@ interface PatientContext {
   clinicalQuestion?: string;
 }
 
-serve(async (req) => {
+// Input validation schema
+const cdsRequestSchema = {
+  patientContext: validators.object({
+    symptoms: validators.optional(validators.array(validators.object({
+      name: validators.string(),
+      severity: validators.number({ min: 1, max: 10 }),
+    }))),
+    vitals: validators.optional(validators.object({})),
+    labResults: validators.optional(validators.array(validators.object({
+      test_name: validators.string(),
+      result_value: validators.string(),
+    }))),
+    medications: validators.optional(validators.array(validators.object({
+      name: validators.string(),
+      dosage: validators.string(),
+      form: validators.string(),
+    }))),
+    healthProfile: validators.optional(validators.object({})),
+    clinicalQuestion: validators.optional(validators.string({ maxLength: 2000 })),
+  }),
+  conversationHistory: validators.optional(validators.array(validators.object({
+    role: validators.string(),
+    content: validators.string({ maxLength: 10000 }),
+  }))),
+};
+
+serve(withSentry("clinical-decision-support", async (req) => {
+  const corsHeaders = getCorsHeaders(req.headers.get("origin"));
+
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -108,7 +133,15 @@ serve(async (req) => {
     console.log(`CDS request authenticated for user: ${userId}`);
     // ========== END AUTHENTICATION ==========
 
-    const { patientContext, conversationHistory } = await req.json() as {
+    // Parse and validate request body
+    const body = await req.json().catch(() => ({}));
+    const validation = validateSchema(cdsRequestSchema, body);
+    
+    if (!validation.success) {
+      return validationErrorResponse(validation, corsHeaders);
+    }
+
+    const { patientContext, conversationHistory } = body as {
       patientContext: PatientContext;
       conversationHistory?: Array<{ role: string; content: string }>;
     };
@@ -243,9 +276,10 @@ serve(async (req) => {
     });
   } catch (e) {
     console.error("Clinical decision support error:", e);
+    captureException(e instanceof Error ? e : new Error(String(e)));
     return new Response(
       JSON.stringify({ error: e instanceof Error ? e.message : "An error occurred" }), 
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
-});
+}));

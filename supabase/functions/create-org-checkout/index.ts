@@ -1,11 +1,8 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@18.5.0";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
+import { getCorsHeaders, withSentry, captureException } from "../_shared/sentry.ts";
+import { validators, validateSchema, validationErrorResponse } from "../_shared/validation.ts";
 
 const logStep = (step: string, details?: unknown) => {
   const detailsStr = details ? ` - ${JSON.stringify(details)}` : '';
@@ -34,7 +31,16 @@ const PRICING_TIERS = {
   },
 };
 
-serve(async (req) => {
+// Input validation schema
+const checkoutSchema = {
+  organizationId: validators.uuid(),
+  tier: validators.enum(["starter", "professional", "enterprise"]),
+  seats: validators.optional(validators.number({ min: 1, max: 10000 })),
+};
+
+serve(withSentry("create-org-checkout", async (req) => {
+  const corsHeaders = getCorsHeaders(req.headers.get("origin"));
+
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -62,14 +68,21 @@ serve(async (req) => {
     if (!user?.email) throw new Error("User not authenticated or email not available");
     logStep("User authenticated", { userId: user.id, email: user.email });
 
-    // Parse request body
-    const { organizationId, tier, seats } = await req.json();
-    if (!organizationId) throw new Error("Organization ID is required");
-    if (!tier || !PRICING_TIERS[tier as keyof typeof PRICING_TIERS]) {
-      throw new Error("Invalid pricing tier");
+    // Parse and validate request body
+    const body = await req.json().catch(() => ({}));
+    const validation = validateSchema(checkoutSchema, body);
+
+    if (!validation.success) {
+      return validationErrorResponse(validation, corsHeaders);
     }
 
-    const selectedTier = PRICING_TIERS[tier as keyof typeof PRICING_TIERS];
+    const { organizationId, tier, seats } = body as {
+      organizationId: string;
+      tier: keyof typeof PRICING_TIERS;
+      seats?: number;
+    };
+
+    const selectedTier = PRICING_TIERS[tier];
     logStep("Selected tier", { tier, priceId: selectedTier.priceId });
 
     // Verify user is org admin
@@ -159,9 +172,10 @@ serve(async (req) => {
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     logStep("ERROR", { message: errorMessage });
+    captureException(error instanceof Error ? error : new Error(errorMessage));
     return new Response(JSON.stringify({ error: errorMessage }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 500,
     });
   }
-});
+}));

@@ -3,6 +3,48 @@
  * Provides error tracking, performance monitoring, and structured logging
  */
 
+// ============= CORS Configuration =============
+
+const ALLOWED_ORIGINS = [
+  "https://lovable.dev",
+  "https://gptengineer.app",
+  "https://id-preview--8333c041-bf59-48ac-a717-3597c3a11358.lovable.app",
+  "https://pillaxia-craft-suite.lovable.app",
+  "https://pillaxia.com",
+  "https://www.pillaxia.com",
+  "http://localhost:5173",
+  "http://localhost:3000",
+];
+
+/**
+ * Get CORS headers with validated origin
+ * Returns strict headers for production, permissive for development
+ */
+export function getCorsHeaders(origin: string | null): Record<string, string> {
+  const isProduction = Deno.env.get("ENVIRONMENT") === "production";
+  
+  // In production, validate the origin
+  if (isProduction && origin && !ALLOWED_ORIGINS.includes(origin)) {
+    console.warn(`[CORS] Rejected origin: ${origin}`);
+    return {
+      "Access-Control-Allow-Origin": ALLOWED_ORIGINS[0], // Default to primary
+      "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+      "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+    };
+  }
+  
+  // Allow the origin if it's in the list, otherwise use wildcard for dev
+  const allowedOrigin = origin && ALLOWED_ORIGINS.includes(origin) ? origin : "*";
+  
+  return {
+    "Access-Control-Allow-Origin": allowedOrigin,
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+  };
+}
+
+// ============= Sentry Types =============
+
 interface SentryEvent {
   exception?: {
     values: Array<{

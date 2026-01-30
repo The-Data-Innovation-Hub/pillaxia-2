@@ -1,12 +1,8 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { Resend } from "https://esm.sh/resend@2.0.0";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
+import { getCorsHeaders, withSentry, captureException } from "../_shared/sentry.ts";
+import { validators, validateSchema, validationErrorResponse } from "../_shared/validation.ts";
 
 interface SecurityAlertRequest {
   userId: string;
@@ -37,7 +33,18 @@ const EVENT_TITLES: Record<string, string> = {
   permission_change: "👤 Permissions Changed",
 };
 
-const handler = async (req: Request): Promise<Response> => {
+// Input validation schema
+const securityAlertSchema = {
+  userId: validators.uuid(),
+  eventType: validators.string({ minLength: 1, maxLength: 100 }),
+  severity: validators.enum(["info", "warning", "critical"]),
+  description: validators.optional(validators.string({ maxLength: 1000 })),
+  metadata: validators.optional(validators.object({})),
+};
+
+const handler = withSentry("send-security-alert", async (req: Request): Promise<Response> => {
+  const corsHeaders = getCorsHeaders(req.headers.get("origin"));
+
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -57,7 +64,15 @@ const handler = async (req: Request): Promise<Response> => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const { userId, eventType, severity, description, metadata }: SecurityAlertRequest = await req.json();
+    // Parse and validate request body
+    const body = await req.json().catch(() => ({}));
+    const validation = validateSchema(securityAlertSchema, body);
+
+    if (!validation.success) {
+      return validationErrorResponse(validation, corsHeaders);
+    }
+
+    const { userId, eventType, severity, description, metadata }: SecurityAlertRequest = body;
 
     console.log(`Processing security alert: ${eventType} for user ${userId}`);
 
@@ -91,14 +106,22 @@ const handler = async (req: Request): Promise<Response> => {
       timeZoneName: "short",
     });
 
-    // Build metadata details
+    // Build metadata details - sanitize user input
     let metadataHtml = "";
     if (metadata) {
       const details: string[] = [];
-      if (metadata.ip_address) details.push(`<li><strong>IP Address:</strong> ${metadata.ip_address}</li>`);
-      if (metadata.user_agent) details.push(`<li><strong>Device:</strong> ${String(metadata.user_agent).substring(0, 100)}...</li>`);
-      if (metadata.location) details.push(`<li><strong>Location:</strong> ${metadata.location}</li>`);
-      if (metadata.url) details.push(`<li><strong>URL:</strong> ${metadata.url}</li>`);
+      if (metadata.ip_address && typeof metadata.ip_address === "string") {
+        details.push(`<li><strong>IP Address:</strong> ${escapeHtml(metadata.ip_address)}</li>`);
+      }
+      if (metadata.user_agent && typeof metadata.user_agent === "string") {
+        details.push(`<li><strong>Device:</strong> ${escapeHtml(String(metadata.user_agent).substring(0, 100))}...</li>`);
+      }
+      if (metadata.location && typeof metadata.location === "string") {
+        details.push(`<li><strong>Location:</strong> ${escapeHtml(metadata.location)}</li>`);
+      }
+      if (metadata.url && typeof metadata.url === "string") {
+        details.push(`<li><strong>URL:</strong> ${escapeHtml(metadata.url)}</li>`);
+      }
       if (details.length > 0) {
         metadataHtml = `<ul style="margin: 0; padding-left: 20px;">${details.join("")}</ul>`;
       }
@@ -123,7 +146,7 @@ const handler = async (req: Request): Promise<Response> => {
                   <tr>
                     <td style="background-color: ${severityColor}; padding: 30px; text-align: center;">
                       <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: 600;">
-                        ${eventTitle}
+                        ${escapeHtml(eventTitle)}
                       </h1>
                     </td>
                   </tr>
@@ -131,7 +154,7 @@ const handler = async (req: Request): Promise<Response> => {
                   <tr>
                     <td style="padding: 30px;">
                       <p style="color: #374151; font-size: 16px; line-height: 24px; margin: 0 0 20px;">
-                        Hello ${userName},
+                        Hello ${escapeHtml(userName)},
                       </p>
                       <p style="color: #374151; font-size: 16px; line-height: 24px; margin: 0 0 20px;">
                         We detected a security event on your Pillaxia account that requires your attention.
@@ -142,10 +165,10 @@ const handler = async (req: Request): Promise<Response> => {
                         <tr>
                           <td style="padding: 16px;">
                             <p style="color: ${severityColor}; font-size: 14px; font-weight: 600; margin: 0 0 8px; text-transform: uppercase;">
-                              ${severity} Alert
+                              ${escapeHtml(severity)} Alert
                             </p>
                             <p style="color: #374151; font-size: 15px; margin: 0 0 12px;">
-                              ${description || `A ${eventType.replace(/_/g, " ")} event was detected on your account.`}
+                              ${escapeHtml(description || `A ${eventType.replace(/_/g, " ")} event was detected on your account.`)}
                             </p>
                             <p style="color: #6b7280; font-size: 13px; margin: 0;">
                               <strong>Time:</strong> ${timestamp}
@@ -222,12 +245,25 @@ const handler = async (req: Request): Promise<Response> => {
     );
   } catch (error: unknown) {
     console.error("Error in send-security-alert:", error);
+    captureException(error instanceof Error ? error : new Error(String(error)));
     const message = error instanceof Error ? error.message : "Unknown error";
     return new Response(
       JSON.stringify({ error: message }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
-};
+});
+
+// Helper function to escape HTML for XSS prevention
+function escapeHtml(text: string): string {
+  const htmlEscapes: Record<string, string> = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  };
+  return text.replace(/[&<>"']/g, (char) => htmlEscapes[char] || char);
+}
 
 serve(handler);
