@@ -35,6 +35,8 @@ import {
   Building2,
   GraduationCap,
   Bug,
+  Database,
+  Users,
 } from "lucide-react";
 import { captureError, captureMessage } from "@/lib/sentry";
 import { toast } from "sonner";
@@ -86,6 +88,7 @@ export function SettingsPage() {
   const [pushTestUserId, setPushTestUserId] = useState("");
   const [onboardingEnabled, setOnboardingEnabled] = useState(false);
   const [shouldThrowError, setShouldThrowError] = useState(false);
+  const [seedingUsers, setSeedingUsers] = useState(false);
   const queryClient = useQueryClient();
   const { user, isManager, isAdmin } = useAuth();
 
@@ -218,6 +221,47 @@ export function SettingsPage() {
       });
     } finally {
       setTestingEmail(false);
+    }
+  };
+
+  const handleSeedDemoUsers = async () => {
+    setSeedingUsers(true);
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (!sessionData?.session?.access_token) {
+        toast.error("Authentication required", {
+          description: "Please log in to seed demo users.",
+        });
+        return;
+      }
+
+      const { data, error } = await supabase.functions.invoke("seed-demo-users", {
+        headers: {
+          Authorization: `Bearer ${sessionData.session.access_token}`,
+        },
+      });
+
+      if (error) throw error;
+
+      if (data?.success) {
+        const created = data.results?.filter((r: { status: string }) => r.status === "created").length || 0;
+        const reset = data.results?.filter((r: { status: string }) => r.status === "password reset").length || 0;
+        const errors = data.results?.filter((r: { status: string }) => r.status === "error").length || 0;
+
+        toast.success("Demo users seeded!", {
+          description: `Created: ${created}, Password reset: ${reset}${errors > 0 ? `, Errors: ${errors}` : ""}`,
+        });
+      } else {
+        toast.error("Failed to seed users", {
+          description: data?.error || "Unknown error",
+        });
+      }
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      captureError(error instanceof Error ? error : new Error(message));
+      toast.error("Failed to seed demo users", { description: message });
+    } finally {
+      setSeedingUsers(false);
     }
   };
 
@@ -520,6 +564,66 @@ export function SettingsPage() {
                 <strong>Note:</strong> To receive test notifications, first enable push notifications 
                 by logging in as a patient and going to Settings → Push Notifications → Enable.
               </p>
+            </CardContent>
+          </Card>
+
+          {/* Developer Tools */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-orange-500/10">
+                    <Database className="h-5 w-5 text-orange-600" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-lg">Developer Tools</CardTitle>
+                    <CardDescription>
+                      Development and testing utilities
+                    </CardDescription>
+                  </div>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <Alert>
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>Admin Only</AlertTitle>
+                <AlertDescription>
+                  These tools are for development and testing purposes. Use with caution in production.
+                </AlertDescription>
+              </Alert>
+
+              <div className="space-y-3 rounded-lg border p-4 bg-muted/30">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <Users className="h-5 w-5 text-muted-foreground" />
+                    <div>
+                      <p className="font-medium">Seed Demo & E2E Test Users</p>
+                      <p className="text-sm text-muted-foreground">
+                        Create or reset demo accounts and E2E test users for automated testing
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleSeedDemoUsers}
+                    disabled={seedingUsers}
+                  >
+                    {seedingUsers ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <Users className="h-4 w-4 mr-2" />
+                    )}
+                    Seed Users
+                  </Button>
+                </div>
+              </div>
+
+              <div className="text-xs text-muted-foreground space-y-1">
+                <p><strong>Demo users:</strong> patient@demo.pillaxia.com, clinician@demo.pillaxia.com, etc.</p>
+                <p><strong>E2E test users:</strong> e2e-test@pillaxia.test, e2e-clinician@pillaxia.test, etc.</p>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
