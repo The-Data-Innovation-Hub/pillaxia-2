@@ -1,5 +1,7 @@
-// Sentry utilities for Edge Functions
-// Note: Full Sentry SDK not available in Deno, using HTTP API directly
+/**
+ * Enhanced Sentry utilities for Edge Functions
+ * Provides error tracking, performance monitoring, and structured logging
+ */
 
 interface SentryEvent {
   exception?: {
@@ -33,12 +35,23 @@ interface SentryEvent {
     method?: string;
     headers?: Record<string, string>;
   };
+  fingerprint?: string[];
+  contexts?: {
+    runtime?: { name: string; version: string };
+    trace?: { trace_id: string; span_id: string };
+  };
 }
 
 interface SentryConfig {
   dsn: string;
   environment?: string;
   release?: string;
+}
+
+interface PerformanceSpan {
+  name: string;
+  startTime: number;
+  data?: Record<string, unknown>;
 }
 
 // Parse DSN to get project details
@@ -52,6 +65,15 @@ function parseDsn(dsn: string): { publicKey: string; host: string; projectId: st
   } catch {
     return null;
   }
+}
+
+// Generate trace IDs
+function generateTraceId(): string {
+  return crypto.randomUUID().replace(/-/g, '');
+}
+
+function generateSpanId(): string {
+  return crypto.randomUUID().replace(/-/g, '').slice(0, 16);
 }
 
 // Send event to Sentry
@@ -70,7 +92,7 @@ async function sendEvent(config: SentryConfig, event: SentryEvent): Promise<bool
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-Sentry-Auth': `Sentry sentry_version=7, sentry_client=edge-function/1.0.0, sentry_key=${publicKey}`,
+        'X-Sentry-Auth': `Sentry sentry_version=7, sentry_client=edge-function/2.0.0, sentry_key=${publicKey}`,
       },
       body: JSON.stringify({
         ...event,
@@ -80,7 +102,8 @@ async function sendEvent(config: SentryConfig, event: SentryEvent): Promise<bool
     });
 
     if (!response.ok) {
-      console.error('[Sentry] Failed to send event:', await response.text());
+      const errorText = await response.text();
+      console.error('[Sentry] Failed to send event:', errorText);
       return false;
     }
 
@@ -93,7 +116,7 @@ async function sendEvent(config: SentryConfig, event: SentryEvent): Promise<bool
 
 // Get Sentry configuration from environment
 export function getSentryConfig(): SentryConfig | null {
-  const dsn = Deno.env.get('SENTRY_DSN');
+  const dsn = Deno.env.get('SENTRY_DSN') || Deno.env.get('VITE_SENTRY_DSN');
   if (!dsn) {
     return null;
   }
@@ -101,11 +124,11 @@ export function getSentryConfig(): SentryConfig | null {
   return {
     dsn,
     environment: Deno.env.get('ENVIRONMENT') || 'production',
-    release: Deno.env.get('VERSION') || '1.0.0',
+    release: Deno.env.get('VERSION') || '2.0.0',
   };
 }
 
-// Capture an exception
+// Capture an exception with enhanced context
 export async function captureException(
   error: Error,
   context?: {
@@ -114,13 +137,19 @@ export async function captureException(
     user?: { id?: string; email?: string };
     request?: Request;
     functionName?: string;
+    fingerprint?: string[];
+    level?: 'fatal' | 'error' | 'warning';
   }
 ): Promise<boolean> {
   const config = getSentryConfig();
   if (!config) {
     console.warn('[Sentry] DSN not configured, skipping exception capture');
+    console.error(`[${context?.functionName || 'edge-function'}] Error:`, error.message);
     return false;
   }
+
+  const traceId = generateTraceId();
+  const spanId = generateSpanId();
 
   const event: SentryEvent = {
     exception: {
@@ -129,43 +158,51 @@ export async function captureException(
           type: error.name || 'Error',
           value: error.message,
           stacktrace: error.stack
-            ? {
-                frames: parseStackTrace(error.stack),
-              }
+            ? { frames: parseStackTrace(error.stack) }
             : undefined,
         },
       ],
     },
-    level: 'error',
+    level: context?.level || 'error',
     timestamp: Date.now() / 1000,
     platform: 'deno',
     environment: config.environment || 'production',
     tags: {
       runtime: 'edge-function',
+      function_name: context?.functionName || 'unknown',
       ...context?.tags,
     },
-    extra: context?.extra,
+    extra: {
+      deno_version: Deno.version.deno,
+      ...context?.extra,
+    },
     user: context?.user,
     transaction: context?.functionName,
+    fingerprint: context?.fingerprint,
+    contexts: {
+      runtime: { name: 'Deno', version: Deno.version.deno },
+      trace: { trace_id: traceId, span_id: spanId },
+    },
   };
 
   if (context?.request) {
+    const url = new URL(context.request.url);
     event.request = {
-      url: context.request.url,
+      url: `${url.pathname}${url.search}`, // Exclude host for security
       method: context.request.method,
       headers: Object.fromEntries(
         Array.from(context.request.headers.entries()).filter(
-          ([key]) => !key.toLowerCase().includes('authorization')
+          ([key]) => !['authorization', 'cookie', 'x-api-key'].includes(key.toLowerCase())
         )
       ),
     };
   }
 
-  console.log(`[Sentry] Capturing exception: ${error.message}`);
+  console.log(`[Sentry] Capturing exception: ${error.message} (trace: ${traceId.slice(0, 8)})`);
   return sendEvent(config, event);
 }
 
-// Capture a message
+// Capture a message with level
 export async function captureMessage(
   message: string,
   level: 'fatal' | 'error' | 'warning' | 'info' | 'debug' = 'info',
@@ -189,13 +226,17 @@ export async function captureMessage(
     environment: config.environment || 'production',
     tags: {
       runtime: 'edge-function',
+      function_name: context?.functionName || 'unknown',
       ...context?.tags,
     },
     extra: context?.extra,
     transaction: context?.functionName,
+    contexts: {
+      runtime: { name: 'Deno', version: Deno.version.deno },
+    },
   };
 
-  console.log(`[Sentry] Capturing message: ${message}`);
+  console.log(`[Sentry] Capturing message (${level}): ${message}`);
   return sendEvent(config, event);
 }
 
@@ -207,7 +248,6 @@ function parseStackTrace(
 
   const lines = stack.split('\n');
   for (const line of lines) {
-    // Match patterns like "at functionName (filename:line:col)" or "at filename:line:col"
     const match = line.match(/at\s+(?:(.+?)\s+\()?(.+?):(\d+)(?::\d+)?\)?/);
     if (match) {
       frames.push({
@@ -218,27 +258,110 @@ function parseStackTrace(
     }
   }
 
-  // Sentry expects frames in reverse order (oldest first)
   return frames.reverse();
 }
 
-// Wrapper function to capture errors in edge function handlers
+// Performance tracking helper
+export function startSpan(name: string, data?: Record<string, unknown>): PerformanceSpan {
+  return {
+    name,
+    startTime: performance.now(),
+    data,
+  };
+}
+
+export function finishSpan(span: PerformanceSpan): number {
+  const duration = performance.now() - span.startTime;
+  console.log(`[Performance] ${span.name}: ${duration.toFixed(2)}ms`);
+  return duration;
+}
+
+// Enhanced wrapper with performance tracking and structured error handling
 export function withSentry(
   functionName: string,
-  handler: (req: Request) => Promise<Response>
+  handler: (req: Request) => Promise<Response>,
+  options?: {
+    captureAllErrors?: boolean;
+    ignoredStatusCodes?: number[];
+  }
 ): (req: Request) => Promise<Response> {
   return async (req: Request): Promise<Response> => {
+    const span = startSpan(`${functionName}.handler`);
+    
     try {
-      return await handler(req);
+      const response = await handler(req);
+      const duration = finishSpan(span);
+      
+      // Log slow requests
+      if (duration > 5000) {
+        await captureMessage(`Slow request: ${functionName} took ${duration.toFixed(0)}ms`, 'warning', {
+          functionName,
+          extra: { duration_ms: duration },
+        });
+      }
+      
+      // Optionally capture non-2xx responses as errors
+      if (options?.captureAllErrors && !response.ok) {
+        const ignoredCodes = options.ignoredStatusCodes || [400, 401, 403, 404];
+        if (!ignoredCodes.includes(response.status)) {
+          await captureMessage(`HTTP ${response.status} in ${functionName}`, 'error', {
+            functionName,
+            extra: { status: response.status },
+          });
+        }
+      }
+      
+      return response;
     } catch (error) {
-      // Capture the error
+      finishSpan(span);
+      
       await captureException(error instanceof Error ? error : new Error(String(error)), {
         functionName,
         request: req,
       });
 
-      // Re-throw to let the function handle the response
       throw error;
     }
   };
+}
+
+// Batch operation helper for parallel processing
+export async function withBatchProcessing<T, R>(
+  items: T[],
+  processor: (item: T) => Promise<R>,
+  options?: {
+    batchSize?: number;
+    functionName?: string;
+  }
+): Promise<{ results: R[]; errors: Array<{ item: T; error: Error }> }> {
+  const batchSize = options?.batchSize || 10;
+  const results: R[] = [];
+  const errors: Array<{ item: T; error: Error }> = [];
+
+  for (let i = 0; i < items.length; i += batchSize) {
+    const batch = items.slice(i, i + batchSize);
+    const batchResults = await Promise.allSettled(batch.map(processor));
+
+    for (let j = 0; j < batchResults.length; j++) {
+      const result = batchResults[j];
+      if (result.status === 'fulfilled') {
+        results.push(result.value);
+      } else {
+        const error = result.reason instanceof Error ? result.reason : new Error(String(result.reason));
+        errors.push({ item: batch[j], error });
+        
+        // Log but don't fail the batch
+        console.error(`[Batch] Item ${i + j} failed:`, error.message);
+      }
+    }
+  }
+
+  if (errors.length > 0 && options?.functionName) {
+    await captureMessage(`Batch processing had ${errors.length} failures`, 'warning', {
+      functionName: options.functionName,
+      extra: { total: items.length, failures: errors.length, success: results.length },
+    });
+  }
+
+  return { results, errors };
 }
