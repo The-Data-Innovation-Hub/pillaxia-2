@@ -253,11 +253,13 @@ class CacheManager {
    */
   /**
    * Check if a value is a valid IDBKey.
+   * Valid keys: number, string, Date, ArrayBuffer, arrays of valid keys, and booleans (for index queries).
    */
   private isValidKey(value: unknown): value is IDBValidKey {
     if (value === null || value === undefined) return false;
     const type = typeof value;
-    if (type === "number" || type === "string") return true;
+    // Booleans are valid keys for IndexedDB indexes
+    if (type === "number" || type === "string" || type === "boolean") return true;
     if (value instanceof Date || value instanceof ArrayBuffer) return true;
     if (Array.isArray(value)) return value.every((v) => this.isValidKey(v));
     return false;
