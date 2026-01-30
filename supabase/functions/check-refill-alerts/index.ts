@@ -23,7 +23,7 @@ serve(withSentry("check-refill-alerts", async (req) => {
   }
 
   try {
-    console.log("Checking for medications needing refills...");
+    console.info("Checking for medications needing refills...");
 
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
@@ -49,7 +49,7 @@ serve(withSentry("check-refill-alerts", async (req) => {
       throw medsError;
     }
 
-    console.log(`Found ${lowRefillMeds?.length || 0} medications with low refills`);
+    console.info(`Found ${lowRefillMeds?.length || 0} medications with low refills`);
 
     if (!lowRefillMeds || lowRefillMeds.length === 0) {
       return new Response(
@@ -75,7 +75,7 @@ serve(withSentry("check-refill-alerts", async (req) => {
 
     // Filter out medications already notified today
     const medsToNotify = lowRefillMeds.filter((med) => !alreadyNotifiedMedIds.has(med.id));
-    console.log(`${medsToNotify.length} medications need new notifications`);
+    console.info(`${medsToNotify.length} medications need new notifications`);
 
     let sentCount = 0;
 
@@ -88,7 +88,7 @@ serve(withSentry("check-refill-alerts", async (req) => {
         .single();
 
       if (!profile?.email) {
-        console.log(`No email for user ${med.user_id}, skipping`);
+        console.info(`No email for user ${med.user_id}, skipping`);
         continue;
       }
 
@@ -100,7 +100,7 @@ serve(withSentry("check-refill-alerts", async (req) => {
         .single();
 
       if (prefs && !prefs.email_reminders) {
-        console.log(`User ${med.user_id} has email reminders disabled, skipping`);
+        console.info(`User ${med.user_id} has email reminders disabled, skipping`);
         continue;
       }
 
@@ -168,7 +168,7 @@ serve(withSentry("check-refill-alerts", async (req) => {
       if (emailResponse.ok) {
         const emailData = await emailResponse.json();
         sentCount++;
-        console.log(`Sent refill alert for ${med.name} to ${profile.email}`);
+        console.info(`Sent refill alert for ${med.name} to ${profile.email}`);
 
         await supabase
           .from("notification_history")
@@ -198,7 +198,7 @@ serve(withSentry("check-refill-alerts", async (req) => {
       }
     }
 
-    console.log(`Completed: sent ${sentCount} refill alerts`);
+    console.info(`Completed: sent ${sentCount} refill alerts`);
 
     return new Response(
       JSON.stringify({ message: "Refill alerts processed", sent: sentCount }),

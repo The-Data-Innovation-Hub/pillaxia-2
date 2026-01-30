@@ -52,7 +52,7 @@ serve(withSentry("email-tracking-pixel", async (req) => {
     const notificationId = url.searchParams.get("id");
     const userId = url.searchParams.get("uid");
 
-    console.log(`Tracking pixel request - notification: ${notificationId}, user: ${userId}`);
+    console.info(`Tracking pixel request - notification: ${notificationId}, user: ${userId}`);
 
     // Validate IDs before database operation
     if (notificationId && userId && isValidUUID(notificationId) && isValidUUID(userId)) {
@@ -79,7 +79,7 @@ serve(withSentry("email-tracking-pixel", async (req) => {
             console.error("Failed to update notification open status:", error);
             captureException(new Error(`Tracking pixel update failed: ${error.message}`));
           } else {
-            console.log(`Notification ${notificationId} marked as opened`);
+            console.info(`Notification ${notificationId} marked as opened`);
           }
         } catch (err) {
           console.error("Tracking pixel update error:", err);

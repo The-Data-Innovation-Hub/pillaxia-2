@@ -13,7 +13,7 @@ serve(withSentry("check-polypharmacy", async (req) => {
   }
 
   try {
-    console.log("Checking for polypharmacy risks...");
+    console.info("Checking for polypharmacy risks...");
 
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
@@ -46,7 +46,7 @@ serve(withSentry("check-polypharmacy", async (req) => {
       }
     }
 
-    console.log(`Found ${patientsAtRisk.length} patients with ${POLYPHARMACY_THRESHOLD}+ medications`);
+    console.info(`Found ${patientsAtRisk.length} patients with ${POLYPHARMACY_THRESHOLD}+ medications`);
 
     if (patientsAtRisk.length === 0) {
       return new Response(
@@ -112,11 +112,11 @@ serve(withSentry("check-polypharmacy", async (req) => {
           .from("polypharmacy_warnings")
           .delete()
           .eq("id", warning.id);
-        console.log(`Removed warning for patient ${warning.patient_user_id} (no longer at risk)`);
+        console.info(`Removed warning for patient ${warning.patient_user_id} (no longer at risk)`);
       }
     }
 
-    console.log(`Polypharmacy check complete: ${warningsCreated} created, ${warningsUpdated} updated`);
+    console.info(`Polypharmacy check complete: ${warningsCreated} created, ${warningsUpdated} updated`);
 
     return new Response(
       JSON.stringify({ 
