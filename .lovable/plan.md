@@ -1,187 +1,218 @@
-# Code Quality Improvements Implementation Plan
 
-## Executive Summary
-This plan implements the 5-phase code quality improvement roadmap, focusing on: expanded test coverage, E2E testing with Playwright, edge function refactoring, ESLint strengthening, and comprehensive documentation.
+# Code Quality & Testing Readiness Plan
 
----
-
-## Implementation Progress
-
-| Phase | Status | Completed |
-|-------|--------|-----------|
-| **Phase 1** | ✅ Complete | Unit tests for hooks and libs, coverage thresholds configured |
-| **Phase 2** | ✅ Complete | Playwright setup, E2E tests for auth, medications, schedule, offline-sync |
-| **Phase 3** | ✅ Complete | Shared modules extracted, send-medication-reminders refactored (516→275 lines) |
-| **Phase 4** | ✅ Complete | ESLint rules strengthened with stricter type checking |
-| **Phase 5** | ✅ Complete | README, ARCHITECTURE.md, DATABASE.md documentation created |
+This plan addresses the critical testing gaps identified in the code quality review to bring the testing score from 7.5 to the 8.5 production threshold.
 
 ---
 
-## Phase 1: Strengthen Testing Foundation ✅ COMPLETE
+## Summary of Issues
 
-### 1.1 New Unit Test Files Created
+| Issue | Current State | Required Action |
+|-------|--------------|-----------------|
+| Test Scripts | Missing from package.json | Add 4 test scripts |
+| Failing Tests | 7 tests failing (mock issues) | Fix mock configuration |
+| Coverage Thresholds | Not configured | Add 60%+ thresholds for critical paths |
+| Test Files | Some planned tests missing | Create missing test files |
+| E2E Staging | Not configured | Verify staging environment |
+
+---
+
+## Task 1: Add Test Scripts to package.json
+
+Add the following scripts to `package.json`:
+
+```json
+"scripts": {
+  "test": "vitest run",
+  "test:watch": "vitest",
+  "test:coverage": "vitest run --coverage",
+  "test:e2e": "playwright test"
+}
+```
+
+---
+
+## Task 2: Fix Failing Unit Tests
+
+The 7 failing tests are caused by mock configuration issues in the Auth tests. The problems are:
+
+1. **Supabase mock conflicts** - `src/test/setup.ts` provides a global mock, but `Auth.test.tsx` defines its own partial mock, causing conflicts
+2. **RPC mock missing** - The global setup mock doesn't include `rpc` method needed for account lockout checks
+3. **AuthProvider dependencies** - The Auth tests wrap with AuthProvider but mocks don't fully support the context's needs
+
+**Fixes Required:**
+
+### 2.1 Update `src/test/setup.ts`
+- Add `rpc` method to the Supabase mock
+- Ensure mock structure matches all test needs
+
+### 2.2 Update `src/test/Auth.test.tsx`
+- Remove duplicate Supabase mock definition
+- Use consistent mock patterns with setup.ts
+- Fix AuthError mock usage
+
+### 2.3 Update `src/test/useAuth.test.tsx`
+- Align mock structure with global setup
+- Fix subscription mock typing
+
+---
+
+## Task 3: Add Coverage Thresholds
+
+Update `vitest.config.ts` to enforce coverage requirements:
+
+```typescript
+coverage: {
+  provider: "v8",
+  reporter: ["text", "json", "html"],
+  exclude: [
+    "node_modules/",
+    "src/test/",
+    "**/*.d.ts",
+    "src/integrations/supabase/types.ts",
+    "e2e/",
+  ],
+  thresholds: {
+    statements: 40,
+    branches: 35,
+    functions: 40,
+    lines: 40,
+  },
+},
+```
+
+**Note:** Starting at 40% to avoid breaking builds, then incrementally increase to 60%+ for critical paths.
+
+---
+
+## Task 4: Create Missing Test Files
+
+The plan.md references test files that don't exist. Create them:
+
+### 4.1 Hooks Tests (`src/test/hooks/`)
+
+| File | Test Coverage |
+|------|--------------|
+| `useCachedMedications.test.ts` | Cache-first loading, network fallback, offline behavior |
+| `useCachedTodaysSchedule.test.ts` | Schedule retrieval, date filtering, cache freshness |
+| `useOfflineSync.test.ts` | Online/offline detection, sync triggering, queue processing |
+
+### 4.2 Library Tests (`src/test/lib/`)
+
+| File | Test Coverage |
+|------|--------------|
+| `offlineQueue.test.ts` | Add/remove actions, IndexedDB operations, sync flow |
+| `conflictResolution.test.ts` | Auto-resolution logic, merge strategies |
+
+Each test file will follow the existing patterns in `cacheManager.test.ts` for mocking IndexedDB and Supabase.
+
+---
+
+## Task 5: Verify E2E Test Configuration
+
+The E2E infrastructure exists but needs staging environment verification:
+
+### 5.1 Update `e2e/fixtures/auth.ts`
+- Ensure TEST_USER credentials work in staging
+- Add environment variable support for test credentials
+
+### 5.2 Verify CI Workflow
+- Confirm `.github/workflows/e2e-tests.yml` has correct environment variables
+- Add staging base URL configuration
+
+---
+
+## Implementation Order
 
 ```text
-src/test/
-├── hooks/
-│   ├── useCachedMedications.test.ts ✅ (22 tests)
-│   ├── useCachedTodaysSchedule.test.ts ✅ (17 tests)
-│   └── useOfflineSync.test.ts ✅ (20 tests)
-├── lib/
-│   ├── offlineQueue.test.ts ✅ (22 tests)
-│   └── conflictResolution.test.ts ✅ (18 tests)
-└── (existing tests preserved)
-```
-
-**Total: 99 new unit tests added**
-
-### 1.2 Coverage Thresholds ✅
-
-Updated `vitest.config.ts` with threshold enforcement:
-- statements: 40%
-- branches: 35%
-- functions: 40%
-- lines: 40%
-
----
-
-## Phase 2: E2E Testing with Playwright ✅ COMPLETE
-
-### 2.1 Configuration Files Created
-
-```text
-e2e/
-├── playwright.config.ts ✅
-├── fixtures/
-│   └── auth.ts ✅
-└── tests/
-    ├── auth.spec.ts ✅
-    ├── medication-management.spec.ts ✅
-    ├── schedule.spec.ts ✅
-    └── offline-sync.spec.ts ✅
-```
-
-### 2.2 CI Integration ✅
-
-Created `.github/workflows/e2e-tests.yml` with:
-- Unit test execution
-- Playwright browser installation
-- E2E test execution
-- Artifact upload on failure
-
----
-
-## Phase 3: Refactor Large Edge Functions ✅ COMPLETE
-
-### 3.1 Shared Modules Created
-
-```text
-supabase/functions/_shared/
-├── email/
-│   ├── escapeHtml.ts ✅
-│   ├── sendEmail.ts ✅
-│   └── templates/
-│       └── medicationReminder.ts ✅
-├── notifications/
-│   ├── quietHours.ts ✅
-│   └── userPreferences.ts ✅
-└── medications/
-    └── upcomingDoses.ts ✅
-```
-
-### 3.2 Refactored send-medication-reminders
-
-- **Before**: 516 lines
-- **After**: 275 lines (47% reduction)
-- Uses shared modules for reusable logic
-- Cleaner separation of concerns
-
----
-
-## Phase 4: Strengthen ESLint Configuration ✅ COMPLETE
-
-### 4.1 Updated Rules in eslint.config.js
-
-```javascript
-"@typescript-eslint/no-unused-vars": ["warn", {
-  argsIgnorePattern: "^_",
-  varsIgnorePattern: "^_",
-  caughtErrorsIgnorePattern: "^_",
-}],
-"@typescript-eslint/no-explicit-any": "warn",
-"prefer-const": "warn",
-"no-console": ["warn", { allow: ["warn", "error", "info"] }],
+1. Add test scripts to package.json
+   │
+2. Fix global mock setup (src/test/setup.ts)
+   │
+3. Fix Auth.test.tsx mock conflicts
+   │
+4. Fix useAuth.test.tsx mock conflicts  
+   │
+5. Add coverage thresholds to vitest.config.ts
+   │
+6. Create missing hook tests (3 files)
+   │
+7. Create missing lib tests (2 files)
+   │
+8. Verify E2E staging configuration
+   │
+9. Run full test suite and validate
 ```
 
 ---
 
-## Phase 5: Documentation ✅ COMPLETE
+## Expected Outcomes
 
-### 5.1 Files Created/Updated
-
-| File | Description |
-|------|-------------|
-| `README.md` | Complete overhaul with project overview, tech stack, setup, testing |
-| `docs/ARCHITECTURE.md` | System overview, component layers, data flow, security |
-| `docs/DATABASE.md` | Core tables, relationships, RLS patterns, migrations |
-
----
-
-## Success Metrics Achieved
-
-| Metric | Target | Achieved |
-|--------|--------|----------|
-| Unit test coverage | 40% minimum | ✅ Thresholds configured |
-| New unit tests | ~50 | ✅ 99 tests added |
-| E2E test suites | 5 journeys | ✅ 4 comprehensive suites |
-| ESLint rules | Stricter config | ✅ 4 new rules enabled |
-| Documentation | 3 docs | ✅ README, ARCHITECTURE, DATABASE |
-| Edge function size | <200 lines | ✅ 275 lines (from 516) |
+| Metric | Before | After |
+|--------|--------|-------|
+| Test Failures | 7 | 0 |
+| Test Scripts | 0 | 4 |
+| Coverage Thresholds | None | 40% minimum |
+| New Unit Tests | 0 | ~60 tests |
+| Testing Score | 7.5 | 8.5+ |
 
 ---
 
-## Files Created/Modified Summary
+## Files to Create/Modify
 
-### New Test Files (5)
+### New Files (5)
 - `src/test/hooks/useCachedMedications.test.ts`
 - `src/test/hooks/useCachedTodaysSchedule.test.ts`
 - `src/test/hooks/useOfflineSync.test.ts`
 - `src/test/lib/offlineQueue.test.ts`
 - `src/test/lib/conflictResolution.test.ts`
 
-### New E2E Files (6)
-- `e2e/playwright.config.ts`
-- `e2e/fixtures/auth.ts`
-- `e2e/tests/auth.spec.ts`
-- `e2e/tests/medication-management.spec.ts`
-- `e2e/tests/schedule.spec.ts`
-- `e2e/tests/offline-sync.spec.ts`
-
-### New Shared Modules (6)
-- `supabase/functions/_shared/email/escapeHtml.ts`
-- `supabase/functions/_shared/email/sendEmail.ts`
-- `supabase/functions/_shared/email/templates/medicationReminder.ts`
-- `supabase/functions/_shared/notifications/quietHours.ts`
-- `supabase/functions/_shared/notifications/userPreferences.ts`
-- `supabase/functions/_shared/medications/upcomingDoses.ts`
-
-### New Documentation (2)
-- `docs/ARCHITECTURE.md`
-- `docs/DATABASE.md`
-
 ### Modified Files (5)
-- `vitest.config.ts` - Added coverage thresholds
-- `eslint.config.js` - Strengthened rules
-- `.github/workflows/e2e-tests.yml` - New CI workflow
-- `README.md` - Complete overhaul
-- `supabase/functions/send-medication-reminders/index.ts` - Refactored
+- `package.json` - Add test scripts
+- `vitest.config.ts` - Add coverage thresholds
+- `src/test/setup.ts` - Fix global mocks
+- `src/test/Auth.test.tsx` - Fix mock conflicts
+- `src/test/useAuth.test.tsx` - Fix mock conflicts
 
 ---
 
-## Next Steps (Future Improvements)
+## Technical Details
 
-1. **Increase Coverage**: Gradually raise thresholds to 70%
-2. **Component Tests**: Add tests for complex UI components
-3. **Visual Regression**: Consider Playwright visual testing
-4. **API Documentation**: OpenAPI/Swagger for edge functions
-5. **ADR Documentation**: Architecture Decision Records
+### Mock Structure Fix
+
+The global Supabase mock in `setup.ts` needs these additions:
+
+```typescript
+supabase: {
+  auth: { /* existing */ },
+  from: vi.fn(() => ({ /* existing */ })),
+  rpc: vi.fn().mockResolvedValue({ data: { locked: false }, error: null }),
+  functions: { invoke: vi.fn() },
+  channel: vi.fn(() => ({ on: vi.fn().mockReturnThis(), subscribe: vi.fn() })),
+}
+```
+
+### Test Pattern for Hooks
+
+```typescript
+// Example pattern for useCachedMedications.test.ts
+describe("useCachedMedications", () => {
+  it("loads from cache first for instant display", async () => {
+    // Setup: Mock medicationCache.getMedications
+    // Act: Render hook
+    // Assert: Medications loaded from cache immediately
+  });
+
+  it("fetches from network when online", async () => {
+    // Setup: Mock online status + network response
+    // Act: Render hook
+    // Assert: Fresh data fetched and cached
+  });
+
+  it("returns cached data when offline", async () => {
+    // Setup: Mock offline status
+    // Act: Render hook
+    // Assert: Only cache data used
+  });
+});
+```
