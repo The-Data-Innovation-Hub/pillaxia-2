@@ -27,7 +27,7 @@ interface TwilioIncomingMessage {
 
 const logStep = (step: string, details?: unknown) => {
   const detailsStr = details ? ` - ${JSON.stringify(details)}` : '';
-  console.log(`[${FUNCTION_NAME}] ${step}${detailsStr}`);
+  console.info(`[${FUNCTION_NAME}] ${step}${detailsStr}`);
 };
 
 // Validate Twilio request signature (HMAC-SHA1)

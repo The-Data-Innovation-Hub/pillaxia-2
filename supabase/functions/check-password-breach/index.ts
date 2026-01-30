@@ -54,7 +54,7 @@ serve(withSentry("check-password-breach", async (req) => {
     }
 
     const userId = claimsData.claims.sub;
-    console.log(`Password breach check requested by user: ${userId}`);
+    console.info(`Password breach check requested by user: ${userId}`);
     // ========== END AUTHENTICATION ==========
 
     // Parse and validate request body
@@ -74,7 +74,7 @@ serve(withSentry("check-password-breach", async (req) => {
     const prefix = hash.substring(0, 5);
     const suffix = hash.substring(5);
 
-    console.log(`Checking password breach with prefix: ${prefix}`);
+    console.info(`Checking password breach with prefix: ${prefix}`);
 
     // Query HIBP API with hash prefix
     const response = await fetch(`https://api.pwnedpasswords.com/range/${prefix}`, {
@@ -109,7 +109,7 @@ serve(withSentry("check-password-breach", async (req) => {
     const isBreached = breachCount > 0;
     
     if (isBreached) {
-      console.log(`Password found in ${breachCount} breaches`);
+      console.info(`Password found in ${breachCount} breaches`);
     }
 
     return new Response(

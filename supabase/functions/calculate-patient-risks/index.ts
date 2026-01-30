@@ -30,7 +30,7 @@ serve(withSentry("calculate-patient-risks", async (req) => {
   }
 
   try {
-    console.log("Calculating patient risk flags (optimized batch queries)...");
+    console.info("Calculating patient risk flags (optimized batch queries)...");
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
@@ -57,7 +57,7 @@ serve(withSentry("calculate-patient-risks", async (req) => {
       );
     }
 
-    console.log(`Found ${assignments.length} clinician-patient assignments`);
+    console.info(`Found ${assignments.length} clinician-patient assignments`);
 
     // Extract unique patient IDs
     const patientIds = [...new Set(assignments.map((a: Assignment) => a.patient_user_id))];
@@ -175,7 +175,7 @@ serve(withSentry("calculate-patient-risks", async (req) => {
       }
     }
 
-    console.log(`Found ${riskFlags.length} risk flags to process`);
+    console.info(`Found ${riskFlags.length} risk flags to process`);
 
     // BATCH QUERY 4: Get existing unresolved flags
     const { data: existingFlags, error: existingError } = await supabase
@@ -218,7 +218,7 @@ serve(withSentry("calculate-patient-risks", async (req) => {
       if (insertError) {
         console.error("Error batch inserting risk flags:", insertError);
       } else {
-        console.log(`Inserted ${newFlags.length} new risk flags`);
+        console.info(`Inserted ${newFlags.length} new risk flags`);
       }
     }
 
@@ -268,7 +268,7 @@ serve(withSentry("calculate-patient-risks", async (req) => {
       if (resolveError) {
         console.error("Error resolving flags:", resolveError);
       } else {
-        console.log(`Auto-resolved ${flagsToResolve.length} flags`);
+        console.info(`Auto-resolved ${flagsToResolve.length} flags`);
       }
     }
 

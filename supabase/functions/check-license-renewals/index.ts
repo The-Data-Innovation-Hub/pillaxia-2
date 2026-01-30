@@ -33,7 +33,7 @@ serve(withSentry("check-license-renewals", async (req) => {
   }
 
   try {
-    console.log("Checking for expiring licenses...");
+    console.info("Checking for expiring licenses...");
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -55,7 +55,7 @@ serve(withSentry("check-license-renewals", async (req) => {
       };
     });
 
-    console.log("Checking for licenses expiring on:", targetDates);
+    console.info("Checking for licenses expiring on:", targetDates);
 
     let totalReminders = 0;
 
@@ -74,11 +74,11 @@ serve(withSentry("check-license-renewals", async (req) => {
       }
 
       if (!expiringProfiles || expiringProfiles.length === 0) {
-        console.log(`No licenses expiring in ${target.days} days`);
+        console.info(`No licenses expiring in ${target.days} days`);
         continue;
       }
 
-      console.log(`Found ${expiringProfiles.length} licenses expiring in ${target.days} days`);
+      console.info(`Found ${expiringProfiles.length} licenses expiring in ${target.days} days`);
 
       // Send email reminders
       if (resendApiKey) {
@@ -142,17 +142,17 @@ serve(withSentry("check-license-renewals", async (req) => {
             });
 
             totalReminders++;
-            console.log(`Sent reminder to ${profile.email} for license expiring in ${target.days} days`);
+            console.info(`Sent reminder to ${profile.email} for license expiring in ${target.days} days`);
           } catch (emailError) {
             console.error(`Failed to send email to ${profile.email}:`, emailError);
           }
         }
       } else {
-        console.log("RESEND_API_KEY not configured, skipping email notifications");
+        console.info("RESEND_API_KEY not configured, skipping email notifications");
       }
     }
 
-    console.log(`License renewal check complete. Sent ${totalReminders} reminders.`);
+    console.info(`License renewal check complete. Sent ${totalReminders} reminders.`);
 
     return new Response(
       JSON.stringify({

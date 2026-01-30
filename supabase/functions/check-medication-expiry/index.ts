@@ -74,7 +74,7 @@ serve(withSentry("check-medication-expiry", async (req) => {
   }
 
   try {
-    console.log("Checking medication expiry dates...");
+    console.info("Checking medication expiry dates...");
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
     const now = new Date();
@@ -94,7 +94,7 @@ serve(withSentry("check-medication-expiry", async (req) => {
       throw fetchError;
     }
 
-    console.log(`Found ${expiringDrugs?.length || 0} medications expiring within 30 days`);
+    console.info(`Found ${expiringDrugs?.length || 0} medications expiring within 30 days`);
 
     const alerts: ExpiryAlert[] = [];
     const newAlerts: ExpiryAlert[] = [];
@@ -142,7 +142,7 @@ serve(withSentry("check-medication-expiry", async (req) => {
     }
 
     const pharmacistIds = pharmacistRoles?.map(r => r.user_id) || [];
-    console.log(`Found ${pharmacistIds.length} pharmacist(s) to notify`);
+    console.info(`Found ${pharmacistIds.length} pharmacist(s) to notify`);
 
     // Send notifications if there are new critical/expired alerts
     if (newAlerts.length > 0 && pharmacistIds.length > 0) {
@@ -253,7 +253,7 @@ serve(withSentry("check-medication-expiry", async (req) => {
             emailHtml
           );
 
-          console.log(`Expiry alert email sent to ${pharmacist.email}:`, emailResult.id);
+          console.info(`Expiry alert email sent to ${pharmacist.email}:`, emailResult.id);
 
           await supabase.from("notification_history").insert({
             user_id: pharmacist.user_id,
@@ -298,7 +298,7 @@ serve(withSentry("check-medication-expiry", async (req) => {
               },
             },
           });
-          console.log("Push notifications sent to pharmacists");
+          console.info("Push notifications sent to pharmacists");
         } catch (pushError) {
           console.error("Error sending push notifications:", pushError);
         }
@@ -311,7 +311,7 @@ serve(withSentry("check-medication-expiry", async (req) => {
         .update({ expiry_alert_sent: true })
         .in("id", alertDrugIds);
       
-      console.log(`Marked ${alertDrugIds.length} drugs as alert sent`);
+      console.info(`Marked ${alertDrugIds.length} drugs as alert sent`);
     }
 
     const summary = {
@@ -323,7 +323,7 @@ serve(withSentry("check-medication-expiry", async (req) => {
       pharmacistsNotified: pharmacistIds.length,
     };
 
-    console.log("Expiry check summary:", summary);
+    console.info("Expiry check summary:", summary);
 
     return new Response(
       JSON.stringify({ 

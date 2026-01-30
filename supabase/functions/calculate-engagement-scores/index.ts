@@ -69,7 +69,7 @@ serve(withSentry("calculate-engagement-scores", async (req) => {
   }
 
   const callerId = claimsData.claims.sub as string;
-  console.log(`[ENGAGEMENT] Request from user: ${callerId}`);
+  console.info(`[ENGAGEMENT] Request from user: ${callerId}`);
 
   // Service role client for privileged operations
   const supabase = createClient(
@@ -112,7 +112,7 @@ serve(withSentry("calculate-engagement-scores", async (req) => {
         );
       }
     }
-    console.log(`[ENGAGEMENT] Authorized access to patient ${userId} by ${callerIsAdmin ? "admin" : "clinician"} ${callerId}`);
+    console.info(`[ENGAGEMENT] Authorized access to patient ${userId} by ${callerIsAdmin ? "admin" : "clinician"} ${callerId}`);
   } else {
     // Batch processing - admin only
     if (!callerIsAdmin) {
@@ -122,7 +122,7 @@ serve(withSentry("calculate-engagement-scores", async (req) => {
         { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
-    console.log(`[ENGAGEMENT] Admin ${callerId} initiating batch engagement score calculation`);
+    console.info(`[ENGAGEMENT] Admin ${callerId} initiating batch engagement score calculation`);
   }
 
   const startDate = new Date();
@@ -147,7 +147,7 @@ serve(withSentry("calculate-engagement-scores", async (req) => {
     throw err;
   }
 
-  console.log(`Processing engagement scores for ${patients?.length || 0} patients`);
+  console.info(`Processing engagement scores for ${patients?.length || 0} patients`);
 
     const results = [];
 
@@ -280,7 +280,7 @@ serve(withSentry("calculate-engagement-scores", async (req) => {
 
         // Send alert to clinicians if patient transitioned to high risk
         if (transitionedToHighRisk) {
-          console.log(`Patient ${patientId} transitioned to high risk - sending alerts`);
+          console.info(`Patient ${patientId} transitioned to high risk - sending alerts`);
           
           // Get patient info
           const { data: patientProfile } = await supabase
@@ -360,7 +360,7 @@ serve(withSentry("calculate-engagement-scores", async (req) => {
                     </div>
                   `,
                 });
-                console.log(`Alert email sent to clinician ${clinician.email} for patient ${patientId}`);
+                console.info(`Alert email sent to clinician ${clinician.email} for patient ${patientId}`);
               } catch (emailError) {
                 console.error(`Failed to send alert email to ${clinician.email}:`, emailError);
               }
@@ -370,7 +370,7 @@ serve(withSentry("calculate-engagement-scores", async (req) => {
       }
     }
 
-  console.log(`Successfully calculated scores for ${results.length} patients`);
+  console.info(`Successfully calculated scores for ${results.length} patients`);
 
   return new Response(
     JSON.stringify({ success: true, processed: results.length, results }),

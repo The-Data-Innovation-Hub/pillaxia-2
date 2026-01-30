@@ -68,7 +68,7 @@ serve(async (req) => {
     }
 
     const userId = claimsData.claims.sub;
-    console.log(`Angela chat request authenticated for user: ${userId}`);
+    console.info(`Angela chat request authenticated for user: ${userId}`);
     // ========== END AUTHENTICATION ==========
 
     const { messages } = await req.json();
@@ -80,7 +80,7 @@ serve(async (req) => {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
 
-    console.log("Sending request to Lovable AI Gateway with", messages.length, "messages");
+    console.info("Sending request to Lovable AI Gateway with", messages.length, "messages");
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -129,7 +129,7 @@ serve(async (req) => {
       );
     }
 
-    console.log("Successfully connected to AI gateway, streaming response");
+    console.info("Successfully connected to AI gateway, streaming response");
 
     return new Response(response.body, {
       headers: { ...corsHeaders, "Content-Type": "text/event-stream" },

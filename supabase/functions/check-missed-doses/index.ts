@@ -15,7 +15,7 @@ serve(withSentry("check-missed-doses", async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    console.log("Checking for missed doses...");
+    console.info("Checking for missed doses...");
 
     // Get grace period from settings (default to 30 minutes)
     let gracePeriodMinutes = 30;
@@ -34,7 +34,7 @@ serve(withSentry("check-missed-doses", async (req) => {
       }
     }
 
-    console.log("Using grace period of " + gracePeriodMinutes + " minutes");
+    console.info("Using grace period of " + gracePeriodMinutes + " minutes");
 
     // Find pending medication logs that are past their scheduled time by more than the grace period
     const cutoffTime = new Date(Date.now() - gracePeriodMinutes * 60 * 1000).toISOString();
@@ -54,14 +54,14 @@ serve(withSentry("check-missed-doses", async (req) => {
     }
 
     if (!pendingLogs || pendingLogs.length === 0) {
-      console.log("No missed doses found");
+      console.info("No missed doses found");
       return new Response(
         JSON.stringify({ success: true, processed: 0, message: "No missed doses found" }),
         { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
-    console.log("Found " + pendingLogs.length + " missed doses to process");
+    console.info("Found " + pendingLogs.length + " missed doses to process");
 
     let processed = 0;
     let failed = 0;
@@ -105,14 +105,14 @@ serve(withSentry("check-missed-doses", async (req) => {
         }
 
         processed++;
-        console.log("Processed missed dose: " + log.id);
+        console.info("Processed missed dose: " + log.id);
       } catch (err) {
         console.error("Error processing log " + log.id + ":", err);
         failed++;
       }
     }
 
-    console.log("Finished processing. Processed: " + processed + ", Failed: " + failed);
+    console.info("Finished processing. Processed: " + processed + ", Failed: " + failed);
 
     return new Response(
       JSON.stringify({
