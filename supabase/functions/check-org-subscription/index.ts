@@ -7,7 +7,7 @@ import { withSentry, captureException } from "../_shared/sentry.ts";
 
 const logStep = (step: string, details?: unknown) => {
   const detailsStr = details ? ` - ${JSON.stringify(details)}` : '';
-  console.log(`[CHECK-ORG-SUBSCRIPTION] ${step}${detailsStr}`);
+  console.info(`[CHECK-ORG-SUBSCRIPTION] ${step}${detailsStr}`);
 };
 
 // Tier mapping
