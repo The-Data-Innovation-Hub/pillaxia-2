@@ -1,38 +1,55 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getCorsHeaders, handleCorsPreflightRequest } from "../_shared/cors.ts";
+import { validators, validateSchema, validationErrorResponse } from "../_shared/validation.ts";
+import { withSentry, captureException } from "../_shared/sentry.ts";
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+// Validation schemas for different actions
+const createRoomSchema = {
+  patientUserId: validators.uuid(),
+  scheduledStart: validators.string({ minLength: 1 }),
+  appointmentId: validators.optional(validators.uuid()),
+  isGroupCall: validators.optional(validators.boolean()),
+  recordingEnabled: validators.optional(validators.boolean()),
 };
 
-interface TokenRequest {
-  roomName: string;
-  identity?: string;
-  roomId?: string;
-}
+const tokenRequestSchema = {
+  roomName: validators.string({ minLength: 1, maxLength: 100 }),
+  roomId: validators.optional(validators.uuid()),
+};
 
-interface RoomCreateRequest {
-  appointmentId?: string;
-  patientUserId: string;
-  scheduledStart: string;
-  isGroupCall?: boolean;
-  recordingEnabled?: boolean;
-}
+const admitPatientSchema = {
+  participantId: validators.uuid(),
+  roomId: validators.uuid(),
+};
 
-Deno.serve(async (req) => {
+const endCallSchema = {
+  roomId: validators.uuid(),
+};
+
+Deno.serve(withSentry("twilio-video-token", async (req: Request): Promise<Response> => {
+  const corsHeaders = getCorsHeaders(req.headers.get("origin"));
+  
   // Handle CORS preflight
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
-  }
+  const preflightResponse = handleCorsPreflightRequest(req);
+  if (preflightResponse) return preflightResponse;
 
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
-    const twilioAccountSid = Deno.env.get('TWILIO_ACCOUNT_SID')!;
-    const twilioApiKey = Deno.env.get('TWILIO_API_KEY')!;
-    const twilioApiSecret = Deno.env.get('TWILIO_API_SECRET')!;
+    const twilioAccountSid = Deno.env.get('TWILIO_ACCOUNT_SID');
+    const twilioApiKey = Deno.env.get('TWILIO_API_KEY');
+    const twilioApiSecret = Deno.env.get('TWILIO_API_SECRET');
 
-    // Get auth header and validate
+    // Validate Twilio configuration
+    if (!twilioAccountSid || !twilioApiKey || !twilioApiSecret) {
+      console.error("Twilio credentials not configured");
+      return new Response(JSON.stringify({ error: "Video service not configured" }), {
+        status: 503,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    // JWT Authentication
     const authHeader = req.headers.get('Authorization');
     if (!authHeader?.startsWith('Bearer ')) {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), { 
@@ -70,11 +87,24 @@ Deno.serve(async (req) => {
       : userId;
 
     if (req.method === 'POST') {
-      const body = await req.json();
+      let body: unknown;
+      try {
+        body = await req.json();
+      } catch {
+        return new Response(JSON.stringify({ error: "Invalid JSON body" }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
 
       // Create a new video room
       if (action === 'create-room') {
-        const { appointmentId, patientUserId, scheduledStart, isGroupCall, recordingEnabled } = body as RoomCreateRequest;
+        const validation = validateSchema(createRoomSchema, body);
+        if (!validation.success) {
+          return validationErrorResponse(validation, corsHeaders);
+        }
+
+        const { appointmentId, patientUserId, scheduledStart, isGroupCall, recordingEnabled } = validation.data;
         
         // Generate unique room name
         const roomName = `pillaxia-${Date.now()}-${Math.random().toString(36).substring(7)}`;
@@ -101,6 +131,7 @@ Deno.serve(async (req) => {
         
         if (!twilioResponse.ok) {
           console.error('Twilio room creation failed:', twilioRoom);
+          captureException(new Error(`Twilio room creation failed: ${JSON.stringify(twilioRoom)}`));
           return new Response(JSON.stringify({ error: 'Failed to create video room', details: twilioRoom }), {
             status: 500,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -125,6 +156,7 @@ Deno.serve(async (req) => {
 
         if (roomError) {
           console.error('Database error:', roomError);
+          captureException(roomError);
           return new Response(JSON.stringify({ error: 'Failed to save room' }), {
             status: 500,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -152,14 +184,12 @@ Deno.serve(async (req) => {
 
       // Generate access token for joining a room
       if (action === 'token') {
-        const { roomName, roomId } = body as TokenRequest;
-
-        if (!roomName) {
-          return new Response(JSON.stringify({ error: 'Room name required' }), {
-            status: 400,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-          });
+        const validation = validateSchema(tokenRequestSchema, body);
+        if (!validation.success) {
+          return validationErrorResponse(validation, corsHeaders);
         }
+
+        const { roomName } = validation.data;
 
         // Verify user has access to this room
         const { data: room, error: roomError } = await supabase
@@ -196,7 +226,6 @@ Deno.serve(async (req) => {
         }
 
         // Generate Twilio access token
-        // Using the Twilio helper library equivalent in Deno
         const AccessToken = await generateTwilioAccessToken({
           accountSid: twilioAccountSid,
           apiKey: twilioApiKey,
@@ -250,7 +279,12 @@ Deno.serve(async (req) => {
 
       // Admit patient from waiting room
       if (action === 'admit-patient') {
-        const { participantId, roomId } = body;
+        const validation = validateSchema(admitPatientSchema, body);
+        if (!validation.success) {
+          return validationErrorResponse(validation, corsHeaders);
+        }
+
+        const { participantId, roomId } = validation.data;
 
         // Verify clinician owns the room
         const { data: room } = await supabase
@@ -277,6 +311,7 @@ Deno.serve(async (req) => {
           .eq('id', participantId);
 
         if (updateError) {
+          captureException(updateError);
           return new Response(JSON.stringify({ error: 'Failed to admit patient' }), {
             status: 500,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -299,7 +334,12 @@ Deno.serve(async (req) => {
 
       // End call
       if (action === 'end-call') {
-        const { roomId } = body;
+        const validation = validateSchema(endCallSchema, body);
+        if (!validation.success) {
+          return validationErrorResponse(validation, corsHeaders);
+        }
+
+        const { roomId } = validation.data;
 
         // Verify user is part of the room
         const { data: room } = await supabase
@@ -358,14 +398,15 @@ Deno.serve(async (req) => {
     });
 
   } catch (error) {
-    console.error('Error:', error);
+    console.error('Error in twilio-video-token:', error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    if (error instanceof Error) captureException(error);
     return new Response(JSON.stringify({ error: errorMessage }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
   }
-});
+}));
 
 // Generate Twilio Video Access Token
 async function generateTwilioAccessToken(params: {

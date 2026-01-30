@@ -1,13 +1,24 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getCorsHeaders, handleCorsPreflightRequest } from "../_shared/cors.ts";
+import { validators, validateSchema, validationErrorResponse } from "../_shared/validation.ts";
+import { withSentry, captureException } from "../_shared/sentry.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+// Input validation schema
+const testNotificationSchema = {
+  user_id: validators.uuid(),
 };
 
-interface TestNotificationRequest {
-  user_id: string;
+// XSS prevention for email content
+function escapeHtml(text: string): string {
+  const htmlEscapes: Record<string, string> = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  };
+  return text.replace(/[&<>"']/g, (char) => htmlEscapes[char] || char);
 }
 
 interface ChannelResult {
@@ -17,26 +28,37 @@ interface ChannelResult {
   provider?: string;
 }
 
-serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
-  }
+serve(withSentry("send-test-notifications", async (req: Request): Promise<Response> => {
+  const corsHeaders = getCorsHeaders(req.headers.get("origin"));
+
+  // Handle CORS preflight
+  const preflightResponse = handleCorsPreflightRequest(req);
+  if (preflightResponse) return preflightResponse;
 
   try {
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
-
-    const { user_id }: TestNotificationRequest = await req.json();
-
-    if (!user_id) {
+    // Parse and validate input
+    let body: unknown;
+    try {
+      body = await req.json();
+    } catch {
       return new Response(
-        JSON.stringify({ error: "Missing user_id" }),
-        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        JSON.stringify({ error: "Invalid JSON body" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
+    const validation = validateSchema(testNotificationSchema, body);
+    if (!validation.success) {
+      return validationErrorResponse(validation, corsHeaders);
+    }
+
+    const { user_id } = validation.data;
+
     console.log("Sending test notifications to user:", user_id);
+
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // Get user profile for email and phone
     const { data: profile, error: profileError } = await supabase
@@ -47,13 +69,14 @@ serve(async (req) => {
 
     if (profileError) {
       console.error("Error fetching profile:", profileError);
+      captureException(profileError);
       return new Response(
         JSON.stringify({ error: "Failed to fetch user profile" }),
-        { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    const userName = profile?.first_name || "there";
+    const userName = escapeHtml(profile?.first_name || "there");
     const results: ChannelResult[] = [];
 
     // Test Email
@@ -95,6 +118,7 @@ serve(async (req) => {
       } catch (emailError) {
         results.push({ channel: "email", success: false, message: String(emailError) });
         console.error("Email test error:", emailError);
+        if (emailError instanceof Error) captureException(emailError);
       }
     } else if (!resendApiKey) {
       results.push({ channel: "email", success: false, message: "Resend API key not configured" });
@@ -130,6 +154,7 @@ serve(async (req) => {
       } catch (smsError) {
         results.push({ channel: "sms", success: false, message: String(smsError) });
         console.error("SMS test error:", smsError);
+        if (smsError instanceof Error) captureException(smsError);
       }
     } else {
       results.push({ channel: "sms", success: false, message: "No phone number on profile" });
@@ -168,6 +193,7 @@ serve(async (req) => {
       } catch (waError) {
         results.push({ channel: "whatsapp", success: false, message: String(waError) });
         console.error("WhatsApp test error:", waError);
+        if (waError instanceof Error) captureException(waError);
       }
     } else {
       results.push({ channel: "whatsapp", success: false, message: "No phone number on profile" });
@@ -198,6 +224,7 @@ serve(async (req) => {
     } catch (pushError) {
       results.push({ channel: "push", success: false, message: String(pushError) });
       console.error("Push test error:", pushError);
+      if (pushError instanceof Error) captureException(pushError);
     }
 
     const successCount = results.filter(r => r.success).length;
@@ -213,14 +240,15 @@ serve(async (req) => {
           failed: results.length - successCount,
         },
       }),
-      { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
     console.error("Error in send-test-notifications:", error);
+    if (error instanceof Error) captureException(error);
     return new Response(
       JSON.stringify({ error: errorMessage }),
-      { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
-});
+}));
