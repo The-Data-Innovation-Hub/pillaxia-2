@@ -1,4 +1,4 @@
-import { Suspense } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -13,6 +13,7 @@ import { PageLoadingFallback } from "@/components/ui/loading-spinner";
 import { OnboardingProvider, TourOverlay, OnboardingChecklist } from "@/components/onboarding";
 import { SkipLink } from "@/components/a11y";
 import { SentryErrorBoundary } from "@/components/SentryErrorBoundary";
+import { useServerVerifiedRoles } from "@/hooks/useServerVerifiedRoles";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
@@ -187,15 +188,31 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-// Role-based dashboard router
+// Role-based dashboard router with server-side verification
 function DashboardRouter() {
-  const { isPatient, isClinician, isPharmacist, isAdmin, isManager, loading } = useAuth();
+  const { loading: authLoading } = useAuth();
+  const { 
+    isAdmin, 
+    isManager, 
+    isClinician, 
+    isPharmacist, 
+    verified, 
+    loading: rolesLoading 
+  } = useServerVerifiedRoles();
 
-  if (loading) {
+  // Show loading while either auth or server-verified roles are loading
+  if (authLoading || rolesLoading) {
     return <PageLoadingFallback />;
   }
 
-  // Route based on role priority
+  // If roles aren't verified yet but we have a session, show loading
+  // This prevents brief flash of wrong layout
+  if (!verified) {
+    return <PageLoadingFallback />;
+  }
+
+  // Route based on server-verified role priority
+  // These roles come from the server and cannot be manipulated client-side
   if (isAdmin || isManager) {
     return <AdminLayout />;
   }
@@ -212,9 +229,14 @@ function DashboardRouter() {
   return <PatientLayout />;
 }
 
-// Determine which home component to show based on role
+// Determine which home component to show based on server-verified role
 function DashboardHome() {
-  const { isAdmin, isManager, isClinician, isPharmacist } = useAuth();
+  const { isAdmin, isManager, isClinician, isPharmacist, verified, loading } = useServerVerifiedRoles();
+  
+  // Wait for server verification
+  if (loading || !verified) {
+    return <PageLoadingFallback />;
+  }
   
   if (isAdmin || isManager) {
     return <AdminDashboardHome />;
