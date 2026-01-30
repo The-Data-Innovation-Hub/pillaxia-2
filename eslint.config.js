@@ -5,7 +5,7 @@ import reactRefresh from "eslint-plugin-react-refresh";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
-  { ignores: ["dist"] },
+  { ignores: ["dist", "node_modules", "e2e"] },
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
     files: ["**/*.{ts,tsx}"],
@@ -20,7 +20,22 @@ export default tseslint.config(
     rules: {
       ...reactHooks.configs.recommended.rules,
       "react-refresh/only-export-components": ["warn", { allowConstantExport: true }],
-      "@typescript-eslint/no-unused-vars": "off",
+      
+      // Enable unused vars checking with smart exceptions
+      "@typescript-eslint/no-unused-vars": ["warn", {
+        argsIgnorePattern: "^_",
+        varsIgnorePattern: "^_",
+        caughtErrorsIgnorePattern: "^_",
+      }],
+      
+      // Encourage type safety - warn for explicit any usage
+      "@typescript-eslint/no-explicit-any": "warn",
+      
+      // Prefer const for immutable bindings
+      "prefer-const": "warn",
+      
+      // Prevent accidental console.log in production code (warn only)
+      "no-console": ["warn", { allow: ["warn", "error", "info"] }],
     },
   },
 );
