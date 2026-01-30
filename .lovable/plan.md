@@ -1,237 +1,177 @@
+# Production Readiness Improvements Plan
 
-# Code Quality & Testing Readiness Plan
-
-This plan addresses the critical testing gaps identified in the code quality review to bring the testing score from 7.5 to the 8.5 production threshold.
-
----
-
-## Summary of Issues
-
-| Issue | Current State | Required Action |
-|-------|--------------|-----------------|
-| Test Scripts | Missing from package.json | Add 4 test scripts |
-| Failing Tests | 7 tests failing (mock issues) | Fix mock configuration |
-| Coverage Thresholds | Not configured | Add 60%+ thresholds for critical paths |
-| Test Files | Some planned tests missing | Create missing test files |
-| E2E Staging | Not configured | Verify staging environment |
+**Current Score:** 8.5/10  
+**Target Score:** 9.0/10  
+**Status:** Not Started
 
 ---
 
-## Task 1: Add Test Scripts to package.json
+## Phase 1: Critical Fixes (P1) - Required Before Production
 
-Add the following scripts to `package.json`:
+### 1.1 Add Test Scripts to package.json
+- **Effort:** 5 minutes
+- **Status:** ⬜ Not Started
+- **Notes:** Add `test`, `test:watch`, `test:coverage`, `test:e2e`, `test:e2e:ui`, `lint:fix` scripts
 
-```json
-"scripts": {
-  "test": "vitest run",
-  "test:watch": "vitest",
-  "test:coverage": "vitest run --coverage",
-  "test:e2e": "playwright test"
-}
-```
+### 1.2 Fix ESLint Errors (16 errors)
+- **Effort:** 30 minutes
+- **Status:** ⬜ Not Started
+- **Files:**
+  - `tailwind.config.ts` - Convert `require()` to ESM import
+  - `android/app/build/.../native-bridge.js` - Exclude from lint
+  - Various edge functions - Add proper type definitions
 
----
+### 1.3 Fix TypeScript `any` Types in Auth Paths
+- **Effort:** 1 hour
+- **Status:** ⬜ Not Started
+- **Files:**
+  - `src/contexts/AuthContext.tsx`
+  - `src/hooks/useAuthActions.ts`
+  - `src/hooks/useAuthState.ts`
+- **Pattern:** Use proper return types with `.returns<T>()` on Supabase queries
 
-## Task 2: Fix Failing Unit Tests
+### 1.4 Fix TypeScript `any` Types in Medication Handling
+- **Effort:** 1 hour
+- **Status:** ⬜ Not Started
+- **Files:**
+  - `src/hooks/useCachedMedications.ts`
+  - `src/hooks/useCachedTodaysSchedule.ts`
+  - `src/components/patient/MedicationsPage.tsx`
+- **Pattern:** Use Supabase generated types from `src/integrations/supabase/types.ts`
 
-The 7 failing tests are caused by mock configuration issues in the Auth tests. The problems are:
-
-1. **Supabase mock conflicts** - `src/test/setup.ts` provides a global mock, but `Auth.test.tsx` defines its own partial mock, causing conflicts
-2. **RPC mock missing** - The global setup mock doesn't include `rpc` method needed for account lockout checks
-3. **AuthProvider dependencies** - The Auth tests wrap with AuthProvider but mocks don't fully support the context's needs
-
-**Fixes Required:**
-
-### 2.1 Update `src/test/setup.ts`
-- Add `rpc` method to the Supabase mock
-- Ensure mock structure matches all test needs
-
-### 2.2 Update `src/test/Auth.test.tsx`
-- Remove duplicate Supabase mock definition
-- Use consistent mock patterns with setup.ts
-- Fix AuthError mock usage
-
-### 2.3 Update `src/test/useAuth.test.tsx`
-- Align mock structure with global setup
-- Fix subscription mock typing
-
----
-
-## Task 3: Add Coverage Thresholds
-
-Update `vitest.config.ts` to enforce coverage requirements:
-
-```typescript
-coverage: {
-  provider: "v8",
-  reporter: ["text", "json", "html"],
-  exclude: [
-    "node_modules/",
-    "src/test/",
-    "**/*.d.ts",
-    "src/integrations/supabase/types.ts",
-    "e2e/",
-  ],
-  thresholds: {
-    statements: 40,
-    branches: 35,
-    functions: 40,
-    lines: 40,
-  },
-},
-```
-
-**Note:** Starting at 40% to avoid breaking builds, then incrementally increase to 60%+ for critical paths.
+### 1.5 Fix TypeScript `any` Types in Offline Sync
+- **Effort:** 45 minutes
+- **Status:** ⬜ Not Started
+- **Files:**
+  - `src/lib/offlineQueue.ts`
+  - `src/lib/conflictResolution.ts`
+  - `src/lib/cache/cacheManager.ts`
+- **Pattern:** Type action bodies with union types, use `Record<string, unknown>` instead of `any`
 
 ---
 
-## Task 4: Create Missing Test Files
+## Phase 2: Recommended Improvements (P2)
 
-The plan.md references test files that don't exist. Create them:
+### 2.1 Reduce Console Warnings in Edge Functions
+- **Effort:** 30 minutes
+- **Status:** ⬜ Not Started
+- **Files:** 50+ edge functions in `supabase/functions/`
+- **Pattern:** Replace `console.log` with `console.info` (allowed by lint config)
 
-### 4.1 Hooks Tests (`src/test/hooks/`)
-
-| File | Test Coverage |
-|------|--------------|
-| `useCachedMedications.test.ts` | Cache-first loading, network fallback, offline behavior |
-| `useCachedTodaysSchedule.test.ts` | Schedule retrieval, date filtering, cache freshness |
-| `useOfflineSync.test.ts` | Online/offline detection, sync triggering, queue processing |
-
-### 4.2 Library Tests (`src/test/lib/`)
-
-| File | Test Coverage |
-|------|--------------|
-| `offlineQueue.test.ts` | Add/remove actions, IndexedDB operations, sync flow |
-| `conflictResolution.test.ts` | Auto-resolution logic, merge strategies |
-
-Each test file will follow the existing patterns in `cacheManager.test.ts` for mocking IndexedDB and Supabase.
+### 2.2 Fix Unused Variable Warnings
+- **Effort:** 30 minutes
+- **Status:** ⬜ Not Started
+- **Patterns:**
+  - Prefix unused vars with underscore: `error` → `_error`
+  - Remove unused imports
+  - Use rest destructuring: `{ unusedProp: _, ...rest }`
 
 ---
 
-## Task 5: Staging Environment Setup ✅ COMPLETED
+## Phase 3: Housekeeping (P3)
 
-The staging environment is now configured:
-
-### 5.1 E2E Test Users (in `seed-demo-users` edge function)
-- `e2e-test@pillaxia.test` (patient) - password: `TestPassword123!`
-- `e2e-clinician@pillaxia.test` (clinician) - password: `ClinicianPass123!`
-- `e2e-pharmacist@pillaxia.test` (pharmacist) - password: `PharmacistPass123!`
-- `e2e-admin@pillaxia.test` (admin) - password: `AdminPass123!`
-
-### 5.2 Environment Detection
-- `src/lib/environment.ts` - Auto-detects staging/production/development
-- `src/components/EnvironmentBanner.tsx` - Visual indicator in non-production
-
-### 5.3 CI Configuration
-- `.github/workflows/e2e-tests.yml` - Supports `staging` and `local` environments
-- `e2e/fixtures/auth.ts` - Uses env vars with fallback defaults
-- `e2e/playwright.config.ts` - Conditional webServer for local testing
-
-### 5.4 GitHub Secrets Required
-Set these in your GitHub repository settings:
-- `STAGING_URL` → `https://id-preview--8333c041-bf59-48ac-a717-3597c3a11358.lovable.app`
-- `E2E_TEST_USER_EMAIL` → `e2e-test@pillaxia.test`
-- `E2E_TEST_USER_PASSWORD` → `TestPassword123!`
-- `E2E_CLINICIAN_EMAIL` → `e2e-clinician@pillaxia.test`
-- `E2E_CLINICIAN_PASSWORD` → `ClinicianPass123!`
-
-### 5.5 Seeding Test Users
-To create the E2E test users, an admin must call the `seed-demo-users` edge function.
-This can be done via the admin dashboard or by invoking the function directly.
+### 3.1 Clean Up Duplicate Directories
+- **Effort:** 15 minutes
+- **Status:** ⬜ Not Started
+- **Action:** Review and archive/remove old version directories if present
 
 ---
 
-## Implementation Order
+## Implementation Schedule
 
-```text
-1. Add test scripts to package.json
-   │
-2. Fix global mock setup (src/test/setup.ts)
-   │
-3. Fix Auth.test.tsx mock conflicts
-   │
-4. Fix useAuth.test.tsx mock conflicts  
-   │
-5. Add coverage thresholds to vitest.config.ts
-   │
-6. Create missing hook tests (3 files)
-   │
-7. Create missing lib tests (2 files)
-   │
-8. Verify E2E staging configuration
-   │
-9. Run full test suite and validate
-```
+| Day | Tasks | Est. Time |
+|-----|-------|-----------|
+| 1 | 1.1, 1.2, 1.3, 1.4 | 2-3 hours |
+| 2 | 1.5, 2.1, 2.2 | 1.5 hours |
+| 3 | 3.1, Verification | 15 min |
 
 ---
 
 ## Expected Outcomes
 
-| Metric | Before | After |
-|--------|--------|-------|
-| Test Failures | 7 | 0 |
-| Test Scripts | 0 | 4 |
-| Coverage Thresholds | None | 40% minimum |
-| New Unit Tests | 0 | ~60 tests |
-| Testing Score | 7.5 | 8.5+ |
+| Category | Before | After | Change |
+|----------|--------|-------|--------|
+| TypeScript Usage | 7.5 | 8.5+ | +1.0 |
+| Code Style & Linting | 7.0 | 8.0+ | +1.0 |
+| Lint Errors | 16 | 0 | -16 |
+| Lint Warnings | 1386 | ~200 | -1186 |
+| Overall Score | 8.5 | 9.0 | +0.5 |
 
 ---
 
-## Files to Create/Modify
+## Verification Commands
 
-### New Files (5)
-- `src/test/hooks/useCachedMedications.test.ts`
-- `src/test/hooks/useCachedTodaysSchedule.test.ts`
-- `src/test/hooks/useOfflineSync.test.ts`
-- `src/test/lib/offlineQueue.test.ts`
-- `src/test/lib/conflictResolution.test.ts`
+```bash
+# Verify tests pass
+npm test
 
-### Modified Files (5)
-- `package.json` - Add test scripts
-- `vitest.config.ts` - Add coverage thresholds
-- `src/test/setup.ts` - Fix global mocks
-- `src/test/Auth.test.tsx` - Fix mock conflicts
-- `src/test/useAuth.test.tsx` - Fix mock conflicts
+# Verify no lint errors
+npm run lint
+
+# Check coverage meets thresholds
+npm run test:coverage
+
+# Run E2E tests
+npm run test:e2e
+```
 
 ---
 
-## Technical Details
+## Detailed Technical Fixes
 
-### Mock Structure Fix
+### TypeScript Fix Patterns
 
-The global Supabase mock in `setup.ts` needs these additions:
-
+#### Auth Paths (1.3)
 ```typescript
-supabase: {
-  auth: { /* existing */ },
-  from: vi.fn(() => ({ /* existing */ })),
-  rpc: vi.fn().mockResolvedValue({ data: { locked: false }, error: null }),
-  functions: { invoke: vi.fn() },
-  channel: vi.fn(() => ({ on: vi.fn().mockReturnThis(), subscribe: vi.fn() })),
+// Before
+const fetchRoles = async (userId: string) => {
+  const { data, error } = await supabase.from("user_roles").select("role")...
+  return data.map((r) => r.role as AppRole); // data could be any
+};
+
+// After
+interface UserRoleRow {
+  role: AppRole;
+}
+const fetchRoles = async (userId: string): Promise<AppRole[]> => {
+  const { data, error } = await supabase
+    .from("user_roles")
+    .select("role")
+    .eq("user_id", userId)
+    .returns<UserRoleRow[]>();
+  if (error || !data) return [];
+  return data.map((r) => r.role);
+};
+```
+
+#### Medication Handling (1.4)
+```typescript
+import { Database } from "@/integrations/supabase/types";
+type Medication = Database["public"]["Tables"]["medications"]["Row"];
+type MedicationLog = Database["public"]["Tables"]["medication_logs"]["Row"];
+```
+
+#### Offline Sync (1.5)
+```typescript
+// offlineQueue.ts - Type the body parameter
+interface PendingAction {
+  type: "medication_log" | "symptom_entry" | "message";
+  body: MedicationLogPayload | SymptomEntryPayload | MessagePayload;
+}
+
+// conflictResolution.ts - Type conflict data
+interface ConflictData {
+  localData: Record<string, unknown>;
+  serverData: Record<string, unknown> | null;
 }
 ```
 
-### Test Pattern for Hooks
-
+### ESLint Fix (1.2)
 ```typescript
-// Example pattern for useCachedMedications.test.ts
-describe("useCachedMedications", () => {
-  it("loads from cache first for instant display", async () => {
-    // Setup: Mock medicationCache.getMedications
-    // Act: Render hook
-    // Assert: Medications loaded from cache immediately
-  });
+// tailwind.config.ts
+// Before
+require("tailwindcss-animate")
 
-  it("fetches from network when online", async () => {
-    // Setup: Mock online status + network response
-    // Act: Render hook
-    // Assert: Fresh data fetched and cached
-  });
-
-  it("returns cached data when offline", async () => {
-    // Setup: Mock offline status
-    // Act: Render hook
-    // Assert: Only cache data used
-  });
-});
+// After
+import tailwindcssAnimate from "tailwindcss-animate"
 ```
