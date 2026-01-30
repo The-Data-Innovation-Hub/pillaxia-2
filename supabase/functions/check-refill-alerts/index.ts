@@ -1,12 +1,23 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getCorsHeaders } from "../_shared/cors.ts";
+import { withSentry, captureException } from "../_shared/sentry.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+// HTML escape for XSS prevention
+function escapeHtml(text: string): string {
+  const htmlEscapes: Record<string, string> = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  };
+  return text.replace(/[&<>"']/g, (char) => htmlEscapes[char] || char);
+}
 
-serve(async (req) => {
+serve(withSentry("check-refill-alerts", async (req) => {
+  const corsHeaders = getCorsHeaders(req.headers.get("origin"));
+
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -58,7 +69,7 @@ serve(async (req) => {
 
     const alreadyNotifiedMedIds = new Set(
       (existingNotifications || [])
-        .map((n: any) => n.metadata?.medication_id)
+        .map((n: { metadata?: { medication_id?: string } }) => n.metadata?.medication_id)
         .filter(Boolean)
     );
 
@@ -93,7 +104,6 @@ serve(async (req) => {
         continue;
       }
 
-      // Send email notification
       const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
       const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
       
@@ -102,7 +112,7 @@ serve(async (req) => {
         continue;
       }
 
-      // First, create the notification record to get the ID for tracking
+      // Create notification record first
       const { data: notificationRecord, error: insertError } = await supabase
         .from("notification_history")
         .insert({
@@ -139,13 +149,13 @@ serve(async (req) => {
         body: JSON.stringify({
           from: "Pillaxia <notifications@resend.dev>",
           to: [profile.email],
-          subject: `Refill Alert: ${med.name} - ${med.refills_remaining} refills remaining`,
+          subject: `Refill Alert: ${escapeHtml(med.name)} - ${med.refills_remaining} refills remaining`,
           html: `
             <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
               <h2 style="color: #6366f1;">⚠️ Medication Refill Alert</h2>
-              <p>Hi ${profile.first_name || "there"},</p>
-              <p>Your medication <strong>${med.name}</strong> has only <strong>${med.refills_remaining}</strong> refill(s) remaining.</p>
-              ${med.pharmacy ? `<p>Contact your pharmacy: <strong>${med.pharmacy}</strong></p>` : ""}
+              <p>Hi ${escapeHtml(profile.first_name || "there")},</p>
+              <p>Your medication <strong>${escapeHtml(med.name)}</strong> has only <strong>${med.refills_remaining}</strong> refill(s) remaining.</p>
+              ${med.pharmacy ? `<p>Contact your pharmacy: <strong>${escapeHtml(med.pharmacy)}</strong></p>` : ""}
               <p>Please contact your healthcare provider to renew your prescription before you run out.</p>
               <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 20px 0;">
               <p style="color: #6b7280; font-size: 12px;">This is an automated reminder from Pillaxia to help you stay on track with your medications.</p>
@@ -160,7 +170,6 @@ serve(async (req) => {
         sentCount++;
         console.log(`Sent refill alert for ${med.name} to ${profile.email}`);
 
-        // Update notification as sent
         await supabase
           .from("notification_history")
           .update({
@@ -179,7 +188,6 @@ serve(async (req) => {
         const errorText = await emailResponse.text();
         console.error(`Failed to send email for ${med.name}:`, errorText);
 
-        // Update notification as failed
         await supabase
           .from("notification_history")
           .update({
@@ -198,9 +206,10 @@ serve(async (req) => {
     );
   } catch (error) {
     console.error("Error in check-refill-alerts:", error);
+    captureException(error instanceof Error ? error : new Error(String(error)));
     return new Response(
       JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
-});
+}));
