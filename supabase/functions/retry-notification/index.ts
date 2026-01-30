@@ -1,67 +1,77 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getCorsHeaders } from "../_shared/cors.ts";
+import { validators, validateSchema, validationErrorResponse } from "../_shared/validation.ts";
+import { withSentry, captureException } from "../_shared/sentry.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+// Input validation schema
+const retryNotificationSchema = {
+  notification_id: validators.uuid(),
 };
 
-interface RetryRequest {
-  notification_id: string;
-}
-
-serve(async (req: Request): Promise<Response> => {
+serve(withSentry("retry-notification", async (req) => {
+  const corsHeaders = getCorsHeaders(req.headers.get("origin"));
+  
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const supabase = createClient(supabaseUrl, supabaseKey);
+
+  // Get auth header to verify user
+  const authHeader = req.headers.get("Authorization");
+  if (!authHeader) {
+    return new Response(
+      JSON.stringify({ error: "No authorization header" }),
+      { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+
+  // Parse and validate input
+  let body: unknown;
   try {
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    body = await req.json();
+  } catch {
+    return new Response(
+      JSON.stringify({ error: "Invalid JSON body" }),
+      { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
 
-    // Get auth header to verify user
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
-      return new Response(
-        JSON.stringify({ error: "No authorization header" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
+  const validation = validateSchema(retryNotificationSchema, body);
+  if (!validation.success) {
+    return validationErrorResponse(validation, corsHeaders);
+  }
 
-    const { notification_id }: RetryRequest = await req.json();
+  const { notification_id } = validation.data;
 
-    if (!notification_id) {
-      return new Response(
-        JSON.stringify({ error: "notification_id is required" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
+  // Fetch the failed notification
+  const { data: notification, error: fetchError } = await supabase
+    .from("notification_history")
+    .select("*")
+    .eq("id", notification_id)
+    .eq("status", "failed")
+    .maybeSingle();
 
-    // Fetch the failed notification
-    const { data: notification, error: fetchError } = await supabase
-      .from("notification_history")
-      .select("*")
-      .eq("id", notification_id)
-      .eq("status", "failed")
-      .maybeSingle();
+  if (fetchError) {
+    console.error("Error fetching notification:", fetchError);
+    captureException(new Error(String(fetchError)));
+    return new Response(
+      JSON.stringify({ error: "Failed to fetch notification" }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
 
-    if (fetchError) {
-      console.error("Error fetching notification:", fetchError);
-      return new Response(
-        JSON.stringify({ error: "Failed to fetch notification" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
+  if (!notification) {
+    return new Response(
+      JSON.stringify({ error: "Notification not found or not in failed status" }),
+      { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
 
-    if (!notification) {
-      return new Response(
-        JSON.stringify({ error: "Notification not found or not in failed status" }),
-        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    console.log(`Retrying ${notification.channel} notification: ${notification.id}`);
+  console.log(`Retrying ${notification.channel} notification: ${notification.id}`);
 
     let retryResult: { success: boolean; error?: string } = { success: false };
 
@@ -114,20 +124,12 @@ serve(async (req: Request): Promise<Response> => {
         })
         .eq("id", notification_id);
 
-      return new Response(
-        JSON.stringify({ success: false, error: retryResult.error }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    console.error("Error in retry-notification:", error);
     return new Response(
-      JSON.stringify({ error: errorMessage }),
+      JSON.stringify({ success: false, error: retryResult.error }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
-});
+}));
 
 async function retryPushNotification(
   supabaseUrl: string,

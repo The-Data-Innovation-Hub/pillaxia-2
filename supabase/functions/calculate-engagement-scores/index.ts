@@ -1,12 +1,17 @@
+import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { Resend } from "https://esm.sh/resend@2.0.0";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+import { getCorsHeaders } from "../_shared/cors.ts";
+import { validators, validateSchema } from "../_shared/validation.ts";
+import { withSentry, captureException } from "../_shared/sentry.ts";
 
 const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
+
+// Input validation schema - supports single user or batch
+const engagementScoreSchema = {
+  userId: validators.optional(validators.uuid()),
+  days: validators.optional(validators.number({ min: 1, max: 90, integer: true })),
+};
 
 interface EngagementMetrics {
   adherence: {
@@ -29,40 +34,53 @@ interface EngagementMetrics {
   };
 }
 
-Deno.serve(async (req) => {
+serve(withSentry("calculate-engagement-scores", async (req) => {
+  const corsHeaders = getCorsHeaders(req.headers.get("origin"));
+  
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const supabase = createClient(
+    Deno.env.get("SUPABASE_URL") ?? "",
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
+  );
+
+  // Parse and validate input
+  let body: unknown;
   try {
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
-    );
+    body = await req.json();
+  } catch {
+    body = {};
+  }
 
-    const { userId, days = 7 } = await req.json().catch(() => ({}));
-    
-    const startDate = new Date();
-    startDate.setDate(startDate.getDate() - days);
-    const startDateStr = startDate.toISOString();
+  const validation = validateSchema(engagementScoreSchema, body);
+  const userId = validation.success ? validation.data.userId : undefined;
+  const days = (validation.success ? validation.data.days : undefined) ?? 7;
+  
+  const startDate = new Date();
+  startDate.setDate(startDate.getDate() - days);
+  const startDateStr = startDate.toISOString();
 
-    // Get all patients or specific patient
-    let patientQuery = supabase
-      .from("user_roles")
-      .select("user_id")
-      .eq("role", "patient");
+  // Get all patients or specific patient
+  let patientQuery = supabase
+    .from("user_roles")
+    .select("user_id")
+    .eq("role", "patient");
 
-    if (userId) {
-      patientQuery = patientQuery.eq("user_id", userId);
-    }
+  if (userId) {
+    patientQuery = patientQuery.eq("user_id", userId);
+  }
 
-    const { data: patients, error: patientsError } = await patientQuery;
+  const { data: patients, error: patientsError } = await patientQuery;
 
-    if (patientsError) {
-      throw patientsError;
-    }
+  if (patientsError) {
+    const err = new Error(String(patientsError));
+    captureException(err);
+    throw err;
+  }
 
-    console.log(`Processing engagement scores for ${patients?.length || 0} patients`);
+  console.log(`Processing engagement scores for ${patients?.length || 0} patients`);
 
     const results = [];
 
@@ -285,18 +303,10 @@ Deno.serve(async (req) => {
       }
     }
 
-    console.log(`Successfully calculated scores for ${results.length} patients`);
+  console.log(`Successfully calculated scores for ${results.length} patients`);
 
-    return new Response(
-      JSON.stringify({ success: true, processed: results.length, results }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
-  } catch (error) {
-    console.error("Error calculating engagement scores:", error);
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    return new Response(
-      JSON.stringify({ error: errorMessage }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
-  }
-});
+  return new Response(
+    JSON.stringify({ success: true, processed: results.length, results }),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+  );
+}));

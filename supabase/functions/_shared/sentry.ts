@@ -365,3 +365,15 @@ export async function withBatchProcessing<T, R>(
 
   return { results, errors };
 }
+
+// Simple batch processor alias for common use case
+export async function processBatch<T>(
+  items: T[],
+  batchSize: number,
+  processor: (item: T) => Promise<void>
+): Promise<void> {
+  for (let i = 0; i < items.length; i += batchSize) {
+    const batch = items.slice(i, i + batchSize);
+    await Promise.all(batch.map(processor));
+  }
+}
