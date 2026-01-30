@@ -108,17 +108,36 @@ Each test file will follow the existing patterns in `cacheManager.test.ts` for m
 
 ---
 
-## Task 5: Verify E2E Test Configuration
+## Task 5: Staging Environment Setup ✅ COMPLETED
 
-The E2E infrastructure exists but needs staging environment verification:
+The staging environment is now configured:
 
-### 5.1 Update `e2e/fixtures/auth.ts`
-- Ensure TEST_USER credentials work in staging
-- Add environment variable support for test credentials
+### 5.1 E2E Test Users (in `seed-demo-users` edge function)
+- `e2e-test@pillaxia.test` (patient) - password: `TestPassword123!`
+- `e2e-clinician@pillaxia.test` (clinician) - password: `ClinicianPass123!`
+- `e2e-pharmacist@pillaxia.test` (pharmacist) - password: `PharmacistPass123!`
+- `e2e-admin@pillaxia.test` (admin) - password: `AdminPass123!`
 
-### 5.2 Verify CI Workflow
-- Confirm `.github/workflows/e2e-tests.yml` has correct environment variables
-- Add staging base URL configuration
+### 5.2 Environment Detection
+- `src/lib/environment.ts` - Auto-detects staging/production/development
+- `src/components/EnvironmentBanner.tsx` - Visual indicator in non-production
+
+### 5.3 CI Configuration
+- `.github/workflows/e2e-tests.yml` - Supports `staging` and `local` environments
+- `e2e/fixtures/auth.ts` - Uses env vars with fallback defaults
+- `e2e/playwright.config.ts` - Conditional webServer for local testing
+
+### 5.4 GitHub Secrets Required
+Set these in your GitHub repository settings:
+- `STAGING_URL` → `https://id-preview--8333c041-bf59-48ac-a717-3597c3a11358.lovable.app`
+- `E2E_TEST_USER_EMAIL` → `e2e-test@pillaxia.test`
+- `E2E_TEST_USER_PASSWORD` → `TestPassword123!`
+- `E2E_CLINICIAN_EMAIL` → `e2e-clinician@pillaxia.test`
+- `E2E_CLINICIAN_PASSWORD` → `ClinicianPass123!`
+
+### 5.5 Seeding Test Users
+To create the E2E test users, an admin must call the `seed-demo-users` edge function.
+This can be done via the admin dashboard or by invoking the function directly.
 
 ---
 

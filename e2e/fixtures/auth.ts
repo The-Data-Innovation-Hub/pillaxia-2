@@ -11,7 +11,8 @@ import { test as base, expect, Page } from "@playwright/test";
  * - E2E_CLINICIAN_PASSWORD
  */
 
-// Test user credentials - use environment variables for staging, fallback to defaults for local
+// Test user credentials - use environment variables for CI, fallback to defaults for local
+// These match the E2E_TEST_USERS in supabase/functions/seed-demo-users/index.ts
 export const TEST_USER = {
   email: process.env.E2E_TEST_USER_EMAIL || "e2e-test@pillaxia.test",
   password: process.env.E2E_TEST_USER_PASSWORD || "TestPassword123!",
@@ -24,6 +25,20 @@ export const TEST_CLINICIAN = {
   password: process.env.E2E_CLINICIAN_PASSWORD || "ClinicianPass123!",
   firstName: "Dr. Test",
   lastName: "Clinician",
+};
+
+export const TEST_PHARMACIST = {
+  email: process.env.E2E_PHARMACIST_EMAIL || "e2e-pharmacist@pillaxia.test",
+  password: process.env.E2E_PHARMACIST_PASSWORD || "PharmacistPass123!",
+  firstName: "Test",
+  lastName: "Pharmacist",
+};
+
+export const TEST_ADMIN = {
+  email: process.env.E2E_ADMIN_EMAIL || "e2e-admin@pillaxia.test",
+  password: process.env.E2E_ADMIN_PASSWORD || "AdminPass123!",
+  firstName: "Test",
+  lastName: "Admin",
 };
 
 /**
