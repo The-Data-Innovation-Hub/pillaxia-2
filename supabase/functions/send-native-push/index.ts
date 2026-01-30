@@ -1,11 +1,27 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getCorsHeaders } from "../_shared/cors.ts";
+import { validators, validateSchema, validationErrorResponse } from "../_shared/validation.ts";
+import { withSentry, captureException } from "../_shared/sentry.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-api-version",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
+// Input validation schema
+const sendNativePushSchema = {
+  user_ids: validators.array(validators.uuid(), { minLength: 1, maxLength: 100 }),
+  payload: {
+    validate: (value: unknown) => {
+      if (typeof value !== "object" || value === null) {
+        return { success: false, error: "payload object is required" } as const;
+      }
+      const p = value as Record<string, unknown>;
+      if (typeof p.title !== "string" || !p.title) {
+        return { success: false, error: "payload.title is required" } as const;
+      }
+      if (typeof p.body !== "string" || !p.body) {
+        return { success: false, error: "payload.body is required" } as const;
+      }
+      return { success: true, data: value as PushPayload } as const;
+    },
+  },
 };
 
 interface PushPayload {
@@ -16,74 +32,74 @@ interface PushPayload {
   sound?: string;
 }
 
-interface SendNativePushRequest {
-  user_ids: string[];
-  payload: PushPayload;
-}
-
 /**
  * Send push notifications to native iOS devices via APNs
  * For Android, the existing web push via VAPID should work in the Capacitor WebView
  */
-serve(async (req) => {
+serve(withSentry("send-native-push", async (req) => {
+  const corsHeaders = getCorsHeaders(req.headers.get("origin"));
+  
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const apnsKeyId = Deno.env.get("APNS_KEY_ID");
+  const apnsTeamId = Deno.env.get("APNS_TEAM_ID");
+  const apnsPrivateKey = Deno.env.get("APNS_PRIVATE_KEY");
+  const apnsBundleId = Deno.env.get("APNS_BUNDLE_ID") || "app.lovable.8333c041bf5948aca7173597c3a11358";
+
+  const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+  // Parse and validate input
+  let body: unknown;
   try {
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const apnsKeyId = Deno.env.get("APNS_KEY_ID");
-    const apnsTeamId = Deno.env.get("APNS_TEAM_ID");
-    const apnsPrivateKey = Deno.env.get("APNS_PRIVATE_KEY");
-    const apnsBundleId = Deno.env.get("APNS_BUNDLE_ID") || "app.lovable.8333c041bf5948aca7173597c3a11358";
+    body = await req.json();
+  } catch {
+    return new Response(
+      JSON.stringify({ error: "Invalid JSON body" }),
+      { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
 
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
-    const { user_ids, payload }: SendNativePushRequest = await req.json();
+  const validation = validateSchema(sendNativePushSchema, body);
+  if (!validation.success) {
+    return validationErrorResponse(validation, corsHeaders);
+  }
 
-    if (!user_ids || !Array.isArray(user_ids) || user_ids.length === 0) {
-      return new Response(
-        JSON.stringify({ error: "user_ids array is required" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
+  const { user_ids, payload } = validation.data;
 
-    if (!payload || !payload.title || !payload.body) {
-      return new Response(
-        JSON.stringify({ error: "payload with title and body is required" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
+  console.log(`Sending native push to ${user_ids.length} user(s)`);
 
-    console.log(`Sending native push to ${user_ids.length} user(s)`);
+  // Fetch iOS subscriptions
+  const { data: subscriptions, error: subError } = await supabase
+    .from("push_subscriptions")
+    .select("native_token, user_id, platform")
+    .in("user_id", user_ids)
+    .eq("platform", "ios")
+    .not("native_token", "is", null);
 
-    // Fetch iOS subscriptions
-    const { data: subscriptions, error: subError } = await supabase
-      .from("push_subscriptions")
-      .select("native_token, user_id, platform")
-      .in("user_id", user_ids)
-      .eq("platform", "ios")
-      .not("native_token", "is", null);
+  if (subError) {
+    console.error("Error fetching subscriptions:", subError);
+    captureException(new Error(String(subError)));
+    return new Response(
+      JSON.stringify({ error: "Failed to fetch subscriptions" }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
 
-    if (subError) {
-      console.error("Error fetching subscriptions:", subError);
-      return new Response(
-        JSON.stringify({ error: "Failed to fetch subscriptions" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
+  if (!subscriptions || subscriptions.length === 0) {
+    console.log("No iOS push subscriptions found");
+    return new Response(
+      JSON.stringify({ success: true, sent: 0, message: "No iOS subscriptions found" }),
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
 
-    if (!subscriptions || subscriptions.length === 0) {
-      console.log("No iOS push subscriptions found");
-      return new Response(
-        JSON.stringify({ success: true, sent: 0, message: "No iOS subscriptions found" }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // Check if APNs is configured
-    if (!apnsKeyId || !apnsTeamId || !apnsPrivateKey) {
-      console.log("APNs not configured - logging notification instead");
+  // Check if APNs is configured
+  if (!apnsKeyId || !apnsTeamId || !apnsPrivateKey) {
+    console.log("APNs not configured - logging notification instead");
       
       // Log the notifications even without APNs
       for (const sub of subscriptions) {
@@ -177,36 +193,31 @@ serve(async (req) => {
             metadata: { platform: "ios" },
           });
         }
-      } catch (err) {
-        failed++;
-        console.error("Error sending to APNs:", err);
+    } catch (err) {
+      failed++;
+      console.error("Error sending to APNs:", err);
+      if (err instanceof Error) {
+        captureException(err);
       }
     }
-
-    // Clean up expired tokens
-    if (expiredTokens.length > 0) {
-      await supabase
-        .from("push_subscriptions")
-        .delete()
-        .in("native_token", expiredTokens);
-      console.log(`Cleaned up ${expiredTokens.length} expired iOS token(s)`);
-    }
-
-    console.log(`Native push results: ${sent} sent, ${failed} failed`);
-
-    return new Response(
-      JSON.stringify({ success: true, sent, failed }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    console.error("Error in send-native-push:", error);
-    return new Response(
-      JSON.stringify({ error: errorMessage }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
   }
-});
+
+  // Clean up expired tokens
+  if (expiredTokens.length > 0) {
+    await supabase
+      .from("push_subscriptions")
+      .delete()
+      .in("native_token", expiredTokens);
+    console.log(`Cleaned up ${expiredTokens.length} expired iOS token(s)`);
+  }
+
+  console.log(`Native push results: ${sent} sent, ${failed} failed`);
+
+  return new Response(
+    JSON.stringify({ success: true, sent, failed }),
+    { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+  );
+}));
 
 /**
  * Generate JWT for APNs authentication
