@@ -1,19 +1,16 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { Resend } from "https://esm.sh/resend@2.0.0";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getCorsHeaders, handleCorsPreflightRequest } from "../_shared/cors.ts";
+import { withSentry, captureException } from "../_shared/sentry.ts";
+import { validators, validateSchema, validationErrorResponse } from "../_shared/validation.ts";
 
-const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+// Input validation schema
+const encouragementEmailSchema = {
+  patient_user_id: validators.uuid(),
+  caregiver_name: validators.string({ minLength: 1, maxLength: 100 }),
+  message: validators.string({ minLength: 1, maxLength: 2000 }),
 };
-
-interface EncouragementEmailRequest {
-  patient_user_id: string;
-  caregiver_name: string;
-  message: string;
-}
 
 interface PatientPreferences {
   email_encouragements: boolean;
@@ -21,6 +18,18 @@ interface PatientPreferences {
   quiet_hours_enabled: boolean;
   quiet_hours_start: string | null;
   quiet_hours_end: string | null;
+}
+
+// XSS prevention utility
+function escapeHtml(text: string): string {
+  const htmlEscapes: Record<string, string> = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  };
+  return text.replace(/[&<>"']/g, (char) => htmlEscapes[char] || char);
 }
 
 function isInQuietHours(prefs: PatientPreferences): boolean {
@@ -41,11 +50,12 @@ function isInQuietHours(prefs: PatientPreferences): boolean {
   return currentTime >= start && currentTime < end;
 }
 
-serve(async (req: Request): Promise<Response> => {
-  // Handle CORS preflight
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
-  }
+serve(withSentry("send-encouragement-email", async (req: Request): Promise<Response> => {
+  const corsResponse = handleCorsPreflightRequest(req);
+  if (corsResponse) return corsResponse;
+
+  const origin = req.headers.get("Origin");
+  const corsHeaders = getCorsHeaders(origin);
 
   try {
     // Validate authorization
@@ -74,15 +84,14 @@ serve(async (req: Request): Promise<Response> => {
       );
     }
 
-    const { patient_user_id, caregiver_name, message }: EncouragementEmailRequest = await req.json();
-
-    // Validate required fields
-    if (!patient_user_id || !caregiver_name || !message) {
-      return new Response(
-        JSON.stringify({ error: "Missing required fields" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    const body = await req.json();
+    const validation = validateSchema(encouragementEmailSchema, body);
+    
+    if (!validation.success) {
+      return validationErrorResponse(validation, corsHeaders);
     }
+
+    const { patient_user_id, caregiver_name, message } = validation.data;
 
     // Create service client to check notification settings
     const serviceClient = createClient(
@@ -147,6 +156,7 @@ serve(async (req: Request): Promise<Response> => {
 
     if (profileError) {
       console.error("Profile fetch error:", profileError);
+      captureException(new Error(`Profile fetch error: ${profileError.message}`));
       return new Response(
         JSON.stringify({ error: "Failed to fetch patient profile" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -161,7 +171,10 @@ serve(async (req: Request): Promise<Response> => {
       );
     }
 
-    const patientName = patientProfile.first_name || "there";
+    // Escape dynamic content for XSS prevention
+    const safePatientName = escapeHtml(patientProfile.first_name || "there");
+    const safeCaregiverName = escapeHtml(caregiver_name);
+    const safeMessage = escapeHtml(message);
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 
     // First, create the notification history record to get the ID for tracking
@@ -171,7 +184,7 @@ serve(async (req: Request): Promise<Response> => {
         user_id: patient_user_id,
         channel: "email",
         notification_type: "encouragement_message",
-        title: `Encouragement from ${caregiver_name}`,
+        title: `Encouragement from ${safeCaregiverName}`,
         body: message.substring(0, 200),
         status: "pending",
         metadata: { 
@@ -184,6 +197,7 @@ serve(async (req: Request): Promise<Response> => {
 
     if (insertError || !notificationRecord) {
       console.error("Failed to create notification record:", insertError);
+      captureException(new Error(`Failed to create notification record: ${insertError?.message}`));
       return new Response(
         JSON.stringify({ error: "Failed to create notification record" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -193,11 +207,22 @@ serve(async (req: Request): Promise<Response> => {
     // Generate tracking pixel URL
     const trackingPixelUrl = `${supabaseUrl}/functions/v1/email-tracking-pixel?id=${notificationRecord.id}&uid=${patient_user_id}`;
 
+    const resendApiKey = Deno.env.get("RESEND_API_KEY");
+    if (!resendApiKey) {
+      console.error("RESEND_API_KEY not configured");
+      return new Response(
+        JSON.stringify({ error: "Email service not configured" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const resend = new Resend(resendApiKey);
+
     // Send the email with tracking pixel
     const emailResponse = await resend.emails.send({
       from: "Pillaxia <noreply@resend.dev>",
       to: [patientProfile.email],
-      subject: `💜 ${caregiver_name} sent you an encouragement message!`,
+      subject: `💜 ${safeCaregiverName} sent you an encouragement message!`,
       html: `
         <!DOCTYPE html>
         <html>
@@ -212,16 +237,16 @@ serve(async (req: Request): Promise<Response> => {
           
           <div style="background: #f9fafb; padding: 30px; border-radius: 0 0 16px 16px; border: 1px solid #e5e7eb; border-top: none;">
             <p style="font-size: 16px; margin-bottom: 20px;">
-              Hi ${patientName}! 👋
+              Hi ${safePatientName}! 👋
             </p>
             
             <p style="font-size: 16px; margin-bottom: 20px;">
-              <strong>${caregiver_name}</strong> noticed your dedication to your health and wanted to share some encouragement:
+              <strong>${safeCaregiverName}</strong> noticed your dedication to your health and wanted to share some encouragement:
             </p>
             
             <div style="background: white; padding: 20px; border-radius: 12px; border-left: 4px solid #8B5CF6; margin: 20px 0;">
               <p style="font-size: 16px; margin: 0; font-style: italic; color: #4b5563;">
-                "${message}"
+                "${safeMessage}"
               </p>
             </div>
             
@@ -245,6 +270,7 @@ serve(async (req: Request): Promise<Response> => {
 
     if (emailResponse.error) {
       console.error("Email send error:", emailResponse.error);
+      captureException(new Error(`Email send error: ${emailResponse.error.message}`));
       
       // Update notification as failed
       await serviceClient
@@ -294,6 +320,7 @@ serve(async (req: Request): Promise<Response> => {
         console.log("Push notification sent for encouragement");
       } catch (pushError) {
         console.error("Failed to send push notification:", pushError);
+        captureException(pushError instanceof Error ? pushError : new Error(String(pushError)));
       }
     }
 
@@ -304,9 +331,10 @@ serve(async (req: Request): Promise<Response> => {
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
     console.error("Unexpected error:", error);
+    captureException(error instanceof Error ? error : new Error(errorMessage));
     return new Response(
       JSON.stringify({ error: "Internal server error", details: errorMessage }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
-});
+}));

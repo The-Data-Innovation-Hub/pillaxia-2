@@ -1,19 +1,28 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { Resend } from "https://esm.sh/resend@2.0.0";
+import { getCorsHeaders, handleCorsPreflightRequest } from "../_shared/cors.ts";
+import { withSentry, captureException } from "../_shared/sentry.ts";
+import { validators, validateSchema, validationErrorResponse } from "../_shared/validation.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
+// Input validation schema
+const statusNotificationSchema = {
+  patient_user_id: validators.uuid(),
+  medication_name: validators.string({ minLength: 1, maxLength: 200 }),
+  new_status: validators.string({ minLength: 1, maxLength: 50 }),
+  pharmacy: validators.optional(validators.string({ maxLength: 200 })),
 };
 
-interface StatusNotificationRequest {
-  patient_user_id: string;
-  medication_name: string;
-  new_status: string;
-  pharmacy?: string;
+// XSS prevention utility
+function escapeHtml(text: string): string {
+  const htmlEscapes: Record<string, string> = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  };
+  return text.replace(/[&<>"']/g, (char) => htmlEscapes[char] || char);
 }
 
 const STATUS_MESSAGES: Record<string, { title: string; body: string; emoji: string }> = {
@@ -49,10 +58,12 @@ const STATUS_MESSAGES: Record<string, { title: string; body: string; emoji: stri
   },
 };
 
-serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
-  }
+serve(withSentry("send-prescription-status-notification", async (req) => {
+  const corsResponse = handleCorsPreflightRequest(req);
+  if (corsResponse) return corsResponse;
+
+  const origin = req.headers.get("Origin");
+  const corsHeaders = getCorsHeaders(origin);
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -61,14 +72,14 @@ serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const { patient_user_id, medication_name, new_status, pharmacy }: StatusNotificationRequest = await req.json();
-
-    if (!patient_user_id || !medication_name || !new_status) {
-      return new Response(
-        JSON.stringify({ error: "Missing required fields" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    const body = await req.json();
+    const validation = validateSchema(statusNotificationSchema, body);
+    
+    if (!validation.success) {
+      return validationErrorResponse(validation, corsHeaders);
     }
+
+    const { patient_user_id, medication_name, new_status, pharmacy } = validation.data;
 
     console.log(`Sending prescription status notification: ${new_status} for ${medication_name} to user ${patient_user_id}`);
 
@@ -100,10 +111,15 @@ serve(async (req) => {
     const statusConfig = STATUS_MESSAGES[new_status] || STATUS_MESSAGES.pending;
     const pharmacyName = pharmacy || "your pharmacy";
     
+    // Escape dynamic content for XSS prevention
+    const safeMedicationName = escapeHtml(medication_name);
+    const safePharmacyName = escapeHtml(pharmacyName);
+    const safePatientName = escapeHtml(profile.first_name || "there");
+    
     const title = `${statusConfig.emoji} ${statusConfig.title}`;
-    const body = statusConfig.body
-      .replace("{medication}", medication_name)
-      .replace("{pharmacy}", pharmacyName);
+    const bodyText = statusConfig.body
+      .replace("{medication}", safeMedicationName)
+      .replace("{pharmacy}", safePharmacyName);
 
     const results = {
       email: { sent: false, error: null as string | null },
@@ -133,18 +149,18 @@ serve(async (req) => {
                   <span style="font-size: 48px;">${statusConfig.emoji}</span>
                 </div>
                 <h1 style="color: #1a1a1a; font-size: 24px; margin: 0 0 16px; text-align: center;">
-                  ${statusConfig.title}
+                  ${escapeHtml(statusConfig.title)}
                 </h1>
                 <p style="color: #4a4a4a; font-size: 16px; line-height: 1.6; margin: 0 0 24px; text-align: center;">
-                  Hi ${profile.first_name || "there"},
+                  Hi ${safePatientName},
                 </p>
                 <p style="color: #4a4a4a; font-size: 16px; line-height: 1.6; margin: 0 0 24px; text-align: center;">
-                  ${body}
+                  ${bodyText}
                 </p>
                 ${new_status === "ready" ? `
                 <div style="background: #ecfdf5; border-radius: 8px; padding: 16px; margin: 24px 0; text-align: center;">
                   <p style="color: #047857; margin: 0; font-weight: 600;">
-                    📍 Ready at: ${pharmacyName}
+                    📍 Ready at: ${safePharmacyName}
                   </p>
                 </div>
                 ` : ""}
@@ -172,13 +188,14 @@ serve(async (req) => {
           channel: "email",
           notification_type: "prescription_status",
           title: statusConfig.title,
-          body: body,
+          body: bodyText,
           status: results.email.sent ? "sent" : "failed",
           error_message: results.email.error,
           metadata: { status: new_status, medication: medication_name },
         });
       } catch (err) {
         console.error("Email notification error:", err);
+        captureException(err instanceof Error ? err : new Error(String(err)));
         results.email.error = err instanceof Error ? err.message : "Unknown error";
       }
     }
@@ -194,7 +211,7 @@ serve(async (req) => {
               user_ids: [patient_user_id],
               payload: {
                 title: title,
-                body: body,
+                body: bodyText,
                 tag: "prescription_status",
                 data: { status: new_status, medication: medication_name },
                 requireInteraction: new_status === "ready",
@@ -212,6 +229,7 @@ serve(async (req) => {
         }
       } catch (err) {
         console.error("Push notification error:", err);
+        captureException(err instanceof Error ? err : new Error(String(err)));
         results.push.error = err instanceof Error ? err.message : "Unknown error";
       }
     }
@@ -228,9 +246,10 @@ serve(async (req) => {
     );
   } catch (error) {
     console.error("Error in send-prescription-status-notification:", error);
+    captureException(error instanceof Error ? error : new Error(String(error)));
     return new Response(
       JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
-});
+}));
