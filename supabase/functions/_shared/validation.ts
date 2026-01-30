@@ -142,6 +142,48 @@ export const validators = {
       return { success: true, data: value as T };
     },
   }),
+
+  // Alias for oneOf for more intuitive enum-like usage
+  enum: <T extends string>(values: readonly T[]): FieldValidator<T> => ({
+    validate: (value) => {
+      if (typeof value !== "string" || !values.includes(value as T)) {
+        return { success: false, error: `Must be one of: ${values.join(", ")}` };
+      }
+      return { success: true, data: value as T };
+    },
+  }),
+
+  // Object validator for nested structures
+  object: <T extends Record<string, unknown>>(schema: Record<string, FieldValidator<unknown>> = {}): FieldValidator<T> => ({
+    validate: (value) => {
+      if (typeof value !== "object" || value === null) {
+        return { success: false, error: "Expected object" };
+      }
+      
+      // If no schema provided, just validate it's an object
+      if (Object.keys(schema).length === 0) {
+        return { success: true, data: value as T };
+      }
+      
+      const result: Record<string, unknown> = {};
+      const errors: string[] = [];
+
+      for (const [key, validator] of Object.entries(schema)) {
+        const fieldResult = validator.validate((value as Record<string, unknown>)[key]);
+        if (!fieldResult.success) {
+          errors.push(`${key}: ${fieldResult.error}`);
+        } else {
+          result[key] = fieldResult.data;
+        }
+      }
+
+      if (errors.length > 0) {
+        return { success: false, error: errors.join("; ") };
+      }
+
+      return { success: true, data: result as T };
+    },
+  }),
 };
 
 // ============= Object Schema Validation =============

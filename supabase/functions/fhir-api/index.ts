@@ -1,10 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+import { getCorsHeaders, withSentry, captureException } from "../_shared/sentry.ts";
 
 // FHIR R4 Resource Types
 interface FHIRBundle {
@@ -35,6 +31,22 @@ interface AuthContext {
   isClinician: boolean;
   isPharmacist: boolean;
   isPatient: boolean;
+}
+
+// FHIR-compliant error response
+function fhirErrorResponse(
+  message: string, 
+  code: string, 
+  status: number, 
+  corsHeaders: Record<string, string>
+): Response {
+  return new Response(
+    JSON.stringify({
+      resourceType: "OperationOutcome",
+      issue: [{ severity: "error", code, diagnostics: message }],
+    }),
+    { status, headers: { ...corsHeaders, "Content-Type": "application/fhir+json" } }
+  );
 }
 
 // Helper function to check if user can access patient data
@@ -335,7 +347,9 @@ function mapReactionSeverity(type: string | null): string {
   return severityMap[type.toLowerCase()] || "moderate";
 }
 
-serve(async (req: Request): Promise<Response> => {
+serve(withSentry("fhir-api", async (req: Request): Promise<Response> => {
+  const corsHeaders = getCorsHeaders(req.headers.get("origin"));
+
   // Handle CORS
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -348,22 +362,7 @@ serve(async (req: Request): Promise<Response> => {
     // Validate authorization header
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
-      return new Response(
-        JSON.stringify({
-          resourceType: "OperationOutcome",
-          issue: [
-            {
-              severity: "error",
-              code: "security",
-              diagnostics: "Authorization header required",
-            },
-          ],
-        }),
-        {
-          status: 401,
-          headers: { ...corsHeaders, "Content-Type": "application/fhir+json" },
-        }
-      );
+      return fhirErrorResponse("Authorization header required", "security", 401, corsHeaders);
     }
 
     // Create client with user's token for proper authorization
@@ -377,22 +376,7 @@ serve(async (req: Request): Promise<Response> => {
 
     if (claimsError || !claimsData?.claims) {
       console.error("JWT validation failed:", claimsError);
-      return new Response(
-        JSON.stringify({
-          resourceType: "OperationOutcome",
-          issue: [
-            {
-              severity: "error",
-              code: "security",
-              diagnostics: "Invalid or expired authentication token",
-            },
-          ],
-        }),
-        {
-          status: 401,
-          headers: { ...corsHeaders, "Content-Type": "application/fhir+json" },
-        }
-      );
+      return fhirErrorResponse("Invalid or expired authentication token", "security", 401, corsHeaders);
     }
 
     const userId = claimsData.claims.sub as string;
@@ -405,22 +389,7 @@ serve(async (req: Request): Promise<Response> => {
 
     if (rolesError) {
       console.error("Failed to fetch user roles:", rolesError);
-      return new Response(
-        JSON.stringify({
-          resourceType: "OperationOutcome",
-          issue: [
-            {
-              severity: "error",
-              code: "exception",
-              diagnostics: "Failed to verify user permissions",
-            },
-          ],
-        }),
-        {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/fhir+json" },
-        }
-      );
+      return fhirErrorResponse("Failed to verify user permissions", "exception", 500, corsHeaders);
     }
 
     const roles = userRoles?.map((r: { role: string }) => r.role) || [];
@@ -444,8 +413,18 @@ serve(async (req: Request): Promise<Response> => {
     const resourceType = fhirPath[0];
     const resourceId = fhirPath[1];
 
+    // Validate resourceId if provided (should be UUID)
+    if (resourceId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(resourceId)) {
+      return fhirErrorResponse("Invalid resource ID format", "invalid", 400, corsHeaders);
+    }
+
     // Extract patient ID from query params for scoped queries
     const patientId = url.searchParams.get("patient") || url.searchParams.get("subject");
+    
+    // Validate patient ID if provided
+    if (patientId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(patientId)) {
+      return fhirErrorResponse("Invalid patient ID format", "invalid", 400, corsHeaders);
+    }
 
     let bundle: FHIRBundle;
 
@@ -455,13 +434,7 @@ serve(async (req: Request): Promise<Response> => {
           // Check if user can access this specific patient
           const canAccess = await canAccessPatientData(supabase, authContext, resourceId);
           if (!canAccess) {
-            return new Response(
-              JSON.stringify({
-                resourceType: "OperationOutcome",
-                issue: [{ severity: "error", code: "forbidden", diagnostics: "You do not have permission to access this patient's data" }],
-              }),
-              { status: 403, headers: { ...corsHeaders, "Content-Type": "application/fhir+json" } }
-            );
+            return fhirErrorResponse("You do not have permission to access this patient's data", "forbidden", 403, corsHeaders);
           }
 
           const { data: profile, error } = await supabase
@@ -471,13 +444,7 @@ serve(async (req: Request): Promise<Response> => {
             .single();
 
           if (error || !profile) {
-            return new Response(
-              JSON.stringify({
-                resourceType: "OperationOutcome",
-                issue: [{ severity: "error", code: "not-found", diagnostics: "Patient not found" }],
-              }),
-              { status: 404, headers: { ...corsHeaders, "Content-Type": "application/fhir+json" } }
-            );
+            return fhirErrorResponse("Patient not found", "not-found", 404, corsHeaders);
           }
 
           return new Response(JSON.stringify(toFHIRPatient(profile as Record<string, unknown>)), {
@@ -536,13 +503,7 @@ serve(async (req: Request): Promise<Response> => {
         if (patientId) {
           const canAccess = await canAccessPatientData(supabase, authContext, patientId);
           if (!canAccess) {
-            return new Response(
-              JSON.stringify({
-                resourceType: "OperationOutcome",
-                issue: [{ severity: "error", code: "forbidden", diagnostics: "You do not have permission to access this patient's prescriptions" }],
-              }),
-              { status: 403, headers: { ...corsHeaders, "Content-Type": "application/fhir+json" } }
-            );
+            return fhirErrorResponse("You do not have permission to access this patient's prescriptions", "forbidden", 403, corsHeaders);
           }
         }
 
@@ -570,13 +531,7 @@ serve(async (req: Request): Promise<Response> => {
           const prescription = prescriptions[0] as Record<string, unknown>;
           const canAccess = await canAccessPatientData(supabase, authContext, prescription.patient_user_id as string);
           if (!canAccess) {
-            return new Response(
-              JSON.stringify({
-                resourceType: "OperationOutcome",
-                issue: [{ severity: "error", code: "forbidden", diagnostics: "You do not have permission to access this prescription" }],
-              }),
-              { status: 403, headers: { ...corsHeaders, "Content-Type": "application/fhir+json" } }
-            );
+            return fhirErrorResponse("You do not have permission to access this prescription", "forbidden", 403, corsHeaders);
           }
           return new Response(JSON.stringify(toFHIRMedicationRequest(prescription)), {
             headers: { ...corsHeaders, "Content-Type": "application/fhir+json" },
@@ -600,13 +555,7 @@ serve(async (req: Request): Promise<Response> => {
         if (patientId) {
           const canAccess = await canAccessPatientData(supabase, authContext, patientId);
           if (!canAccess) {
-            return new Response(
-              JSON.stringify({
-                resourceType: "OperationOutcome",
-                issue: [{ severity: "error", code: "forbidden", diagnostics: "You do not have permission to access this patient's medication administration records" }],
-              }),
-              { status: 403, headers: { ...corsHeaders, "Content-Type": "application/fhir+json" } }
-            );
+            return fhirErrorResponse("You do not have permission to access this patient's medication administration records", "forbidden", 403, corsHeaders);
           }
         }
 
@@ -643,13 +592,7 @@ serve(async (req: Request): Promise<Response> => {
         if (patientId) {
           const canAccess = await canAccessPatientData(supabase, authContext, patientId);
           if (!canAccess) {
-            return new Response(
-              JSON.stringify({
-                resourceType: "OperationOutcome",
-                issue: [{ severity: "error", code: "forbidden", diagnostics: "You do not have permission to access this patient's allergy records" }],
-              }),
-              { status: 403, headers: { ...corsHeaders, "Content-Type": "application/fhir+json" } }
-            );
+            return fhirErrorResponse("You do not have permission to access this patient's allergy records", "forbidden", 403, corsHeaders);
           }
         }
 
@@ -686,13 +629,7 @@ serve(async (req: Request): Promise<Response> => {
         if (patientId) {
           const canAccess = await canAccessPatientData(supabase, authContext, patientId);
           if (!canAccess) {
-            return new Response(
-              JSON.stringify({
-                resourceType: "OperationOutcome",
-                issue: [{ severity: "error", code: "forbidden", diagnostics: "You do not have permission to access this patient's condition records" }],
-              }),
-              { status: 403, headers: { ...corsHeaders, "Content-Type": "application/fhir+json" } }
-            );
+            return fhirErrorResponse("You do not have permission to access this patient's condition records", "forbidden", 403, corsHeaders);
           }
         }
 
@@ -769,19 +706,7 @@ serve(async (req: Request): Promise<Response> => {
       }
 
       default:
-        return new Response(
-          JSON.stringify({
-            resourceType: "OperationOutcome",
-            issue: [
-              {
-                severity: "error",
-                code: "not-supported",
-                diagnostics: `Resource type '${resourceType}' is not supported`,
-              },
-            ],
-          }),
-          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/fhir+json" } }
-        );
+        return fhirErrorResponse(`Resource type '${resourceType}' is not supported`, "not-supported", 400, corsHeaders);
     }
 
     return new Response(JSON.stringify(bundle), {
@@ -789,18 +714,7 @@ serve(async (req: Request): Promise<Response> => {
     });
   } catch (error) {
     console.error("FHIR API error:", error);
-    return new Response(
-      JSON.stringify({
-        resourceType: "OperationOutcome",
-        issue: [
-          {
-            severity: "error",
-            code: "exception",
-            diagnostics: "An internal server error occurred",
-          },
-        ],
-      }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/fhir+json" } }
-    );
+    captureException(error instanceof Error ? error : new Error(String(error)));
+    return fhirErrorResponse("An internal server error occurred", "exception", 500, corsHeaders);
   }
-});
+}));
