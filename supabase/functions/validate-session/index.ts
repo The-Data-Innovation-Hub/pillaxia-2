@@ -6,6 +6,7 @@
  * - Concurrent session limits
  * - Device trust verification
  * - Activity timeout (idle session expiration)
+ * - Server-verified role claims
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
@@ -16,6 +17,8 @@ import { withRateLimit } from "../_shared/rateLimiter.ts";
 const DEFAULT_SESSION_TIMEOUT_MINUTES = 30;
 const DEFAULT_MAX_CONCURRENT_SESSIONS = 3;
 
+type AppRole = "patient" | "clinician" | "pharmacist" | "admin" | "manager";
+
 interface SessionValidationResult {
   valid: boolean;
   userId?: string;
@@ -23,6 +26,13 @@ interface SessionValidationResult {
   sessionId?: string;
   remainingMinutes?: number;
   shouldRefresh?: boolean;
+  // Server-verified roles - these are authoritative
+  roles?: AppRole[];
+  isAdmin?: boolean;
+  isManager?: boolean;
+  isClinician?: boolean;
+  isPharmacist?: boolean;
+  isPatient?: boolean;
 }
 
 Deno.serve(async (req) => {
@@ -77,6 +87,27 @@ Deno.serve(async (req) => {
     // Use service role for session checks
     const supabase = createClient(supabaseUrl, serviceRoleKey);
     
+    // Fetch server-verified roles - this is the authoritative source
+    const { data: rolesData, error: rolesError } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", userId);
+    
+    if (rolesError) {
+      console.error("[SESSION] Error fetching roles:", rolesError);
+    }
+    
+    const roles: AppRole[] = rolesData?.map(r => r.role as AppRole) || [];
+    const roleFlags = {
+      isAdmin: roles.includes("admin"),
+      isManager: roles.includes("manager"),
+      isClinician: roles.includes("clinician"),
+      isPharmacist: roles.includes("pharmacist"),
+      isPatient: roles.includes("patient"),
+    };
+    
+    console.log(`[SESSION] Server-verified roles for user ${userId}:`, roles);
+    
     // Get session timeout settings
     const { data: settings } = await supabase
       .from("security_settings")
@@ -109,7 +140,7 @@ Deno.serve(async (req) => {
     const shouldRefresh = tokenExpiresInMinutes < 5 && tokenExpiresInMinutes > 0;
     
     // Find current session (if exists)
-    let currentSession = activeSessions[0];
+    const currentSession = activeSessions[0];
     
     // Check idle timeout
     if (currentSession) {
@@ -180,6 +211,8 @@ Deno.serve(async (req) => {
           sessionId: currentSession.id,
           remainingMinutes,
           shouldRefresh,
+          roles,
+          ...roleFlags,
         } as SessionValidationResult),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
@@ -230,6 +263,8 @@ Deno.serve(async (req) => {
           valid: true,
           userId,
           shouldRefresh,
+          roles,
+          ...roleFlags,
         } as SessionValidationResult),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
@@ -244,6 +279,8 @@ Deno.serve(async (req) => {
         sessionId: newSession.id,
         remainingMinutes: sessionTimeoutMinutes,
         shouldRefresh,
+        roles,
+        ...roleFlags,
       } as SessionValidationResult),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
