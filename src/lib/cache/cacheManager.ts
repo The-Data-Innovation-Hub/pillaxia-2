@@ -251,11 +251,32 @@ class CacheManager {
   /**
    * Get all values from a store matching an index value.
    */
+  /**
+   * Check if a value is a valid IDBKey.
+   */
+  private isValidKey(value: unknown): value is IDBValidKey {
+    if (value === null || value === undefined) return false;
+    const type = typeof value;
+    if (type === "number" || type === "string") return true;
+    if (value instanceof Date || value instanceof ArrayBuffer) return true;
+    if (Array.isArray(value)) return value.every((v) => this.isValidKey(v));
+    return false;
+  }
+
+  /**
+   * Get all values from a store matching an index value.
+   */
   async getAllByIndex<T>(
     storeName: StoreName,
     indexName: string,
     value: IDBValidKey
   ): Promise<T[]> {
+    // Guard against invalid keys that would throw DataError
+    if (!this.isValidKey(value)) {
+      console.warn(`[CacheManager] Invalid key passed to getAllByIndex: ${String(value)}`);
+      return [];
+    }
+
     return this.readTransaction(storeName, (tx) => {
       return new Promise((resolve, reject) => {
         const store = tx.objectStore(storeName);
@@ -270,11 +291,20 @@ class CacheManager {
   /**
    * Delete all values from a store matching an index value.
    */
+  /**
+   * Delete all values from a store matching an index value.
+   */
   async deleteAllByIndex(
     storeName: StoreName,
     indexName: string,
     value: IDBValidKey
   ): Promise<void> {
+    // Guard against invalid keys that would throw DataError
+    if (!this.isValidKey(value)) {
+      console.warn(`[CacheManager] Invalid key passed to deleteAllByIndex: ${String(value)}`);
+      return;
+    }
+
     const db = await this.openDB();
     
     return new Promise((resolve, reject) => {
