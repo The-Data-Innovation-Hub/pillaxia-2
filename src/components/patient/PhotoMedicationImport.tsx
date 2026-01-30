@@ -80,7 +80,7 @@ export function PhotoMedicationImport({ open, onOpenChange, onSuccess }: PhotoMe
 
       if (data?.medications && data.medications.length > 0) {
         setExtracted(data.medications);
-        setSelectedMeds(new Set(data.medications.map((_: any, i: number) => i)));
+        setSelectedMeds(new Set(data.medications.map((_: unknown, i: number) => i)));
       } else {
         setError("No medications found in the image. Please try a clearer photo of the prescription label.");
       }

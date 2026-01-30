@@ -50,12 +50,20 @@ export function useBiometricAuth() {
         isLoading: false,
         error: null,
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
+      let errorMessage: string;
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      } else if (typeof error === 'string') {
+        errorMessage = error;
+      } else {
+        errorMessage = "Failed to check biometric availability";
+      }
       setState(prev => ({
         ...prev,
         isAvailable: false,
         isLoading: false,
-        error: error.message || "Failed to check biometric availability",
+        error: errorMessage,
       }));
     }
   }, []);

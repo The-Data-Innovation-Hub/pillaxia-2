@@ -185,7 +185,7 @@ export function TwoFactorSettingsCard() {
       setSecret(data.totp.secret);
       setFactorId(data.id);
       setShowEnrollDialog(true);
-    } catch (error: any) {
+    } catch (error) {
       console.error("Error enrolling MFA:", error);
       toast({
         title: "Failed to set up 2FA",
@@ -230,11 +230,12 @@ export function TwoFactorSettingsCard() {
         title: "Code sent",
         description: `A verification code has been sent to ${phoneNumber}`,
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error enrolling phone MFA:", error);
+      const message = error instanceof Error ? error.message : String(error);
       toast({
         title: "Failed to set up SMS 2FA",
-        description: error.message || "Could not send verification code. Please check your phone number.",
+        description: message || "Could not send verification code. Please check your phone number.",
         variant: "destructive",
       });
     } finally {
@@ -271,11 +272,11 @@ export function TwoFactorSettingsCard() {
       resetEnrollState();
       setShowRecoveryCodesDialog(true);
       fetchFactors();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error verifying MFA:", error);
       toast({
         title: "Verification failed",
-        description: error.message || "Invalid code. Please try again.",
+        description: error instanceof Error && error.message ? error.message : "Invalid code. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -295,10 +296,11 @@ export function TwoFactorSettingsCard() {
         title: "Code resent",
         description: "A new verification code has been sent to your phone.",
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
       toast({
         title: "Failed to resend code",
-        description: error.message || "Could not resend verification code.",
+        description: errorMessage || "Could not resend verification code.",
         variant: "destructive",
       });
     } finally {
@@ -347,11 +349,12 @@ export function TwoFactorSettingsCard() {
       setDisableCode("");
       setFactorId(null);
       fetchFactors();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error disabling MFA:", error);
+      const message = error instanceof Error ? error.message : String(error);
       toast({
         title: "Failed to disable 2FA",
-        description: error.message || "Invalid code or error occurred.",
+        description: message || "Invalid code or error occurred.",
         variant: "destructive",
       });
     } finally {
@@ -392,11 +395,12 @@ export function TwoFactorSettingsCard() {
       setRegenerateCode("");
       setShowRecoveryCodesDialog(true);
       fetchFactors();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error regenerating recovery codes:", error);
+      const message = error instanceof Error ? error.message : String(error);
       toast({
         title: "Failed to regenerate codes",
-        description: error.message || "Invalid verification code.",
+        description: message || "Invalid verification code.",
         variant: "destructive",
       });
     } finally {
@@ -456,7 +460,7 @@ export function TwoFactorSettingsCard() {
       setShowSuspendDialog(false);
       setSuspendRecoveryCode("");
       fetchFactors();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error suspending MFA:", error);
       toast({
         title: "Failed to suspend 2FA",

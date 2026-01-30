@@ -118,8 +118,8 @@ export function AdjustStockDialog({
       form.reset();
       onOpenChange(false);
       onSuccess();
-    } catch (error: any) {
-      toast.error(error.message || "Failed to adjust stock");
+    } catch (error: unknown) {
+      toast.error((error as Error).message || "Failed to adjust stock");
     } finally {
       setIsSubmitting(false);
     }

@@ -36,7 +36,7 @@ interface AuditLogEntry {
   action: string;
   target_table: string | null;
   target_id: string | null;
-  details: any;
+  details: unknown;
   ip_address: string | null;
   user_agent: string | null;
   created_at: string;

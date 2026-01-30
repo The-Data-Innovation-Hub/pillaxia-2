@@ -23,7 +23,7 @@ function compactEndpoint(endpoint: string, max = 60) {
 }
 
 function formatUnknownError(err: unknown): string {
-  const anyErr = err as any;
+  const anyErr = err as { name?: unknown; message?: unknown; context?: { status?: unknown }; status?: unknown };
   const name = typeof anyErr?.name === "string" ? anyErr.name : undefined;
   const message =
     typeof anyErr?.message === "string"

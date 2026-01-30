@@ -202,11 +202,12 @@ export function ClinicianProfileTab() {
         title: "Avatar updated",
         description: "Your profile picture has been updated.",
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Failed to upload avatar:", error);
+      const message = error instanceof Error ? error.message : "Please try again.";
       toast({
         title: "Upload failed",
-        description: error.message || "Please try again.",
+        description: message,
         variant: "destructive",
       });
     } finally {
@@ -244,11 +245,12 @@ export function ClinicianProfileTab() {
         title: "Avatar removed",
         description: "Your profile picture has been removed.",
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Failed to remove avatar:", error);
+      const message = error instanceof Error ? error.message : "Please try again.";
       toast({
         title: "Failed to remove avatar",
-        description: error.message || "Please try again.",
+        description: message,
         variant: "destructive",
       });
     } finally {
@@ -303,11 +305,12 @@ export function ClinicianProfileTab() {
         newPassword: "",
         confirmPassword: "",
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Failed to change password:", error);
+      const errorMessage = error instanceof Error ? error.message : "Please try again.";
       toast({
         title: "Failed to change password",
-        description: error.message || "Please try again.",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
@@ -327,8 +330,6 @@ export function ClinicianProfileTab() {
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(newEmail)) {
-      toast({
-        title: "Invalid email",
         description: "Please enter a valid email address.",
         variant: "destructive",
       });
@@ -357,7 +358,7 @@ export function ClinicianProfileTab() {
         title: "Verification email sent",
         description: "Please check both your current and new email inboxes to confirm the change.",
       });
-    } catch (error: any) {
+    } catch (error: Error) {
       console.error("Failed to change email:", error);
       toast({
         title: "Failed to change email",

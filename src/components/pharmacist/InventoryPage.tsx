@@ -55,9 +55,13 @@ export function InventoryPage() {
       } else {
         toast.success("Expiry check completed successfully");
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Expiry check error:", error);
-      toast.error(error.message || "Failed to run expiry check");
+      if (error instanceof Error) {
+        toast.error(error.message || "Failed to run expiry check");
+      } else {
+        toast.error("Failed to run expiry check");
+      }
     } finally {
       setIsCheckingExpiry(false);
     }

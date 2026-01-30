@@ -266,7 +266,7 @@ export function usePrescriptions(options?: {
         .eq("id", prescriptionId)
         .single();
 
-      const updates: Record<string, any> = { status };
+      const updates: { status: PrescriptionStatus; received_at?: string; dispensed_at?: string } = { status };
       if (status === 'received') updates.received_at = new Date().toISOString();
       if (status === 'dispensed') updates.dispensed_at = new Date().toISOString();
 

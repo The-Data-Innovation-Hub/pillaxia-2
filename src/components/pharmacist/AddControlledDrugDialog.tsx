@@ -119,8 +119,9 @@ export function AddControlledDrugDialog({
       form.reset();
       onOpenChange(false);
       onSuccess();
-    } catch (error: any) {
-      toast.error(error.message || "Failed to add controlled drug");
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      toast.error(message || "Failed to add controlled drug");
     } finally {
       setIsSubmitting(false);
     }
