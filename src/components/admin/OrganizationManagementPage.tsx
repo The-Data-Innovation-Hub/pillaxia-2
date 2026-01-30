@@ -684,6 +684,10 @@ export function OrganizationManagementPage() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        <TabsContent value="billing" className="mt-6">
+          <OrganizationBillingTab />
+        </TabsContent>
       </Tabs>
 
       {/* Edit Member Dialog */}
@@ -864,10 +868,6 @@ export function OrganizationManagementPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Billing Tab Content */}
-      <TabsContent value="billing" className="mt-6">
-        <OrganizationBillingTab />
-      </TabsContent>
     </div>
   );
 }
