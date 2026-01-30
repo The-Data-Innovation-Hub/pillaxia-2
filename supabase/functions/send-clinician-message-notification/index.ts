@@ -1,19 +1,18 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { Resend } from "https://esm.sh/resend@2.0.0";
+import { getCorsHeaders, handleCorsPreflightRequest } from "../_shared/cors.ts";
+import { withSentry, captureException } from "../_shared/sentry.ts";
+import { validators, validateSchema, validationErrorResponse } from "../_shared/validation.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+// Input validation schema
+const notificationRequestSchema = {
+  recipientId: validators.uuid(),
+  senderName: validators.string({ minLength: 1, maxLength: 100 }),
+  message: validators.string({ minLength: 1, maxLength: 5000 }),
+  senderType: validators.enum(["clinician", "patient"]),
+  messageId: validators.optional(validators.uuid()),
 };
-
-interface NotificationRequest {
-  recipientId: string;
-  senderName: string;
-  message: string;
-  senderType: "clinician" | "patient";
-  messageId?: string; // Optional: to update delivery status on the message
-}
 
 interface DeliveryStatus {
   sent: boolean;
@@ -28,17 +27,34 @@ interface DeliveryStatusMap {
   sms?: DeliveryStatus;
 }
 
-serve(async (req: Request): Promise<Response> => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
-  }
+// XSS prevention utility
+function escapeHtml(text: string): string {
+  const htmlEscapes: Record<string, string> = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  };
+  return text.replace(/[&<>"']/g, (char) => htmlEscapes[char] || char);
+}
+
+serve(withSentry("send-clinician-message-notification", async (req: Request): Promise<Response> => {
+  const corsResponse = handleCorsPreflightRequest(req);
+  if (corsResponse) return corsResponse;
+
+  const origin = req.headers.get("Origin");
+  const corsHeaders = getCorsHeaders(origin);
 
   try {
-    const { recipientId, senderName, message, senderType, messageId }: NotificationRequest = await req.json();
-
-    if (!recipientId || !senderName || !message || !senderType) {
-      throw new Error("Missing required fields: recipientId, senderName, message, senderType");
+    const body = await req.json();
+    const validation = validateSchema(notificationRequestSchema, body);
+    
+    if (!validation.success) {
+      return validationErrorResponse(validation, corsHeaders);
     }
+
+    const { recipientId, senderName, message, senderType, messageId } = validation.data;
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -60,6 +76,7 @@ serve(async (req: Request): Promise<Response> => {
 
     if (profileResult.error) {
       console.error("Error fetching profile:", profileResult.error);
+      captureException(new Error(`Failed to fetch profile: ${profileResult.error.message}`));
       throw profileResult.error;
     }
 
@@ -72,7 +89,9 @@ serve(async (req: Request): Promise<Response> => {
     const whatsappEnabled = prefs?.whatsapp_clinician_messages ?? true;
     const smsEnabled = prefs?.sms_clinician_messages ?? true;
 
-    const recipientName = profile?.first_name || "there";
+    const recipientName = escapeHtml(profile?.first_name || "there");
+    const safeSenderName = escapeHtml(senderName);
+    const safeMessage = escapeHtml(message);
     const deliveryStatus: DeliveryStatusMap = {};
     const now = new Date().toISOString();
 
@@ -88,7 +107,7 @@ serve(async (req: Request): Promise<Response> => {
           const emailResponse = await resend.emails.send({
             from: "Pillaxia <noreply@resend.dev>",
             to: [profile.email],
-            subject: `${subjectPrefix} New message from ${senderName}`,
+            subject: `${subjectPrefix} New message from ${safeSenderName}`,
             html: `
               <!DOCTYPE html>
               <html>
@@ -107,12 +126,12 @@ serve(async (req: Request): Promise<Response> => {
                   </p>
                   
                   <p style="font-size: 16px; margin-bottom: 20px;">
-                    You have a new message from ${senderLabel}, <strong>${senderName}</strong>:
+                    You have a new message from ${senderLabel}, <strong>${safeSenderName}</strong>:
                   </p>
                   
                   <div style="background: white; padding: 20px; border-radius: 12px; border-left: 4px solid #0EA5E9; margin: 20px 0;">
                     <p style="font-size: 16px; margin: 0; color: #4b5563;">
-                      "${message.substring(0, 500)}${message.length > 500 ? "..." : ""}"
+                      "${safeMessage.substring(0, 500)}${message.length > 500 ? "..." : ""}"
                     </p>
                   </div>
                   
@@ -140,7 +159,7 @@ serve(async (req: Request): Promise<Response> => {
               user_id: recipientId,
               channel: "email",
               notification_type: "clinician_message",
-              title: `Message from ${senderName}`,
+              title: `Message from ${safeSenderName}`,
               body: message.substring(0, 200),
               status: "failed",
               error_message: emailResponse.error.message?.slice(0, 500),
@@ -154,7 +173,7 @@ serve(async (req: Request): Promise<Response> => {
               user_id: recipientId,
               channel: "email",
               notification_type: "clinician_message",
-              title: `Message from ${senderName}`,
+              title: `Message from ${safeSenderName}`,
               body: message.substring(0, 200),
               status: "sent",
               metadata: { 
@@ -169,9 +188,10 @@ serve(async (req: Request): Promise<Response> => {
         } else {
           deliveryStatus.email = { sent: false, at: now, error: "RESEND_API_KEY not configured" };
         }
-      } catch (emailErr: any) {
+      } catch (emailErr) {
         console.error("Email error:", emailErr);
-        deliveryStatus.email = { sent: false, at: now, error: emailErr.message };
+        captureException(emailErr instanceof Error ? emailErr : new Error(String(emailErr)));
+        deliveryStatus.email = { sent: false, at: now, error: emailErr instanceof Error ? emailErr.message : "Unknown error" };
       }
     } else {
       deliveryStatus.email = { sent: false, at: now, error: emailEnabled ? "No email address" : "Disabled by user" };
@@ -207,9 +227,10 @@ serve(async (req: Request): Promise<Response> => {
           console.log(`Web push sent to ${pushData?.sent} device(s)`);
           deliveryStatus.push = { sent: true, at: now };
         }
-      } catch (pushErr: any) {
+      } catch (pushErr) {
         console.error("Web push error:", pushErr);
-        deliveryStatus.push = { sent: false, at: now, error: pushErr.message };
+        captureException(pushErr instanceof Error ? pushErr : new Error(String(pushErr)));
+        deliveryStatus.push = { sent: false, at: now, error: pushErr instanceof Error ? pushErr.message : "Unknown error" };
       }
 
       // Send native iOS push notification
@@ -227,8 +248,9 @@ serve(async (req: Request): Promise<Response> => {
           },
         });
         console.log("Native iOS push sent for clinician message");
-      } catch (nativePushErr: any) {
+      } catch (nativePushErr) {
         console.error("Native iOS push error:", nativePushErr);
+        captureException(nativePushErr instanceof Error ? nativePushErr : new Error(String(nativePushErr)));
       }
     } else {
       deliveryStatus.push = { sent: false, at: now, error: "Disabled by user" };
@@ -255,9 +277,10 @@ serve(async (req: Request): Promise<Response> => {
           console.log("WhatsApp sent successfully");
           deliveryStatus.whatsapp = { sent: true, at: now };
         }
-      } catch (waErr: any) {
+      } catch (waErr) {
         console.error("WhatsApp exception:", waErr);
-        deliveryStatus.whatsapp = { sent: false, at: now, error: waErr.message };
+        captureException(waErr instanceof Error ? waErr : new Error(String(waErr)));
+        deliveryStatus.whatsapp = { sent: false, at: now, error: waErr instanceof Error ? waErr.message : "Unknown error" };
       }
     } else {
       deliveryStatus.whatsapp = { sent: false, at: now, error: whatsappEnabled ? "No phone number" : "Disabled by user" };
@@ -291,9 +314,10 @@ serve(async (req: Request): Promise<Response> => {
           console.log("SMS sent successfully:", smsData?.sid);
           deliveryStatus.sms = { sent: true, at: now };
         }
-      } catch (smsErr: any) {
+      } catch (smsErr) {
         console.error("SMS exception:", smsErr);
-        deliveryStatus.sms = { sent: false, at: now, error: smsErr.message };
+        captureException(smsErr instanceof Error ? smsErr : new Error(String(smsErr)));
+        deliveryStatus.sms = { sent: false, at: now, error: smsErr instanceof Error ? smsErr.message : "Unknown error" };
       }
     } else {
       deliveryStatus.sms = { sent: false, at: now, error: smsEnabled ? "No phone number" : "Disabled by user" };
@@ -325,14 +349,15 @@ serve(async (req: Request): Promise<Response> => {
         headers: { "Content-Type": "application/json", ...corsHeaders } 
       }
     );
-  } catch (error: any) {
+  } catch (error) {
     console.error("Error in send-clinician-message-notification:", error);
+    captureException(error instanceof Error ? error : new Error(String(error)));
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }),
       { 
         status: 500, 
         headers: { "Content-Type": "application/json", ...corsHeaders } 
       }
     );
   }
-});
+}));

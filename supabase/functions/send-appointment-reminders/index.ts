@@ -1,10 +1,19 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
+import { getCorsHeaders, handleCorsPreflightRequest } from "../_shared/cors.ts";
+import { withSentry, captureException } from "../_shared/sentry.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+// XSS prevention utility
+function escapeHtml(text: string): string {
+  const htmlEscapes: Record<string, string> = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  };
+  return text.replace(/[&<>"']/g, (char) => htmlEscapes[char] || char);
+}
 
 async function sendSMS(
   phone: string,
@@ -133,10 +142,12 @@ async function sendWhatsAppViaMeta(
   }
 }
 
-serve(async (req: Request) => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
-  }
+serve(withSentry("send-appointment-reminders", async (req: Request) => {
+  const corsResponse = handleCorsPreflightRequest(req);
+  if (corsResponse) return corsResponse;
+
+  const origin = req.headers.get("Origin");
+  const corsHeaders = getCorsHeaders(origin);
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -166,6 +177,7 @@ serve(async (req: Request) => {
 
     if (fetchError) {
       console.error("Error fetching appointments:", fetchError);
+      captureException(new Error(`Failed to fetch appointments: ${fetchError.message}`));
       throw fetchError;
     }
 
@@ -219,15 +231,24 @@ serve(async (req: Request) => {
           ? `${baseUrl}/dashboard/telemedicine/room/${videoRoomId}`
           : null;
 
+        // Escape dynamic content for email HTML
+        const safePatientName = escapeHtml(patientProfile?.first_name || "there");
+        const safeTitle = escapeHtml(appointment.title || "Appointment");
+        const safeLocation = escapeHtml(appointment.location || "");
+        const safeDescription = escapeHtml(appointment.description || "");
+        const safeClinicianFirstName = escapeHtml(clinicianProfile?.first_name || "");
+        const safeClinicianLastName = escapeHtml(clinicianProfile?.last_name || "");
+
         let emailSent = false;
         let smsSent = false;
         let whatsappSent = false;
+
         if (resendApiKey && patientProfile?.email && (prefs?.email_reminders !== false)) {
           const videoCallSection = isVideoCall && videoCallLink
             ? `
               <div style="background: #0ea5e9; padding: 15px 20px; border-radius: 8px; margin: 15px 0; text-align: center;">
                 <p style="color: white; margin: 0 0 10px 0; font-weight: bold;">📹 This is a Video Appointment</p>
-                <a href="${videoCallLink}" style="display: inline-block; background: white; color: #0ea5e9; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: bold;">Join Video Call</a>
+                <a href="${escapeHtml(videoCallLink)}" style="display: inline-block; background: white; color: #0ea5e9; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: bold;">Join Video Call</a>
               </div>
             `
             : "";
@@ -235,16 +256,16 @@ serve(async (req: Request) => {
           const emailHtml = `
             <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
               <h2 style="color: #0ea5e9;">Appointment Reminder</h2>
-              <p>Hello ${patientProfile.first_name || "there"},</p>
+              <p>Hello ${safePatientName},</p>
               <p>This is a reminder about your upcoming appointment:</p>
               <div style="background: #f3f4f6; padding: 20px; border-radius: 8px; margin: 20px 0;">
-                <p><strong>Title:</strong> ${appointment.title}</p>
-                <p><strong>Date:</strong> ${appointmentDate}</p>
-                <p><strong>Time:</strong> ${appointmentTime}</p>
+                <p><strong>Title:</strong> ${safeTitle}</p>
+                <p><strong>Date:</strong> ${escapeHtml(appointmentDate)}</p>
+                <p><strong>Time:</strong> ${escapeHtml(appointmentTime)}</p>
                 ${isVideoCall ? `<p><strong>Type:</strong> 📹 Video Consultation</p>` : ""}
-                ${!isVideoCall && appointment.location ? `<p><strong>Location:</strong> ${appointment.location}</p>` : ""}
-                ${clinicianProfile ? `<p><strong>With:</strong> Dr. ${clinicianProfile.first_name} ${clinicianProfile.last_name}</p>` : ""}
-                ${appointment.description ? `<p><strong>Notes:</strong> ${appointment.description}</p>` : ""}
+                ${!isVideoCall && safeLocation ? `<p><strong>Location:</strong> ${safeLocation}</p>` : ""}
+                ${clinicianProfile ? `<p><strong>With:</strong> Dr. ${safeClinicianFirstName} ${safeClinicianLastName}</p>` : ""}
+                ${safeDescription ? `<p><strong>Notes:</strong> ${safeDescription}</p>` : ""}
               </div>
               ${videoCallSection}
               <p>${isVideoCall ? "Click the button above to join your video call at the scheduled time." : "Please make sure to arrive on time."} If you need to reschedule or cancel, please log in to your Pillaxia account.</p>
@@ -261,7 +282,7 @@ serve(async (req: Request) => {
             body: JSON.stringify({
               from: "Pillaxia <notifications@pillaxia.com>",
               to: [patientProfile.email],
-              subject: `Reminder: ${appointment.title} - Tomorrow at ${appointmentTime}`,
+              subject: `Reminder: ${safeTitle} - Tomorrow at ${appointmentTime}`,
               html: emailHtml,
             }),
           });
@@ -276,7 +297,7 @@ serve(async (req: Request) => {
               user_id: appointment.patient_user_id,
               channel: "email",
               notification_type: "appointment_reminder",
-              title: `Appointment Reminder: ${appointment.title}`,
+              title: `Appointment Reminder: ${safeTitle}`,
               body: `Your appointment is scheduled for tomorrow at ${appointmentTime}`,
               status: "sent",
               metadata: { appointment_id: appointment.id },
@@ -392,6 +413,7 @@ serve(async (req: Request) => {
         }
       } catch (appointmentError) {
         console.error(`Error processing appointment ${appointment.id}:`, appointmentError);
+        captureException(appointmentError instanceof Error ? appointmentError : new Error(String(appointmentError)));
         results.failed++;
       }
     }
@@ -407,10 +429,11 @@ serve(async (req: Request) => {
     );
   } catch (error: unknown) {
     console.error("Error in send-appointment-reminders:", error);
+    captureException(error instanceof Error ? error : new Error(String(error)));
     const message = error instanceof Error ? error.message : "Unknown error";
     return new Response(
       JSON.stringify({ error: message }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
-});
+}));
