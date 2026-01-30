@@ -1,8 +1,8 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@18.5.0";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
-import { captureException, captureMessage } from "../_shared/sentry.ts";
-import { getCorsHeaders } from "../_shared/cors.ts";
+import { withSentry, captureException, captureMessage } from "../_shared/sentry.ts";
+import { getCorsHeaders, handleCorsPreflightRequest } from "../_shared/cors.ts";
 
 const FUNCTION_NAME = "stripe-webhook";
 
@@ -11,12 +11,12 @@ const logStep = (step: string, details?: unknown) => {
   console.log(`[STRIPE-WEBHOOK] ${step}${detailsStr}`);
 };
 
-serve(async (req) => {
+serve(withSentry(FUNCTION_NAME, async (req: Request): Promise<Response> => {
   const corsHeaders = getCorsHeaders(req.headers.get("origin"));
   
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
-  }
+  // Handle CORS preflight
+  const preflightResponse = handleCorsPreflightRequest(req);
+  if (preflightResponse) return preflightResponse;
 
   const stripeKey = Deno.env.get("STRIPE_SECRET_KEY");
   const webhookSecret = Deno.env.get("STRIPE_WEBHOOK_SECRET");
@@ -58,11 +58,12 @@ serve(async (req) => {
     const body = await req.text();
     let event: Stripe.Event;
 
-    // Verify webhook signature
+    // SECURITY: Verify webhook signature (mandatory in production)
     if (webhookSecret) {
       const signature = req.headers.get("stripe-signature");
       if (!signature) {
         logStep("ERROR", { message: "Missing stripe-signature header" });
+        await captureMessage("Missing Stripe signature header", "warning", { functionName: FUNCTION_NAME });
         return new Response(JSON.stringify({ error: "No Stripe signature found" }), { 
           status: 401,
           headers: { ...corsHeaders, "Content-Type": "application/json" }
@@ -113,6 +114,7 @@ serve(async (req) => {
 
         if (error) {
           logStep("Error upserting subscription", { error: error.message });
+          captureException(error);
         }
 
         // Log billing event
@@ -161,6 +163,7 @@ serve(async (req) => {
 
         if (error) {
           logStep("Error updating subscription", { error: error.message });
+          captureException(error);
         }
         break;
       }
@@ -186,6 +189,7 @@ serve(async (req) => {
 
         if (error) {
           logStep("Error marking subscription as canceled", { error: error.message });
+          captureException(error);
         }
 
         // Log billing event
@@ -333,4 +337,4 @@ serve(async (req) => {
       status: 400,
     });
   }
-});
+}));

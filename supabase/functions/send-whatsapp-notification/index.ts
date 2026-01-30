@@ -4,12 +4,20 @@ import { getCorsHeaders, handleCorsPreflightRequest } from "../_shared/cors.ts";
 import { validators, validateSchema, validationErrorResponse } from "../_shared/validation.ts";
 import { withSentry, captureException } from "../_shared/sentry.ts";
 
-// Input validation schema
-const notificationSchema = {
+// Input validation schema - support both legacy and new formats
+const legacyNotificationSchema = {
   recipientId: validators.uuid(),
   senderName: validators.string({ minLength: 1, maxLength: 100 }),
   message: validators.string({ minLength: 1, maxLength: 2000 }),
   notificationType: validators.optional(validators.string({ maxLength: 50 })),
+};
+
+const newNotificationSchema = {
+  user_id: validators.uuid(),
+  phone_number: validators.string({ minLength: 1, maxLength: 20 }),
+  message: validators.string({ minLength: 1, maxLength: 2000 }),
+  notification_type: validators.optional(validators.string({ maxLength: 50 })),
+  metadata: validators.optional(validators.object()),
 };
 
 // Send WhatsApp via Twilio
@@ -130,17 +138,40 @@ serve(withSentry("send-whatsapp-notification", async (req: Request): Promise<Res
       );
     }
 
-    const validation = validateSchema(notificationSchema, body);
-    if (!validation.success) {
-      return validationErrorResponse(validation, corsHeaders);
-    }
-
-    const { recipientId, senderName, message, notificationType = "encouragement" } = validation.data;
-
     // Create Supabase client
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // Determine which schema format is being used
+    const bodyRecord = body as Record<string, unknown>;
+    const isNewFormat = 'user_id' in bodyRecord && 'phone_number' in bodyRecord;
+    
+    let recipientId: string;
+    let message: string;
+    let notificationType: string;
+    let senderName: string | undefined;
+    let phoneNumber: string | undefined;
+
+    if (isNewFormat) {
+      const validation = validateSchema(newNotificationSchema, body);
+      if (!validation.success) {
+        return validationErrorResponse(validation, corsHeaders);
+      }
+      recipientId = validation.data.user_id;
+      message = validation.data.message;
+      notificationType = validation.data.notification_type || "general";
+      phoneNumber = validation.data.phone_number;
+    } else {
+      const validation = validateSchema(legacyNotificationSchema, body);
+      if (!validation.success) {
+        return validationErrorResponse(validation, corsHeaders);
+      }
+      recipientId = validation.data.recipientId;
+      message = validation.data.message;
+      notificationType = validation.data.notificationType || "encouragement";
+      senderName = validation.data.senderName;
+    }
 
     // Check patient notification preferences for WhatsApp
     if (notificationType === "clinician_message") {
@@ -189,7 +220,7 @@ serve(withSentry("send-whatsapp-notification", async (req: Request): Promise<Res
           { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
-    } else {
+    } else if (notificationType !== "test" && notificationType !== "general") {
       // Check if encouragement messages are enabled (global admin setting)
       const { data: settingData, error: settingError } = await supabase
         .from("notification_settings")
@@ -215,56 +246,63 @@ serve(withSentry("send-whatsapp-notification", async (req: Request): Promise<Res
       }
     }
 
-    // Get recipient profile to check for phone number
-    const { data: profile, error: profileError } = await supabase
-      .from("profiles")
-      .select("phone, first_name")
-      .eq("user_id", recipientId)
-      .maybeSingle();
+    // Get recipient profile to check for phone number if not provided
+    if (!phoneNumber) {
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("phone, first_name")
+        .eq("user_id", recipientId)
+        .maybeSingle();
 
-    if (profileError) {
-      console.error("Error fetching profile:", profileError);
-      captureException(profileError);
-      throw profileError;
-    }
+      if (profileError) {
+        console.error("Error fetching profile:", profileError);
+        captureException(profileError);
+        throw profileError;
+      }
 
-    if (!profile?.phone) {
-      console.log("No phone number configured for recipient, skipping WhatsApp notification");
-      return new Response(
-        JSON.stringify({ 
-          success: false, 
-          reason: "no_phone",
-          message: "Recipient has no phone number configured" 
-        }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      if (!profile?.phone) {
+        console.log("No phone number configured for recipient, skipping WhatsApp notification");
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            reason: "no_phone",
+            message: "Recipient has no phone number configured" 
+          }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      phoneNumber = profile.phone;
     }
 
     // Format phone number (remove any non-digits, ensure + prefix)
-    let phoneNumber = profile.phone.replace(/\D/g, "");
-    if (!phoneNumber.startsWith("+")) {
-      phoneNumber = `+${phoneNumber}`;
+    let formattedPhone = (phoneNumber || "").replace(/\D/g, "");
+    if (!formattedPhone.startsWith("+")) {
+      formattedPhone = `+${formattedPhone}`;
     }
 
     // Build message body (truncate to safe length)
     const safeMessage = message.substring(0, 500);
-    const safeSenderName = senderName.substring(0, 50);
+    const safeSenderName = senderName?.substring(0, 50);
     
     let messageBody: string;
     if (notificationType === "medication_reminder") {
       messageBody = `💊 Pillaxia Reminder\n\n${safeMessage}\n\nOpen the app to mark as taken.`;
-    } else {
+    } else if (notificationType === "test") {
+      messageBody = safeMessage;
+    } else if (safeSenderName) {
       messageBody = `💬 New message from ${safeSenderName} on Pillaxia:\n\n"${safeMessage}"\n\nOpen the app to reply.`;
+    } else {
+      messageBody = `📱 Pillaxia\n\n${safeMessage}`;
     }
 
     // Try Twilio first (primary), then Meta (fallback)
     console.log("Attempting WhatsApp via Twilio...");
-    let result = await sendViaTwilio(phoneNumber, messageBody);
+    let result = await sendViaTwilio(formattedPhone, messageBody);
     let provider = "twilio";
 
     if (!result.success && result.error === "twilio_not_configured") {
       console.log("Twilio not configured, trying Meta Graph API...");
-      result = await sendViaMeta(phoneNumber.replace("+", ""), messageBody);
+      result = await sendViaMeta(formattedPhone.replace("+", ""), messageBody);
       provider = "meta";
     }
 
@@ -273,7 +311,9 @@ serve(withSentry("send-whatsapp-notification", async (req: Request): Promise<Res
       ? "clinician_message" 
       : notificationType === "medication_reminder"
         ? "medication_reminder"
-        : "encouragement_message";
+        : notificationType === "test"
+          ? "test"
+          : "encouragement_message";
 
     if (result.success) {
       await supabase.from("notification_history").insert({
@@ -282,7 +322,7 @@ serve(withSentry("send-whatsapp-notification", async (req: Request): Promise<Res
         notification_type: notifType,
         title: notificationType === "medication_reminder" 
           ? "Medication Reminder" 
-          : `Message from ${safeSenderName}`,
+          : safeSenderName ? `Message from ${safeSenderName}` : "Pillaxia Notification",
         body: safeMessage.substring(0, 200),
         status: "sent",
         metadata: { 
@@ -309,7 +349,7 @@ serve(withSentry("send-whatsapp-notification", async (req: Request): Promise<Res
         notification_type: notifType,
         title: notificationType === "medication_reminder" 
           ? "Medication Reminder" 
-          : `Message from ${safeSenderName}`,
+          : safeSenderName ? `Message from ${safeSenderName}` : "Pillaxia Notification",
         body: safeMessage.substring(0, 200),
         status: "failed",
         error_message: result.error?.slice(0, 500),
@@ -322,6 +362,7 @@ serve(withSentry("send-whatsapp-notification", async (req: Request): Promise<Res
         return new Response(
           JSON.stringify({ 
             success: false, 
+            skipped: true,
             reason: "not_configured",
             message: "WhatsApp API credentials not configured" 
           }),
