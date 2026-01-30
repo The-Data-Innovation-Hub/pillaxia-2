@@ -2,23 +2,35 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { Resend } from "https://esm.sh/resend@2.0.0";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getCorsHeaders, handleCorsPreflightRequest } from "../_shared/cors.ts";
-import { withSentry } from "../_shared/sentry.ts";
-import { validateSchema, validators } from "../_shared/validation.ts";
+import { withSentry, captureException } from "../_shared/sentry.ts";
+import { validateSchema, validators, validationErrorResponse } from "../_shared/validation.ts";
 
-const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
+const FUNCTION_NAME = "test-email-webhook";
 
 const requestSchema = {
   to: validators.email(),
 };
 
-serve(withSentry("test-email-webhook", async (req: Request): Promise<Response> => {
-  const corsResponse = handleCorsPreflightRequest(req);
-  if (corsResponse) return corsResponse;
+serve(withSentry(FUNCTION_NAME, async (req: Request): Promise<Response> => {
+  const corsHeaders = getCorsHeaders(req.headers.get("origin"));
+  
+  // Handle CORS preflight
+  const preflightResponse = handleCorsPreflightRequest(req);
+  if (preflightResponse) return preflightResponse;
 
-  const origin = req.headers.get("Origin");
-  const corsHeaders = getCorsHeaders(origin);
+  console.log(`[${FUNCTION_NAME}] Function started`);
 
-  console.log("Test email webhook function started");
+  // Check Resend API key
+  const resendApiKey = Deno.env.get("RESEND_API_KEY");
+  if (!resendApiKey) {
+    console.error("RESEND_API_KEY not configured");
+    return new Response(
+      JSON.stringify({ error: "Email service not configured" }),
+      { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+
+  const resend = new Resend(resendApiKey);
 
   // Validate authorization
   const authHeader = req.headers.get("Authorization");
@@ -35,7 +47,7 @@ serve(withSentry("test-email-webhook", async (req: Request): Promise<Response> =
     { global: { headers: { Authorization: authHeader } } }
   );
 
-  // Verify the user is admin
+  // Verify the user via JWT claims
   const token = authHeader.replace("Bearer ", "");
   const { data: claims, error: claimsError } = await supabase.auth.getClaims(token);
   if (claimsError || !claims?.claims) {
@@ -69,19 +81,25 @@ serve(withSentry("test-email-webhook", async (req: Request): Promise<Response> =
     );
   }
 
-  const body = await req.json();
-  const validation = validateSchema(requestSchema, body);
-  
-  if (!validation.success) {
+  // Parse and validate request body
+  let body: unknown;
+  try {
+    body = await req.json();
+  } catch {
     return new Response(
-      JSON.stringify({ error: validation.error, details: validation.details }),
+      JSON.stringify({ error: "Invalid JSON body" }),
       { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 
+  const validation = validateSchema(requestSchema, body);
+  if (!validation.success) {
+    return validationErrorResponse(validation, corsHeaders);
+  }
+
   const { to } = validation.data;
 
-  console.log(`Sending test email to: ${to}`);
+  console.log(`[${FUNCTION_NAME}] Sending test email to: ${to}`);
 
   // Send the test email
   const emailResponse = await resend.emails.send({
@@ -131,6 +149,8 @@ serve(withSentry("test-email-webhook", async (req: Request): Promise<Response> =
     const errorName = emailResponse.error.name || "ResendError";
     const nextRetryAt = new Date(Date.now() + 60 * 1000).toISOString();
     
+    captureException(new Error(`Resend error: ${errorName} - ${errorMessage}`));
+
     await serviceClient.from("notification_history").insert({
       user_id: userId,
       channel: "email",
@@ -160,7 +180,7 @@ serve(withSentry("test-email-webhook", async (req: Request): Promise<Response> =
     );
   }
 
-  console.log(`Test email sent successfully, ID: ${emailResponse.data?.id}`);
+  console.log(`[${FUNCTION_NAME}] Test email sent successfully, ID: ${emailResponse.data?.id}`);
 
   await serviceClient.from("notification_history").insert({
     user_id: userId,
