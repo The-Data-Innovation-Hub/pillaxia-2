@@ -171,14 +171,14 @@ export function ABTestingPage() {
   // Fetch all A/B tests
   const { data: tests, isLoading } = useQuery({
     queryKey: ["ab-tests"],
-    queryFn: async () => {
+    queryFn: async (): Promise<ABTest[]> => {
       const { data, error } = await supabase
-        .from("email_ab_tests" as any)
+        .from<ABTest>("email_ab_tests")
         .select("*")
         .order("created_at", { ascending: false });
 
       if (error) throw error;
-      return (data || []) as unknown as ABTest[];
+      return data ?? [];
     },
   });
 
@@ -187,7 +187,7 @@ export function ABTestingPage() {
     queryKey: ["ab-test-results"],
     queryFn: async () => {
       const { data: assignments, error } = await supabase
-        .from("email_ab_assignments" as any)
+        .from("email_ab_assignments")
         .select(`
           test_id,
           variant,
@@ -199,7 +199,7 @@ export function ABTestingPage() {
 
       const results: Record<string, ABTestResults> = {};
       
-      for (const assignment of (assignments || []) as any[]) {
+      for (const assignment of (assignments || []) as unknown[]) {
         if (!results[assignment.test_id]) {
           results[assignment.test_id] = {
             test_id: assignment.test_id,
@@ -235,7 +235,7 @@ export function ABTestingPage() {
   const createTestMutation = useMutation({
     mutationFn: async () => {
       const { error } = await supabase
-        .from("email_ab_tests" as any)
+        .from("email_ab_tests")
         .insert({
           test_name: newTest.test_name,
           notification_type: newTest.notification_type,
@@ -245,7 +245,7 @@ export function ABTestingPage() {
           variant_b_preview: newTest.variant_b_preview || null,
           end_date: newTest.end_date ? new Date(newTest.end_date).toISOString() : null,
           is_active: true,
-        } as any);
+        });
 
       if (error) throw error;
     },
@@ -273,8 +273,8 @@ export function ABTestingPage() {
   const updateTestMutation = useMutation({
     mutationFn: async () => {
       const { error } = await supabase
-        .from("email_ab_tests" as any)
-        .update({
+        .from<unknown>("email_ab_tests")
+        .update<unknown>({
           test_name: editTest.test_name,
           notification_type: editTest.notification_type,
           variant_a_subject: editTest.variant_a_subject,
@@ -282,7 +282,7 @@ export function ABTestingPage() {
           variant_b_subject: editTest.variant_b_subject,
           variant_b_preview: editTest.variant_b_preview || null,
           end_date: editTest.end_date ? new Date(editTest.end_date).toISOString() : null,
-        } as any)
+        })
         .eq("id", editTest.id);
 
       if (error) throw error;
@@ -303,13 +303,13 @@ export function ABTestingPage() {
     mutationFn: async (testId: string) => {
       // First delete assignments
       await supabase
-        .from("email_ab_assignments" as any)
+        .from("email_ab_assignments")
         .delete()
         .eq("test_id", testId);
 
       // Then delete the test
       const { error } = await supabase
-        .from("email_ab_tests" as any)
+        .from("email_ab_tests")
         .delete()
         .eq("id", testId);
 
@@ -332,7 +332,7 @@ export function ABTestingPage() {
   const duplicateTestMutation = useMutation({
     mutationFn: async (test: ABTest) => {
       const { error } = await supabase
-        .from("email_ab_tests" as any)
+        .from("email_ab_tests")
         .insert({
           test_name: `${test.test_name} (Copy)`,
           notification_type: test.notification_type,
@@ -341,7 +341,7 @@ export function ABTestingPage() {
           variant_b_subject: test.variant_b_subject,
           variant_b_preview: test.variant_b_preview,
           is_active: false,
-        } as any);
+        });
 
       if (error) throw error;
     },
@@ -359,8 +359,8 @@ export function ABTestingPage() {
   const toggleTestMutation = useMutation({
     mutationFn: async ({ id, is_active }: { id: string; is_active: boolean }) => {
       const { error } = await supabase
-        .from("email_ab_tests" as any)
-        .update({ is_active } as any)
+        .from("email_ab_tests")
+        .update({ is_active })
         .eq("id", id);
 
       if (error) throw error;

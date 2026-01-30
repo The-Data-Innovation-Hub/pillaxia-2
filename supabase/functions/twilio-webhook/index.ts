@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { withSentry, captureMessage, captureException } from "../_shared/sentry.ts";
 import { getCorsHeaders, handleCorsPreflightRequest } from "../_shared/cors.ts";
 
@@ -122,32 +123,8 @@ function validateCallback(formData: FormData): {
     return { valid: false, error: "Invalid or missing MessageStatus" };
   }
   if (!to || typeof to !== "string") {
-    return { valid: false, error: "Invalid or missing To field" };
-  }
-  if (!accountSid || typeof accountSid !== "string") {
-    return { valid: false, error: "Invalid or missing AccountSid" };
-  }
-
-  return {
-    valid: true,
-    callback: {
-      MessageSid: messageSid,
-      MessageStatus: messageStatus,
-      To: to,
-      From: formData.get("From") as string || "",
-      ErrorCode: formData.get("ErrorCode") as string | undefined,
-      ErrorMessage: formData.get("ErrorMessage") as string | undefined,
-      AccountSid: accountSid,
-      ApiVersion: formData.get("ApiVersion") as string || "",
-      SmsSid: formData.get("SmsSid") as string | undefined,
-      SmsStatus: formData.get("SmsStatus") as string | undefined,
-    },
-  };
-}
-
 async function processNotificationUpdate(
-  // deno-lint-ignore no-explicit-any
-  supabase: any,
+  supabase: SupabaseClient,
   notificationId: string,
   currentMetadata: Record<string, unknown> | null,
   callback: TwilioStatusCallback
@@ -169,8 +146,7 @@ async function processNotificationUpdate(
   };
 
   // Build update object
-  // deno-lint-ignore no-explicit-any
-  const updateData: any = {
+  const updateData: Record<string, unknown> = {
     status: newStatus,
     metadata: updatedMetadata,
   };

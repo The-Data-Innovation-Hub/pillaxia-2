@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { Resend } from "https://esm.sh/resend@2.0.0";
 
 const corsHeaders = {
@@ -177,7 +177,7 @@ async function retryEmailNotification(
   notification: NotificationToRetry,
   resend: Resend,
   // deno-lint-ignore no-explicit-any
-  serviceClient: any
+  serviceClient: SupabaseClient
 ): Promise<boolean> {
   const metadata = notification.metadata as Record<string, string> | null;
   const recipientEmail = metadata?.recipient_email;
@@ -226,7 +226,7 @@ async function retryEmailNotification(
 async function retryPushNotification(
   notification: NotificationToRetry,
   // deno-lint-ignore no-explicit-any
-  serviceClient: any
+  serviceClient: SupabaseClient
 ): Promise<boolean> {
   // Get user's push subscriptions
   const { data: subscriptions, error: subError } = await serviceClient

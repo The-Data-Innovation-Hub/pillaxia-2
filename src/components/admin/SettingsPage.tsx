@@ -201,8 +201,9 @@ export function SettingsPage() {
           description: "A test message was sent successfully.",
         });
       }
-    } catch (error: any) {
-      toast.error("Test failed", { description: error.message });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      toast.error("Test failed", { description: message });
     } finally {
       setTestingWhatsApp(false);
       refetch();

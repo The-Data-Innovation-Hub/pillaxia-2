@@ -202,11 +202,11 @@ export function ClinicianProfileTab() {
         title: "Avatar updated",
         description: "Your profile picture has been updated.",
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Failed to upload avatar:", error);
       toast({
         title: "Upload failed",
-        description: error.message || "Please try again.",
+        description: error instanceof Error ? error.message : "Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -244,11 +244,11 @@ export function ClinicianProfileTab() {
         title: "Avatar removed",
         description: "Your profile picture has been removed.",
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Failed to remove avatar:", error);
       toast({
         title: "Failed to remove avatar",
-        description: error.message || "Please try again.",
+        description: error instanceof Error ? error.message : "Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -303,11 +303,11 @@ export function ClinicianProfileTab() {
         newPassword: "",
         confirmPassword: "",
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Failed to change password:", error);
       toast({
         title: "Failed to change password",
-        description: error.message || "Please try again.",
+        description: error instanceof Error ? error.message : "Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -327,8 +327,6 @@ export function ClinicianProfileTab() {
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(newEmail)) {
-      toast({
-        title: "Invalid email",
         description: "Please enter a valid email address.",
         variant: "destructive",
       });
@@ -357,11 +355,17 @@ export function ClinicianProfileTab() {
         title: "Verification email sent",
         description: "Please check both your current and new email inboxes to confirm the change.",
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Failed to change email:", error);
+      let message = "Please try again.";
+      if (error instanceof Error) {
+        message = error.message;
+      } else if (typeof error === "string") {
+        message = error;
+      }
       toast({
         title: "Failed to change email",
-        description: error.message || "Please try again.",
+        description: message,
         variant: "destructive",
       });
     } finally {
