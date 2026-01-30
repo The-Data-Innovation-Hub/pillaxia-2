@@ -1,20 +1,44 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@18.5.0";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
+import { getCorsHeaders } from "../_shared/cors.ts";
+import { withSentry, captureException } from "../_shared/sentry.ts";
+import { validateSchema, validationErrorResponse, validators } from "../_shared/validation.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
+/**
+ * Organization Customer Portal
+ * 
+ * Creates a Stripe Customer Portal session for organization billing management.
+ * 
+ * Security:
+ * - Validates JWT authentication
+ * - Verifies user is org admin/owner
+ * - Validates organization has Stripe customer
+ */
 
 const logStep = (step: string, details?: unknown) => {
   const detailsStr = details ? ` - ${JSON.stringify(details)}` : '';
   console.log(`[ORG-CUSTOMER-PORTAL] ${step}${detailsStr}`);
 };
 
-serve(async (req) => {
+// Input validation schema
+const portalRequestSchema = {
+  organizationId: validators.uuid(),
+};
+
+serve(withSentry("org-customer-portal", async (req) => {
+  const corsHeaders = getCorsHeaders(req.headers.get("origin"));
+
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
+  }
+
+  // Only allow POST
+  if (req.method !== "POST") {
+    return new Response(JSON.stringify({ error: "Method not allowed" }), {
+      status: 405,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
 
   const supabaseClient = createClient(
@@ -26,39 +50,83 @@ serve(async (req) => {
   try {
     logStep("Function started");
 
+    // Validate Stripe key exists
     const stripeKey = Deno.env.get("STRIPE_SECRET_KEY");
-    if (!stripeKey) throw new Error("STRIPE_SECRET_KEY is not set");
+    if (!stripeKey) {
+      throw new Error("STRIPE_SECRET_KEY is not configured");
+    }
 
+    // Validate authorization header
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) throw new Error("No authorization header provided");
+    if (!authHeader?.startsWith("Bearer ")) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
+    // Verify JWT and get user
     const token = authHeader.replace("Bearer ", "");
-    const { data: userData, error: userError } = await supabaseClient.auth.getUser(token);
-    if (userError) throw new Error(`Authentication error: ${userError.message}`);
+    const { data: claimsData, error: claimsError } = await supabaseClient.auth.getClaims(token);
     
-    const user = userData.user;
-    if (!user?.id) throw new Error("User not authenticated");
-    logStep("User authenticated", { userId: user.id });
+    if (claimsError || !claimsData?.claims?.sub) {
+      logStep("Authentication failed", { error: claimsError?.message });
+      return new Response(JSON.stringify({ error: "Invalid token" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
-    // Parse request
-    const { organizationId } = await req.json();
-    if (!organizationId) throw new Error("Organization ID is required");
+    const userId = claimsData.claims.sub;
+    logStep("User authenticated", { userId });
 
-    // Verify user is org admin
+    // Parse and validate request body
+    let body: unknown;
+    try {
+      body = await req.json();
+    } catch {
+      return new Response(JSON.stringify({ error: "Invalid JSON body" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const validation = validateSchema(portalRequestSchema, body);
+    if (!validation.success) {
+      return validationErrorResponse(validation, corsHeaders);
+    }
+
+    const { organizationId } = validation.data;
+    logStep("Organization ID validated", { organizationId });
+
+    // Verify user is org admin/owner
     const { data: membership, error: memberError } = await supabaseClient
       .from("organization_members")
       .select("org_role")
       .eq("organization_id", organizationId)
-      .eq("user_id", user.id)
+      .eq("user_id", userId)
       .eq("is_active", true)
       .maybeSingle();
 
-    if (memberError || !membership) {
-      throw new Error("User is not a member of this organization");
+    if (memberError) {
+      logStep("Membership query failed", { error: memberError.message });
+      throw new Error("Failed to verify organization membership");
+    }
+
+    if (!membership) {
+      logStep("User not a member", { userId, organizationId });
+      return new Response(JSON.stringify({ error: "User is not a member of this organization" }), {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     if (!["admin", "owner"].includes(membership.org_role)) {
-      throw new Error("Only organization admins can access billing portal");
+      logStep("Insufficient permissions", { userId, role: membership.org_role });
+      return new Response(JSON.stringify({ error: "Only organization admins can access billing portal" }), {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     // Get subscription with Stripe customer ID
@@ -68,15 +136,26 @@ serve(async (req) => {
       .eq("organization_id", organizationId)
       .maybeSingle();
 
-    if (subError || !subscription?.stripe_customer_id) {
-      throw new Error("No billing account found for this organization");
+    if (subError) {
+      logStep("Subscription query failed", { error: subError.message });
+      throw new Error("Failed to retrieve subscription information");
+    }
+
+    if (!subscription?.stripe_customer_id) {
+      logStep("No Stripe customer found", { organizationId });
+      return new Response(JSON.stringify({ error: "No billing account found for this organization" }), {
+        status: 404,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     logStep("Found Stripe customer", { customerId: subscription.stripe_customer_id });
 
+    // Create Stripe portal session
     const stripe = new Stripe(stripeKey, { apiVersion: "2025-08-27.basil" });
 
-    const origin = req.headers.get("origin") || "http://localhost:3000";
+    const origin = req.headers.get("origin") || "https://pillaxia-craft-suite.lovable.app";
+    
     const portalSession = await stripe.billingPortal.sessions.create({
       customer: subscription.stripe_customer_id,
       return_url: `${origin}/dashboard/organization?tab=billing`,
@@ -91,9 +170,11 @@ serve(async (req) => {
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     logStep("ERROR", { message: errorMessage });
-    return new Response(JSON.stringify({ error: errorMessage }), {
+    captureException(error instanceof Error ? error : new Error(errorMessage));
+    
+    return new Response(JSON.stringify({ error: "An error occurred while creating the billing portal session" }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 500,
     });
   }
-});
+}));
