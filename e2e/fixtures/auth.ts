@@ -3,19 +3,25 @@ import { test as base, expect, Page } from "@playwright/test";
 /**
  * Authentication fixtures for E2E tests
  * Provides login/signup helpers and authenticated page contexts
+ * 
+ * Environment variables for staging:
+ * - E2E_TEST_USER_EMAIL
+ * - E2E_TEST_USER_PASSWORD
+ * - E2E_CLINICIAN_EMAIL
+ * - E2E_CLINICIAN_PASSWORD
  */
 
-// Test user credentials (should match test data in your environment)
+// Test user credentials - use environment variables for staging, fallback to defaults for local
 export const TEST_USER = {
-  email: "e2e-test@pillaxia.test",
-  password: "TestPassword123!",
+  email: process.env.E2E_TEST_USER_EMAIL || "e2e-test@pillaxia.test",
+  password: process.env.E2E_TEST_USER_PASSWORD || "TestPassword123!",
   firstName: "E2E",
   lastName: "Tester",
 };
 
 export const TEST_CLINICIAN = {
-  email: "e2e-clinician@pillaxia.test",
-  password: "ClinicianPass123!",
+  email: process.env.E2E_CLINICIAN_EMAIL || "e2e-clinician@pillaxia.test",
+  password: process.env.E2E_CLINICIAN_PASSWORD || "ClinicianPass123!",
   firstName: "Dr. Test",
   lastName: "Clinician",
 };
