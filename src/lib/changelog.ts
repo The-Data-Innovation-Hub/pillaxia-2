@@ -17,6 +17,52 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.2",
+    date: "2026-01-30",
+    title: "Production Hardening & Security Fixes",
+    changes: [
+      {
+        type: "security",
+        description: "Fixed pharmacy locations data exposure - now requires authentication",
+      },
+      {
+        type: "improvement",
+        description: "TypeScript strict mode enabled for enhanced type safety",
+      },
+      {
+        type: "improvement",
+        description: "Vite build optimizations with vendor chunking for better caching",
+      },
+      {
+        type: "feature",
+        description: "Automatic version bumping on GitHub pushes",
+      },
+    ],
+  },
+  {
+    version: "1.1",
+    date: "2026-01-29",
+    title: "Code Review Remediation Complete",
+    changes: [
+      {
+        type: "security",
+        description: "100% Sentry coverage across all 47 edge functions",
+      },
+      {
+        type: "security",
+        description: "Mandatory webhook signature verification for Stripe, Twilio, and Resend",
+      },
+      {
+        type: "improvement",
+        description: "Tiered rate limiting infrastructure for all edge functions",
+      },
+      {
+        type: "improvement",
+        description: "40+ strategic database indexes for query optimization",
+      },
+    ],
+  },
+  {
     version: "1.0",
     date: "2026-01-28",
     title: "Automatic Versioning & Changelog",
