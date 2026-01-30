@@ -1,0 +1,55 @@
+name: Auto Bump Version
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - '.github/workflows/bump-version.yml'
+      - 'src/lib/version.ts'
+
+jobs:
+  bump-version:
+    runs-on: ubuntu-latest
+    # Only run if the commit wasn't made by this workflow
+    if: "!contains(github.event.head_commit.message, '[skip ci]') && !contains(github.event.head_commit.message, 'chore: bump version')"
+    
+    permissions:
+      contents: write
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Get current version
+        id: get_version
+        run: |
+          MAJOR=$(grep -oP 'const MAJOR_VERSION = \K\d+' src/lib/version.ts)
+          MINOR=$(grep -oP 'const MINOR_VERSION = \K\d+' src/lib/version.ts)
+          echo "major=$MAJOR" >> $GITHUB_OUTPUT
+          echo "minor=$MINOR" >> $GITHUB_OUTPUT
+          echo "Current version: $MAJOR.$MINOR"
+
+      - name: Bump minor version
+        id: bump_version
+        run: |
+          MAJOR=${{ steps.get_version.outputs.major }}
+          MINOR=${{ steps.get_version.outputs.minor }}
+          NEW_MINOR=$((MINOR + 1))
+          
+          # Update version.ts with new minor version
+          sed -i "s/const MINOR_VERSION = $MINOR;/const MINOR_VERSION = $NEW_MINOR;/" src/lib/version.ts
+          
+          echo "new_version=$MAJOR.$NEW_MINOR" >> $GITHUB_OUTPUT
+          echo "Bumped version to: $MAJOR.$NEW_MINOR"
+
+      - name: Commit and push version bump
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add src/lib/version.ts
+          git commit -m "chore: bump version to v${{ steps.bump_version.outputs.new_version }} [skip ci]"
+          git push
