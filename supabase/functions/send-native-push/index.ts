@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { getCorsHeaders } from "../_shared/cors.ts";
+import { getCorsHeaders, handleCorsPreflightRequest } from "../_shared/cors.ts";
 import { validators, validateSchema, validationErrorResponse } from "../_shared/validation.ts";
 import { withSentry, captureException } from "../_shared/sentry.ts";
 
@@ -37,11 +37,11 @@ interface PushPayload {
  * For Android, the existing web push via VAPID should work in the Capacitor WebView
  */
 serve(withSentry("send-native-push", async (req) => {
-  const corsHeaders = getCorsHeaders(req.headers.get("origin"));
-  
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
-  }
+  const corsResponse = handleCorsPreflightRequest(req);
+  if (corsResponse) return corsResponse;
+
+  const origin = req.headers.get("Origin");
+  const corsHeaders = getCorsHeaders(origin);
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -82,7 +82,7 @@ serve(withSentry("send-native-push", async (req) => {
 
   if (subError) {
     console.error("Error fetching subscriptions:", subError);
-    captureException(new Error(String(subError)));
+    captureException(new Error(`Failed to fetch subscriptions: ${subError.message}`));
     return new Response(
       JSON.stringify({ error: "Failed to fetch subscriptions" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -101,104 +101,102 @@ serve(withSentry("send-native-push", async (req) => {
   if (!apnsKeyId || !apnsTeamId || !apnsPrivateKey) {
     console.log("APNs not configured - logging notification instead");
       
-      // Log the notifications even without APNs
-      for (const sub of subscriptions) {
+    // Log the notifications even without APNs
+    for (const sub of subscriptions) {
+      await supabase.from("notification_history").insert({
+        user_id: sub.user_id,
+        channel: "push",
+        notification_type: "native_ios",
+        title: payload.title,
+        body: payload.body,
+        status: "pending",
+        metadata: { platform: "ios", note: "APNs not configured" },
+      });
+    }
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        sent: 0,
+        pending: subscriptions.length,
+        message: "APNs not configured - notifications logged for later delivery",
+      }),
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+
+  // Generate APNs JWT token
+  const jwt = await generateApnsJwt(apnsKeyId, apnsTeamId, apnsPrivateKey);
+
+  let sent = 0;
+  let failed = 0;
+  const expiredTokens: string[] = [];
+
+  for (const sub of subscriptions) {
+    try {
+      const apnsPayload = {
+        aps: {
+          alert: {
+            title: payload.title,
+            body: payload.body,
+          },
+          badge: payload.badge ?? 1,
+          sound: payload.sound ?? "default",
+        },
+        ...payload.data,
+      };
+
+      // Use production APNs server
+      const apnsUrl = `https://api.push.apple.com/3/device/${sub.native_token}`;
+
+      const response = await fetch(apnsUrl, {
+        method: "POST",
+        headers: {
+          "Authorization": `bearer ${jwt}`,
+          "apns-topic": apnsBundleId,
+          "apns-push-type": "alert",
+          "apns-priority": "10",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(apnsPayload),
+      });
+
+      if (response.ok) {
+        sent++;
         await supabase.from("notification_history").insert({
           user_id: sub.user_id,
           channel: "push",
           notification_type: "native_ios",
           title: payload.title,
           body: payload.body,
-          status: "pending",
-          metadata: { platform: "ios", note: "APNs not configured" },
+          status: "sent",
+          metadata: { platform: "ios" },
+        });
+      } else {
+        const errorBody = await response.text();
+        console.error(`APNs error for token ${sub.native_token?.slice(0, 10)}...:`, response.status, errorBody);
+        failed++;
+
+        // Check for invalid/expired token
+        if (response.status === 410 || errorBody.includes("Unregistered")) {
+          expiredTokens.push(sub.native_token!);
+        }
+
+        await supabase.from("notification_history").insert({
+          user_id: sub.user_id,
+          channel: "push",
+          notification_type: "native_ios",
+          title: payload.title,
+          body: payload.body,
+          status: "failed",
+          error_message: `APNs ${response.status}: ${errorBody}`,
+          metadata: { platform: "ios" },
         });
       }
-
-      return new Response(
-        JSON.stringify({
-          success: true,
-          sent: 0,
-          pending: subscriptions.length,
-          message: "APNs not configured - notifications logged for later delivery",
-        }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // Generate APNs JWT token
-    const jwt = await generateApnsJwt(apnsKeyId, apnsTeamId, apnsPrivateKey);
-
-    let sent = 0;
-    let failed = 0;
-    const expiredTokens: string[] = [];
-
-    for (const sub of subscriptions) {
-      try {
-        const apnsPayload = {
-          aps: {
-            alert: {
-              title: payload.title,
-              body: payload.body,
-            },
-            badge: payload.badge ?? 1,
-            sound: payload.sound ?? "default",
-          },
-          ...payload.data,
-        };
-
-        // Use production APNs server
-        const apnsUrl = `https://api.push.apple.com/3/device/${sub.native_token}`;
-
-        const response = await fetch(apnsUrl, {
-          method: "POST",
-          headers: {
-            "Authorization": `bearer ${jwt}`,
-            "apns-topic": apnsBundleId,
-            "apns-push-type": "alert",
-            "apns-priority": "10",
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(apnsPayload),
-        });
-
-        if (response.ok) {
-          sent++;
-          await supabase.from("notification_history").insert({
-            user_id: sub.user_id,
-            channel: "push",
-            notification_type: "native_ios",
-            title: payload.title,
-            body: payload.body,
-            status: "sent",
-            metadata: { platform: "ios" },
-          });
-        } else {
-          const errorBody = await response.text();
-          console.error(`APNs error for token ${sub.native_token?.slice(0, 10)}...:`, response.status, errorBody);
-          failed++;
-
-          // Check for invalid/expired token
-          if (response.status === 410 || errorBody.includes("Unregistered")) {
-            expiredTokens.push(sub.native_token!);
-          }
-
-          await supabase.from("notification_history").insert({
-            user_id: sub.user_id,
-            channel: "push",
-            notification_type: "native_ios",
-            title: payload.title,
-            body: payload.body,
-            status: "failed",
-            error_message: `APNs ${response.status}: ${errorBody}`,
-            metadata: { platform: "ios" },
-          });
-        }
     } catch (err) {
       failed++;
       console.error("Error sending to APNs:", err);
-      if (err instanceof Error) {
-        captureException(err);
-      }
+      captureException(err instanceof Error ? err : new Error(String(err)));
     }
   }
 

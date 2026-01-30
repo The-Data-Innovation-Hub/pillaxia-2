@@ -1,21 +1,34 @@
+import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { Resend } from "https://esm.sh/resend@4.0.0";
+import { getCorsHeaders, handleCorsPreflightRequest } from "../_shared/cors.ts";
+import { withSentry, captureException } from "../_shared/sentry.ts";
+import { validators, validateSchema, validationErrorResponse } from "../_shared/validation.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+// Input validation schema
+const sendPrescriptionSchema = {
+  prescriptionId: validators.uuid(),
+  pharmacyId: validators.uuid(),
 };
 
-interface SendPrescriptionRequest {
-  prescriptionId: string;
-  pharmacyId: string;
+// XSS prevention utility
+function escapeHtml(text: string): string {
+  const htmlEscapes: Record<string, string> = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  };
+  return text.replace(/[&<>"']/g, (char) => htmlEscapes[char] || char);
 }
 
-Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
-  }
+serve(withSentry("send-prescription", async (req) => {
+  const corsResponse = handleCorsPreflightRequest(req);
+  if (corsResponse) return corsResponse;
+
+  const origin = req.headers.get("Origin");
+  const corsHeaders = getCorsHeaders(origin);
 
   try {
     const authHeader = req.headers.get("Authorization");
@@ -43,14 +56,14 @@ Deno.serve(async (req) => {
 
     const userId = claimsData.claims.sub as string;
 
-    const { prescriptionId, pharmacyId }: SendPrescriptionRequest = await req.json();
-
-    if (!prescriptionId || !pharmacyId) {
-      return new Response(
-        JSON.stringify({ error: "Missing prescriptionId or pharmacyId" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    const body = await req.json();
+    const validation = validateSchema(sendPrescriptionSchema, body);
+    
+    if (!validation.success) {
+      return validationErrorResponse(validation, corsHeaders);
     }
+
+    const { prescriptionId, pharmacyId } = validation.data;
 
     // Fetch prescription with related data
     const { data: prescription, error: rxError } = await supabase
@@ -105,9 +118,34 @@ Deno.serve(async (req) => {
 
     const resend = new Resend(resendApiKey);
 
-    // Format the prescription email
-    const patientName = `${prescription.patient_profile?.first_name || ""} ${prescription.patient_profile?.last_name || ""}`.trim() || "Unknown Patient";
-    const clinicianName = `${prescription.clinician_profile?.first_name || ""} ${prescription.clinician_profile?.last_name || ""}`.trim() || "Unknown Clinician";
+    // Escape all dynamic content for XSS prevention
+    const safePatientFirstName = escapeHtml(prescription.patient_profile?.first_name || "");
+    const safePatientLastName = escapeHtml(prescription.patient_profile?.last_name || "");
+    const safePatientName = `${safePatientFirstName} ${safePatientLastName}`.trim() || "Unknown Patient";
+    const safePatientPhone = escapeHtml(prescription.patient_profile?.phone || "No phone");
+    const safePatientEmail = escapeHtml(prescription.patient_profile?.email || "");
+    
+    const safeClinicianFirstName = escapeHtml(prescription.clinician_profile?.first_name || "");
+    const safeClinicianLastName = escapeHtml(prescription.clinician_profile?.last_name || "");
+    const safeClinicianName = `${safeClinicianFirstName} ${safeClinicianLastName}`.trim() || "Unknown Clinician";
+    const safeClinicianLicense = escapeHtml(prescription.clinician_profile?.license_number || "N/A");
+    const safeClinicianEmail = escapeHtml(prescription.clinician_profile?.email || "");
+    
+    const safeMedicationName = escapeHtml(prescription.medication_name || "");
+    const safeGenericName = escapeHtml(prescription.generic_name || "");
+    const safeDosage = escapeHtml(prescription.dosage || "");
+    const safeDosageUnit = escapeHtml(prescription.dosage_unit || "");
+    const safeForm = escapeHtml(prescription.form || "");
+    const safeQuantity = escapeHtml(String(prescription.quantity || ""));
+    const safeRefills = escapeHtml(String(prescription.refills_authorized || "0"));
+    const safeSig = escapeHtml(prescription.sig || "");
+    const safeInstructions = escapeHtml(prescription.instructions || "");
+    const safePrescriptionNumber = escapeHtml(prescription.prescription_number || "");
+    const safeDiagnosisCode = escapeHtml(prescription.diagnosis_code || "");
+    const safeDiagnosisDesc = escapeHtml(prescription.diagnosis_description || "");
+    const safeDeaSchedule = escapeHtml(prescription.dea_schedule || "");
+    const safePharmacyName = escapeHtml(pharmacy.name || "");
+
     const prescriptionDate = new Date(prescription.date_written).toLocaleDateString("en-US", {
       year: "numeric",
       month: "long",
@@ -143,65 +181,65 @@ Deno.serve(async (req) => {
 <body>
   <div class="header">
     <span class="rx-symbol">℞</span> Electronic Prescription
-    <div style="font-size: 14px; margin-top: 5px;">Rx #${prescription.prescription_number}</div>
+    <div style="font-size: 14px; margin-top: 5px;">Rx #${safePrescriptionNumber}</div>
   </div>
   
   <div class="content">
     <div class="section">
       <div class="label">Date Written</div>
-      <div class="value">${prescriptionDate}</div>
+      <div class="value">${escapeHtml(prescriptionDate)}</div>
     </div>
 
     <div class="section">
       <div class="label">Patient Information</div>
       <table>
         <tr>
-          <td><strong>${patientName}</strong></td>
-          <td>${prescription.patient_profile?.phone || "No phone"}</td>
+          <td><strong>${safePatientName}</strong></td>
+          <td>${safePatientPhone}</td>
         </tr>
         <tr>
-          <td colspan="2">${prescription.patient_profile?.email || ""}</td>
+          <td colspan="2">${safePatientEmail}</td>
         </tr>
       </table>
     </div>
 
     <div class="section">
-      <div class="medication">${prescription.medication_name}</div>
-      ${prescription.generic_name ? `<div style="color: #6b7280; font-size: 14px;">(${prescription.generic_name})</div>` : ""}
-      ${prescription.is_controlled_substance ? `<div class="controlled">Schedule ${prescription.dea_schedule}</div>` : ""}
+      <div class="medication">${safeMedicationName}</div>
+      ${safeGenericName ? `<div style="color: #6b7280; font-size: 14px;">(${safeGenericName})</div>` : ""}
+      ${prescription.is_controlled_substance ? `<div class="controlled">Schedule ${safeDeaSchedule}</div>` : ""}
       
       <table style="margin-top: 15px;">
         <tr>
           <td>
             <div class="label">Dosage</div>
-            <div class="value">${prescription.dosage} ${prescription.dosage_unit}</div>
+            <div class="value">${safeDosage} ${safeDosageUnit}</div>
           </td>
           <td>
             <div class="label">Form</div>
-            <div class="value">${prescription.form}</div>
+            <div class="value">${safeForm}</div>
           </td>
         </tr>
         <tr>
           <td>
             <div class="label">Quantity</div>
-            <div class="value">${prescription.quantity}</div>
+            <div class="value">${safeQuantity}</div>
           </td>
           <td>
             <div class="label">Refills</div>
-            <div class="value">${prescription.refills_authorized}</div>
+            <div class="value">${safeRefills}</div>
           </td>
         </tr>
       </table>
 
       <div class="sig">
         <div class="label">Directions (Sig)</div>
-        <div class="value">${prescription.sig}</div>
+        <div class="value">${safeSig}</div>
       </div>
 
-      ${prescription.instructions ? `
+      ${safeInstructions ? `
       <div>
         <div class="label">Additional Instructions</div>
-        <div class="value">${prescription.instructions}</div>
+        <div class="value">${safeInstructions}</div>
       </div>
       ` : ""}
 
@@ -212,19 +250,19 @@ Deno.serve(async (req) => {
       ` : ""}
     </div>
 
-    ${prescription.diagnosis_code ? `
+    ${safeDiagnosisCode ? `
     <div class="section">
       <div class="label">Diagnosis</div>
-      <div class="value">${prescription.diagnosis_code}${prescription.diagnosis_description ? ` - ${prescription.diagnosis_description}` : ""}</div>
+      <div class="value">${safeDiagnosisCode}${safeDiagnosisDesc ? ` - ${safeDiagnosisDesc}` : ""}</div>
     </div>
     ` : ""}
 
     <div class="section">
       <div class="label">Prescriber</div>
       <div class="value">
-        <strong>${clinicianName}</strong><br>
-        License #: ${prescription.clinician_profile?.license_number || "N/A"}<br>
-        ${prescription.clinician_profile?.email || ""}
+        <strong>${safeClinicianName}</strong><br>
+        License #: ${safeClinicianLicense}<br>
+        ${safeClinicianEmail}
       </div>
     </div>
 
@@ -244,12 +282,13 @@ Deno.serve(async (req) => {
     const { data: emailResult, error: emailError } = await resend.emails.send({
       from: "Pillaxia E-Prescribing <prescriptions@resend.dev>",
       to: [pharmacy.email],
-      subject: `E-Prescription: Rx #${prescription.prescription_number} for ${patientName}`,
+      subject: `E-Prescription: Rx #${safePrescriptionNumber} for ${safePatientName}`,
       html: emailHtml,
     });
 
     if (emailError) {
       console.error("[SEND-PRESCRIPTION] Email send failed:", emailError);
+      captureException(new Error(`Email send failed: ${emailError.message}`));
       return new Response(
         JSON.stringify({ error: "Failed to send prescription email", details: emailError }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -276,6 +315,7 @@ Deno.serve(async (req) => {
 
     if (updateError) {
       console.error("[SEND-PRESCRIPTION] Failed to update prescription:", updateError);
+      captureException(new Error(`Failed to update prescription: ${updateError.message}`));
     }
 
     // Log status change
@@ -284,7 +324,7 @@ Deno.serve(async (req) => {
       previous_status: prescription.status,
       new_status: "sent",
       changed_by: userId,
-      notes: `Prescription sent via email to ${pharmacy.name} (${pharmacy.email})`,
+      notes: `Prescription sent via email to ${safePharmacyName} (${pharmacy.email})`,
     });
 
     // Log in notification history
@@ -293,7 +333,7 @@ Deno.serve(async (req) => {
       channel: "email",
       notification_type: "prescription_sent",
       title: "Prescription Sent",
-      body: `Your prescription for ${prescription.medication_name} has been sent to ${pharmacy.name}`,
+      body: `Your prescription for ${safeMedicationName} has been sent to ${safePharmacyName}`,
       status: "delivered",
       delivered_at: new Date().toISOString(),
       metadata: {
@@ -308,17 +348,18 @@ Deno.serve(async (req) => {
     return new Response(
       JSON.stringify({
         success: true,
-        message: `Prescription sent to ${pharmacy.name}`,
+        message: `Prescription sent to ${safePharmacyName}`,
         emailId: emailResult?.id,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error: unknown) {
     console.error("[SEND-PRESCRIPTION] Error:", error);
+    captureException(error instanceof Error ? error : new Error(String(error)));
     const errorMessage = error instanceof Error ? error.message : "Internal server error";
     return new Response(
       JSON.stringify({ error: errorMessage }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
-});
+}));
