@@ -17,6 +17,25 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.11",
+    date: "2026-01-30",
+    title: "Engagement Scores Authorization",
+    changes: [
+      {
+        type: "security",
+        description: "Added authorization checks to engagement score calculation - prevents unauthorized patient data access",
+      },
+      {
+        type: "security",
+        description: "Batch engagement score processing now restricted to admin users only",
+      },
+      {
+        type: "improvement",
+        description: "Clinicians can only calculate scores for their assigned patients",
+      },
+    ],
+  },
+  {
     version: "1.10",
     date: "2026-01-30",
     title: "Server-Verified Authorization",
