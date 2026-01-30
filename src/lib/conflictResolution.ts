@@ -320,17 +320,41 @@ class ConflictResolutionManager {
   }
 
   async getUnresolvedConflicts(): Promise<ConflictEntry[]> {
-    const db = await cacheManager.openDB();
-    
-    return new Promise((resolve, reject) => {
-      const transaction = db.transaction([STORES.CONFLICTS], "readonly");
-      const store = transaction.objectStore(STORES.CONFLICTS);
-      const index = store.index("resolved");
-      const request = index.getAll(IDBKeyRange.only(false));
+    try {
+      const db = await cacheManager.openDB();
+      
+      return new Promise((resolve, reject) => {
+        try {
+          const transaction = db.transaction([STORES.CONFLICTS], "readonly");
+          const store = transaction.objectStore(STORES.CONFLICTS);
+          
+          // Check if index exists before using it
+          if (!store.indexNames.contains("resolved")) {
+            // Fallback: get all and filter
+            const allRequest = store.getAll();
+            allRequest.onerror = () => reject(allRequest.error);
+            allRequest.onsuccess = () => {
+              const all = allRequest.result as ConflictEntry[];
+              resolve(all.filter(c => !c.resolved));
+            };
+            return;
+          }
+          
+          const index = store.index("resolved");
+          const request = index.getAll(IDBKeyRange.only(false));
 
-      request.onerror = () => reject(request.error);
-      request.onsuccess = () => resolve(request.result);
-    });
+          request.onerror = () => reject(request.error);
+          request.onsuccess = () => resolve(request.result);
+        } catch (err) {
+          // Fallback on any IndexedDB error
+          console.warn("[ConflictResolution] Index query failed, using fallback:", err);
+          resolve([]);
+        }
+      });
+    } catch (err) {
+      console.warn("[ConflictResolution] getUnresolvedConflicts failed:", err);
+      return [];
+    }
   }
 
   async getAllConflicts(): Promise<ConflictEntry[]> {
@@ -409,47 +433,95 @@ class ConflictResolutionManager {
   }
 
   async clearResolvedConflicts(): Promise<void> {
-    const db = await cacheManager.openDB();
-    
-    return new Promise((resolve, reject) => {
-      const transaction = db.transaction([STORES.CONFLICTS], "readwrite");
-      const store = transaction.objectStore(STORES.CONFLICTS);
-      const index = store.index("resolved");
-      const cursorRequest = index.openCursor(IDBKeyRange.only(true));
+    try {
+      const db = await cacheManager.openDB();
+      
+      return new Promise((resolve, reject) => {
+        try {
+          const transaction = db.transaction([STORES.CONFLICTS], "readwrite");
+          const store = transaction.objectStore(STORES.CONFLICTS);
+          
+          // Check if index exists before using it
+          if (!store.indexNames.contains("resolved")) {
+            // Fallback: get all and delete resolved ones manually
+            const allRequest = store.getAll();
+            allRequest.onerror = () => reject(allRequest.error);
+            allRequest.onsuccess = () => {
+              const all = allRequest.result as ConflictEntry[];
+              const resolved = all.filter(c => c.resolved);
+              resolved.forEach(c => store.delete(c.id));
+              transaction.oncomplete = () => resolve();
+            };
+            return;
+          }
+          
+          const index = store.index("resolved");
+          const cursorRequest = index.openCursor(IDBKeyRange.only(true));
 
-      transaction.onerror = () => reject(transaction.error);
-      transaction.oncomplete = () => resolve();
+          transaction.onerror = () => reject(transaction.error);
+          transaction.oncomplete = () => resolve();
 
-      cursorRequest.onsuccess = () => {
-        const cursor = cursorRequest.result;
-        if (cursor) {
-          store.delete(cursor.primaryKey);
-          cursor.continue();
+          cursorRequest.onsuccess = () => {
+            const cursor = cursorRequest.result;
+            if (cursor) {
+              store.delete(cursor.primaryKey);
+              cursor.continue();
+            }
+          };
+        } catch (err) {
+          console.warn("[ConflictResolution] clearResolvedConflicts index failed:", err);
+          resolve();
         }
-      };
-    });
+      });
+    } catch (err) {
+      console.warn("[ConflictResolution] clearResolvedConflicts failed:", err);
+    }
   }
 
   async getConflictCount(): Promise<{ total: number; unresolved: number }> {
-    const db = await cacheManager.openDB();
-    
-    return new Promise((resolve, reject) => {
-      const transaction = db.transaction([STORES.CONFLICTS], "readonly");
-      const store = transaction.objectStore(STORES.CONFLICTS);
-      const totalRequest = store.count();
+    try {
+      const db = await cacheManager.openDB();
       
-      totalRequest.onsuccess = () => {
-        const total = totalRequest.result;
-        const index = store.index("resolved");
-        const unresolvedRequest = index.count(IDBKeyRange.only(false));
-        
-        unresolvedRequest.onerror = () => reject(unresolvedRequest.error);
-        unresolvedRequest.onsuccess = () => {
-          resolve({ total, unresolved: unresolvedRequest.result });
-        };
-      };
-      totalRequest.onerror = () => reject(totalRequest.error);
-    });
+      return new Promise((resolve, reject) => {
+        try {
+          const transaction = db.transaction([STORES.CONFLICTS], "readonly");
+          const store = transaction.objectStore(STORES.CONFLICTS);
+          const totalRequest = store.count();
+          
+          totalRequest.onsuccess = () => {
+            const total = totalRequest.result;
+            
+            // Check if index exists before using it
+            if (!store.indexNames.contains("resolved")) {
+              // Fallback: get all and count unresolved manually
+              const allRequest = store.getAll();
+              allRequest.onerror = () => reject(allRequest.error);
+              allRequest.onsuccess = () => {
+                const all = allRequest.result as ConflictEntry[];
+                const unresolved = all.filter(c => !c.resolved).length;
+                resolve({ total, unresolved });
+              };
+              return;
+            }
+            
+            const index = store.index("resolved");
+            const unresolvedRequest = index.count(IDBKeyRange.only(false));
+            
+            unresolvedRequest.onerror = () => reject(unresolvedRequest.error);
+            unresolvedRequest.onsuccess = () => {
+              resolve({ total, unresolved: unresolvedRequest.result });
+            };
+          };
+          totalRequest.onerror = () => reject(totalRequest.error);
+        } catch (err) {
+          console.warn("[ConflictResolution] getConflictCount index failed:", err);
+          resolve({ total: 0, unresolved: 0 });
+        }
+      });
+    } catch (err) {
+      console.warn("[ConflictResolution] getConflictCount failed:", err);
+      return { total: 0, unresolved: 0 };
+    }
   }
 
   // Detect if there's a conflict between local and server data
