@@ -21,9 +21,9 @@ export function getEnvironment(): Environment {
   if (typeof window !== 'undefined') {
     const hostname = window.location.hostname;
     
-    // Published production URL
-    if (hostname === 'pillaxia-craft-suite.lovable.app') {
-      return 'production';
+    // Local development
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+      return 'development';
     }
     
     // Preview/staging URLs (Lovable preview pattern)
@@ -31,14 +31,13 @@ export function getEnvironment(): Environment {
       return 'staging';
     }
     
-    // Local development
-    if (hostname === 'localhost' || hostname === '127.0.0.1') {
-      return 'development';
-    }
+    // Production: custom domains (pillaxia.app) or published Lovable URL
+    // Any non-preview, non-localhost URL is considered production
+    return 'production';
   }
 
-  // Default to staging for safety
-  return 'staging';
+  // Default to production for SSR/build contexts
+  return 'production';
 }
 
 /**
