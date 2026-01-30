@@ -17,6 +17,25 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.10",
+    date: "2026-01-30",
+    title: "Server-Verified Authorization",
+    changes: [
+      {
+        type: "security",
+        description: "Server-side role verification for dashboard routing - prevents client-side role manipulation",
+      },
+      {
+        type: "security",
+        description: "Added authorization checks to SECURITY DEFINER functions (trust_device, log_security_event, log_data_access)",
+      },
+      {
+        type: "improvement",
+        description: "New useServerVerifiedRoles hook for secure role fetching from backend",
+      },
+    ],
+  },
+  {
     version: "1.2",
     date: "2026-01-30",
     title: "Production Hardening & Security Fixes",
