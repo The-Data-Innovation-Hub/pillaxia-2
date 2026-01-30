@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { captureException, captureMessage } from "../_shared/sentry.ts";
+import { withSentry, captureMessage } from "../_shared/sentry.ts";
 import { getCorsHeaders } from "../_shared/cors.ts";
 
 const FUNCTION_NAME = "twilio-webhook";
@@ -34,6 +34,11 @@ interface TwilioStatusCallback {
   SmsStatus?: string;
 }
 
+const logStep = (step: string, details?: unknown) => {
+  const detailsStr = details ? ` - ${JSON.stringify(details)}` : '';
+  console.log(`[${FUNCTION_NAME}] ${step}${detailsStr}`);
+};
+
 // Map Twilio status to our internal status
 function mapTwilioStatus(twilioStatus: string): string {
   const statusMap: Record<string, string> = {
@@ -48,21 +53,26 @@ function mapTwilioStatus(twilioStatus: string): string {
   return statusMap[twilioStatus] || twilioStatus;
 }
 
-// Validate Twilio request signature
+// Validate Twilio request signature (HMAC-SHA1)
 async function validateTwilioSignature(
   req: Request,
   body: string
-): Promise<boolean> {
+): Promise<{ valid: boolean; reason?: string }> {
   const twilioAuthToken = Deno.env.get("TWILIO_AUTH_TOKEN");
+  
+  // SECURITY: Require auth token in production
   if (!twilioAuthToken) {
-    console.warn("[twilio-webhook] TWILIO_AUTH_TOKEN not set, skipping signature validation");
-    return true; // Allow in development
+    const isProduction = Deno.env.get("ENVIRONMENT") === "production";
+    if (isProduction) {
+      return { valid: false, reason: "TWILIO_AUTH_TOKEN required in production" };
+    }
+    logStep("WARNING: Signature verification disabled (development)");
+    return { valid: true };
   }
 
   const signature = req.headers.get("X-Twilio-Signature");
   if (!signature) {
-    console.error("[twilio-webhook] Missing X-Twilio-Signature header");
-    return false;
+    return { valid: false, reason: "Missing X-Twilio-Signature header" };
   }
 
   // Build the URL that Twilio signed (must match exactly)
@@ -86,104 +96,53 @@ async function validateTwilioSignature(
   const signatureBytes = await crypto.subtle.sign("HMAC", key, encoder.encode(signatureBase));
   const expectedSignature = btoa(String.fromCharCode(...new Uint8Array(signatureBytes)));
 
-  return signature === expectedSignature;
+  if (signature !== expectedSignature) {
+    return { valid: false, reason: "Signature mismatch" };
+  }
+
+  return { valid: true };
 }
 
-serve(async (req: Request): Promise<Response> => {
-  const corsHeaders = getCorsHeaders(req.headers.get("origin"));
-  
-  // Handle CORS preflight
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+// Validate required callback fields
+function validateCallback(formData: FormData): { 
+  valid: boolean; 
+  callback?: TwilioStatusCallback; 
+  error?: string 
+} {
+  const messageSid = formData.get("MessageSid") as string;
+  const messageStatus = formData.get("MessageStatus") as string;
+  const to = formData.get("To") as string;
+  const accountSid = formData.get("AccountSid") as string;
+
+  if (!messageSid || typeof messageSid !== "string" || messageSid.length < 10) {
+    return { valid: false, error: "Invalid or missing MessageSid" };
+  }
+  if (!messageStatus || typeof messageStatus !== "string") {
+    return { valid: false, error: "Invalid or missing MessageStatus" };
+  }
+  if (!to || typeof to !== "string") {
+    return { valid: false, error: "Invalid or missing To field" };
+  }
+  if (!accountSid || typeof accountSid !== "string") {
+    return { valid: false, error: "Invalid or missing AccountSid" };
   }
 
-  try {
-    // Twilio sends form-urlencoded data
-    const formData = await req.formData();
-    const callback: TwilioStatusCallback = {
-      MessageSid: formData.get("MessageSid") as string,
-      MessageStatus: formData.get("MessageStatus") as string,
-      To: formData.get("To") as string,
-      From: formData.get("From") as string,
+  return {
+    valid: true,
+    callback: {
+      MessageSid: messageSid,
+      MessageStatus: messageStatus,
+      To: to,
+      From: formData.get("From") as string || "",
       ErrorCode: formData.get("ErrorCode") as string | undefined,
       ErrorMessage: formData.get("ErrorMessage") as string | undefined,
-      AccountSid: formData.get("AccountSid") as string,
-      ApiVersion: formData.get("ApiVersion") as string,
+      AccountSid: accountSid,
+      ApiVersion: formData.get("ApiVersion") as string || "",
       SmsSid: formData.get("SmsSid") as string | undefined,
       SmsStatus: formData.get("SmsStatus") as string | undefined,
-    };
-
-    console.log("Received Twilio status callback:", JSON.stringify(callback));
-
-    if (!callback.MessageSid || !callback.MessageStatus) {
-      console.error("Missing required fields in callback");
-      return new Response("Missing required fields", { status: 400 });
-    }
-
-    // Create Supabase client
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
-
-    // Determine channel type from the To field
-    const isWhatsApp = callback.To.startsWith("whatsapp:");
-    const channel = isWhatsApp ? "whatsapp" : "sms";
-
-    // Find notification by Twilio SID in metadata
-    const { data: notifications, error: fetchError } = await supabase
-      .from("notification_history")
-      .select("id, status, metadata")
-      .eq("channel", channel)
-      .filter("metadata->twilio_sid", "eq", callback.MessageSid);
-
-    if (fetchError) {
-      console.error("Error fetching notifications:", fetchError);
-      return new Response(JSON.stringify({ error: fetchError.message }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    if (!notifications || notifications.length === 0) {
-      // Try alternate metadata key for WhatsApp
-      const { data: altNotifications, error: altError } = await supabase
-        .from("notification_history")
-        .select("id, status, metadata")
-        .eq("channel", channel)
-        .filter("metadata->message_id", "eq", callback.MessageSid);
-
-      if (altError || !altNotifications || altNotifications.length === 0) {
-        console.log(`No notification found for MessageSid: ${callback.MessageSid}`);
-        // Return 200 to acknowledge receipt (Twilio will retry on non-200)
-        return new Response(JSON.stringify({ message: "No matching notification found" }), {
-          status: 200,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      
-      // Process alternate notifications
-      for (const notification of altNotifications) {
-        await processNotificationUpdate(supabase, notification.id, notification.metadata, callback);
-      }
-    } else {
-      // Process found notifications
-      for (const notification of notifications) {
-        await processNotificationUpdate(supabase, notification.id, notification.metadata, callback);
-      }
-    }
-
-    return new Response(JSON.stringify({ success: true }), {
-      status: 200,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  } catch (error: unknown) {
-    console.error("Error in twilio-webhook:", error);
-    return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : String(error) }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
-  }
-});
+    },
+  };
+}
 
 async function processNotificationUpdate(
   // deno-lint-ignore no-explicit-any
@@ -231,8 +190,121 @@ async function processNotificationUpdate(
     .eq("id", notificationId);
 
   if (updateError) {
-    console.error(`Error updating notification ${notificationId}:`, updateError);
+    logStep(`Error updating notification ${notificationId}`, { error: updateError.message });
   } else {
-    console.log(`Updated notification ${notificationId} to status: ${newStatus}`);
+    logStep(`Updated notification ${notificationId} to status: ${newStatus}`);
   }
 }
+
+serve(withSentry(FUNCTION_NAME, async (req: Request): Promise<Response> => {
+  const corsHeaders = getCorsHeaders(req.headers.get("origin"));
+  
+  // Handle CORS preflight
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    // Read raw body for signature verification
+    const rawBody = await req.text();
+    
+    // Verify Twilio signature
+    const signatureResult = await validateTwilioSignature(req, rawBody);
+    if (!signatureResult.valid) {
+      logStep("Signature validation failed", { reason: signatureResult.reason });
+      await captureMessage(`Twilio signature validation failed: ${signatureResult.reason}`, "warning", {
+        functionName: FUNCTION_NAME,
+      });
+      return new Response(
+        JSON.stringify({ error: signatureResult.reason }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Parse form data
+    const formData = new URLSearchParams(rawBody);
+    const formDataObj = new FormData();
+    for (const [key, value] of formData.entries()) {
+      formDataObj.append(key, value);
+    }
+
+    // Validate callback payload
+    const validation = validateCallback(formDataObj);
+    if (!validation.valid || !validation.callback) {
+      logStep("Validation failed", { error: validation.error });
+      return new Response(
+        JSON.stringify({ error: validation.error }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const callback = validation.callback;
+    logStep("Received status callback", { 
+      messageSid: callback.MessageSid, 
+      status: callback.MessageStatus 
+    });
+
+    // Create Supabase client
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // Determine channel type from the To field
+    const isWhatsApp = callback.To.startsWith("whatsapp:");
+    const channel = isWhatsApp ? "whatsapp" : "sms";
+
+    // Find notification by Twilio SID in metadata
+    const { data: notifications, error: fetchError } = await supabase
+      .from("notification_history")
+      .select("id, status, metadata")
+      .eq("channel", channel)
+      .filter("metadata->twilio_sid", "eq", callback.MessageSid);
+
+    if (fetchError) {
+      logStep("Error fetching notifications", { error: fetchError.message });
+      return new Response(JSON.stringify({ error: fetchError.message }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (!notifications || notifications.length === 0) {
+      // Try alternate metadata key for WhatsApp
+      const { data: altNotifications, error: altError } = await supabase
+        .from("notification_history")
+        .select("id, status, metadata")
+        .eq("channel", channel)
+        .filter("metadata->message_id", "eq", callback.MessageSid);
+
+      if (altError || !altNotifications || altNotifications.length === 0) {
+        logStep(`No notification found for MessageSid: ${callback.MessageSid}`);
+        // Return 200 to acknowledge receipt (Twilio will retry on non-200)
+        return new Response(JSON.stringify({ message: "No matching notification found" }), {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      
+      // Process alternate notifications
+      for (const notification of altNotifications) {
+        await processNotificationUpdate(supabase, notification.id, notification.metadata as Record<string, unknown>, callback);
+      }
+    } else {
+      // Process found notifications
+      for (const notification of notifications) {
+        await processNotificationUpdate(supabase, notification.id, notification.metadata as Record<string, unknown>, callback);
+      }
+    }
+
+    return new Response(JSON.stringify({ success: true }), {
+      status: 200,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  } catch (error: unknown) {
+    logStep("ERROR", { message: error instanceof Error ? error.message : String(error) });
+    return new Response(
+      JSON.stringify({ error: error instanceof Error ? error.message : String(error) }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+}));

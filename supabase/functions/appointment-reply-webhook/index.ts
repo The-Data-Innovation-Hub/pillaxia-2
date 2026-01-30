@@ -1,10 +1,9 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { withSentry, captureMessage } from "../_shared/sentry.ts";
+import { getCorsHeaders } from "../_shared/cors.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+const FUNCTION_NAME = "appointment-reply-webhook";
 
 /**
  * Twilio Incoming Message Webhook for Appointment Replies
@@ -24,6 +23,100 @@ interface TwilioIncomingMessage {
   To: string;
   Body: string;
   NumMedia?: string;
+}
+
+const logStep = (step: string, details?: unknown) => {
+  const detailsStr = details ? ` - ${JSON.stringify(details)}` : '';
+  console.log(`[${FUNCTION_NAME}] ${step}${detailsStr}`);
+};
+
+// Validate Twilio request signature (HMAC-SHA1)
+async function validateTwilioSignature(
+  req: Request,
+  body: string
+): Promise<{ valid: boolean; reason?: string }> {
+  const twilioAuthToken = Deno.env.get("TWILIO_AUTH_TOKEN");
+  
+  // SECURITY: Require auth token in production
+  if (!twilioAuthToken) {
+    const isProduction = Deno.env.get("ENVIRONMENT") === "production";
+    if (isProduction) {
+      return { valid: false, reason: "TWILIO_AUTH_TOKEN required in production" };
+    }
+    logStep("WARNING: Signature verification disabled (development)");
+    return { valid: true };
+  }
+
+  const signature = req.headers.get("X-Twilio-Signature");
+  if (!signature) {
+    return { valid: false, reason: "Missing X-Twilio-Signature header" };
+  }
+
+  // Build the URL that Twilio signed (must match exactly)
+  const url = req.url;
+  
+  // Sort form parameters and create signature base
+  const params = new URLSearchParams(body);
+  const sortedParams = Array.from(params.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+  const paramString = sortedParams.map(([k, v]) => `${k}${v}`).join("");
+  const signatureBase = url + paramString;
+
+  // Generate HMAC-SHA1
+  const encoder = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    "raw",
+    encoder.encode(twilioAuthToken),
+    { name: "HMAC", hash: "SHA-1" },
+    false,
+    ["sign"]
+  );
+  const signatureBytes = await crypto.subtle.sign("HMAC", key, encoder.encode(signatureBase));
+  const expectedSignature = btoa(String.fromCharCode(...new Uint8Array(signatureBytes)));
+
+  if (signature !== expectedSignature) {
+    return { valid: false, reason: "Signature mismatch" };
+  }
+
+  return { valid: true };
+}
+
+// Validate incoming message fields
+function validateIncomingMessage(formData: FormData): {
+  valid: boolean;
+  message?: TwilioIncomingMessage;
+  error?: string;
+} {
+  const messageSid = formData.get("MessageSid") as string;
+  const from = formData.get("From") as string;
+  const body = formData.get("Body") as string;
+  const accountSid = formData.get("AccountSid") as string;
+
+  if (!messageSid || typeof messageSid !== "string" || messageSid.length < 10) {
+    return { valid: false, error: "Invalid or missing MessageSid" };
+  }
+  if (!from || typeof from !== "string") {
+    return { valid: false, error: "Invalid or missing From field" };
+  }
+  if (!body || typeof body !== "string") {
+    return { valid: false, error: "Invalid or missing Body field" };
+  }
+  if (!accountSid || typeof accountSid !== "string") {
+    return { valid: false, error: "Invalid or missing AccountSid" };
+  }
+
+  // Sanitize body - limit length and remove potential injection
+  const sanitizedBody = body.trim().substring(0, 160);
+
+  return {
+    valid: true,
+    message: {
+      MessageSid: messageSid,
+      AccountSid: accountSid,
+      From: from,
+      To: formData.get("To") as string || "",
+      Body: sanitizedBody,
+    },
+  };
 }
 
 // Parse command from message body
@@ -90,40 +183,63 @@ async function sendReply(
   }
 }
 
-serve(async (req: Request): Promise<Response> => {
+serve(withSentry(FUNCTION_NAME, async (req: Request): Promise<Response> => {
+  const corsHeaders = getCorsHeaders(req.headers.get("origin"));
+  
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    // Twilio sends form-urlencoded data
-    const formData = await req.formData();
-    const incoming: TwilioIncomingMessage = {
-      MessageSid: formData.get("MessageSid") as string,
-      AccountSid: formData.get("AccountSid") as string,
-      From: formData.get("From") as string,
-      To: formData.get("To") as string,
-      Body: formData.get("Body") as string,
-    };
-
-    console.log("Received incoming message:", JSON.stringify({
-      from: incoming.From,
-      body: incoming.Body,
-      isWhatsApp: incoming.From.startsWith("whatsapp:"),
-    }));
-
-    if (!incoming.From || !incoming.Body) {
-      return new Response("Missing required fields", { status: 400 });
+    // Read raw body for signature verification
+    const rawBody = await req.text();
+    
+    // Verify Twilio signature
+    const signatureResult = await validateTwilioSignature(req, rawBody);
+    if (!signatureResult.valid) {
+      logStep("Signature validation failed", { reason: signatureResult.reason });
+      await captureMessage(`Twilio signature validation failed: ${signatureResult.reason}`, "warning", {
+        functionName: FUNCTION_NAME,
+      });
+      return new Response(
+        JSON.stringify({ error: signatureResult.reason }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
+
+    // Parse form data
+    const formData = new URLSearchParams(rawBody);
+    const formDataObj = new FormData();
+    for (const [key, value] of formData.entries()) {
+      formDataObj.append(key, value);
+    }
+
+    // Validate incoming message
+    const validation = validateIncomingMessage(formDataObj);
+    if (!validation.valid || !validation.message) {
+      logStep("Validation failed", { error: validation.error });
+      return new Response(
+        JSON.stringify({ error: validation.error }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const incoming = validation.message;
+    const isWhatsApp = incoming.From.startsWith("whatsapp:");
+    
+    logStep("Received incoming message", {
+      from: incoming.From,
+      body: incoming.Body.substring(0, 50),
+      isWhatsApp,
+    });
 
     // Create Supabase client
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Determine if WhatsApp
-    const isWhatsApp = incoming.From.startsWith("whatsapp:");
+    // Extract phone number (remove country code formatting)
     const phoneNumber = incoming.From.replace("whatsapp:", "").replace(/\D/g, "");
 
     // Parse the command
@@ -137,11 +253,11 @@ serve(async (req: Request): Promise<Response> => {
       .maybeSingle();
 
     if (profileError) {
-      console.error("Error finding profile:", profileError);
+      logStep("Error finding profile", { error: profileError.message });
     }
 
     if (!profile) {
-      console.log(`No patient found for phone: ${phoneNumber}`);
+      logStep(`No patient found for phone: ${phoneNumber}`);
       const helpMessage = `We couldn't find your account. Please ensure you're using the phone number registered with Pillaxia. For assistance, contact support@pillaxia.com`;
       await sendReply(incoming.From, helpMessage, isWhatsApp);
       
@@ -176,11 +292,12 @@ serve(async (req: Request): Promise<Response> => {
       .maybeSingle();
 
     if (apptError) {
-      console.error("Error finding appointment:", apptError);
+      logStep("Error finding appointment", { error: apptError.message });
     }
 
     if (!appointment) {
-      const noApptMessage = `Hi ${profile.first_name || "there"}, we couldn't find any upcoming appointments for you. If you believe this is an error, please contact us at support@pillaxia.com`;
+      const firstName = profile.first_name || "there";
+      const noApptMessage = `Hi ${firstName}, we couldn't find any upcoming appointments for you. If you believe this is an error, please contact us at support@pillaxia.com`;
       await sendReply(incoming.From, noApptMessage, isWhatsApp);
       
       return new Response(
@@ -196,6 +313,7 @@ serve(async (req: Request): Promise<Response> => {
       day: "numeric",
     });
     const apptTime = appointment.appointment_time.slice(0, 5);
+    const firstName = profile.first_name || "there";
 
     let responseMessage = "";
     let newStatus = appointment.status;
@@ -218,7 +336,7 @@ serve(async (req: Request): Promise<Response> => {
 
       case "unknown":
       default:
-        responseMessage = `Hi ${profile.first_name || "there"}, I didn't understand that. For your appointment on ${apptDate}:\n\n• Reply CONFIRM to confirm\n• Reply RESCHEDULE to request a new time\n• Reply CANCEL to cancel\n• Reply HELP for more options`;
+        responseMessage = `Hi ${firstName}, I didn't understand that. For your appointment on ${apptDate}:\n\n• Reply CONFIRM to confirm\n• Reply RESCHEDULE to request a new time\n• Reply CANCEL to cancel\n• Reply HELP for more options`;
         break;
     }
 
@@ -233,10 +351,10 @@ serve(async (req: Request): Promise<Response> => {
         .eq("id", appointment.id);
 
       if (updateError) {
-        console.error("Error updating appointment:", updateError);
+        logStep("Error updating appointment", { error: updateError.message });
         responseMessage = `We're sorry, there was an issue processing your request. Please try again or contact support@pillaxia.com`;
       } else {
-        console.log(`Updated appointment ${appointment.id} to status: ${newStatus}`);
+        logStep(`Updated appointment ${appointment.id} to status: ${newStatus}`);
 
         // Log the action to audit_log
         await supabase.from("audit_log").insert({
@@ -274,9 +392,9 @@ serve(async (req: Request): Promise<Response> => {
     const replyResult = await sendReply(incoming.From, responseMessage, isWhatsApp);
     
     if (!replyResult.success) {
-      console.error("Failed to send reply:", replyResult.error);
+      logStep("Failed to send reply", { error: replyResult.error });
     } else {
-      console.log("Reply sent successfully");
+      logStep("Reply sent successfully");
 
       // Log outbound reply
       await supabase.from("notification_history").insert({
@@ -306,10 +424,10 @@ serve(async (req: Request): Promise<Response> => {
       }
     );
   } catch (error: unknown) {
-    console.error("Error in appointment-reply-webhook:", error);
+    logStep("ERROR", { message: error instanceof Error ? error.message : String(error) });
     return new Response(
       JSON.stringify({ error: error instanceof Error ? error.message : String(error) }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
-});
+}));
