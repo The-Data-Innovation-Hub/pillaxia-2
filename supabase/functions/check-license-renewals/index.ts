@@ -1,11 +1,8 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { Resend } from "https://esm.sh/resend@2.0.0";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+import { getCorsHeaders } from "../_shared/cors.ts";
+import { withSentry, captureException } from "../_shared/sentry.ts";
 
 interface ProfileWithLicense {
   user_id: string;
@@ -16,7 +13,21 @@ interface ProfileWithLicense {
   license_expiration_date: string;
 }
 
-serve(async (req) => {
+// HTML escape for XSS prevention
+function escapeHtml(text: string): string {
+  const htmlEscapes: Record<string, string> = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  };
+  return text.replace(/[&<>"']/g, (char) => htmlEscapes[char] || char);
+}
+
+serve(withSentry("check-license-renewals", async (req) => {
+  const corsHeaders = getCorsHeaders(req.headers.get("origin"));
+
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -55,7 +66,7 @@ serve(async (req) => {
         .select("user_id, first_name, last_name, email, license_number, license_expiration_date")
         .eq("license_expiration_date", target.date)
         .not("license_number", "is", null)
-        .not("email", "is", null) as { data: ProfileWithLicense[] | null; error: any };
+        .not("email", "is", null) as { data: ProfileWithLicense[] | null; error: unknown };
 
       if (error) {
         console.error("Error fetching profiles:", error);
@@ -77,7 +88,7 @@ serve(async (req) => {
           if (!profile.email) continue;
 
           const urgency = target.days <= 7 ? "URGENT" : target.days <= 30 ? "Important" : "Reminder";
-          const name = profile.first_name ? `${profile.first_name} ${profile.last_name || ""}`.trim() : "Healthcare Professional";
+          const name = profile.first_name ? `${escapeHtml(profile.first_name)} ${escapeHtml(profile.last_name || "")}`.trim() : "Healthcare Professional";
 
           try {
             await resend.emails.send({
@@ -93,7 +104,7 @@ serve(async (req) => {
                   <p>This is a ${target.days <= 7 ? '<strong>final reminder</strong>' : 'friendly reminder'} that your professional license is expiring soon.</p>
                   
                   <div style="background-color: #f3f4f6; padding: 20px; border-radius: 8px; margin: 20px 0;">
-                    <p style="margin: 0;"><strong>License Number:</strong> ${profile.license_number}</p>
+                    <p style="margin: 0;"><strong>License Number:</strong> ${escapeHtml(profile.license_number || "")}</p>
                     <p style="margin: 10px 0 0 0;"><strong>Expiration Date:</strong> ${new Date(profile.license_expiration_date).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
                     <p style="margin: 10px 0 0 0;"><strong>Days Remaining:</strong> ${target.days} days</p>
                   </div>
@@ -157,6 +168,7 @@ serve(async (req) => {
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
     console.error("Error in check-license-renewals:", error);
+    captureException(error instanceof Error ? error : new Error(errorMessage));
     return new Response(
       JSON.stringify({ error: errorMessage }),
       {
@@ -165,4 +177,4 @@ serve(async (req) => {
       }
     );
   }
-});
+}));

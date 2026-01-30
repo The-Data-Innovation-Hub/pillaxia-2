@@ -1,11 +1,9 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@18.5.0";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
+import { getCorsHeaders } from "../_shared/cors.ts";
+import { validators, validateSchema, validationErrorResponse } from "../_shared/validation.ts";
+import { withSentry, captureException } from "../_shared/sentry.ts";
 
 const logStep = (step: string, details?: unknown) => {
   const detailsStr = details ? ` - ${JSON.stringify(details)}` : '';
@@ -19,7 +17,14 @@ const PRODUCT_TIERS: Record<string, string> = {
   "prod_TsMOjz7Pt8ugAx": "enterprise",
 };
 
-serve(async (req) => {
+// Input validation schema
+const checkOrgSubscriptionSchema = {
+  organizationId: validators.uuid(),
+};
+
+serve(withSentry("check-org-subscription", async (req) => {
+  const corsHeaders = getCorsHeaders(req.headers.get("origin"));
+
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -47,9 +52,15 @@ serve(async (req) => {
     if (!user?.id) throw new Error("User not authenticated");
     logStep("User authenticated", { userId: user.id });
 
-    // Parse request
-    const { organizationId } = await req.json();
-    if (!organizationId) throw new Error("Organization ID is required");
+    // Parse and validate request
+    const body = await req.json().catch(() => ({}));
+    const validation = validateSchema(checkOrgSubscriptionSchema, body);
+
+    if (!validation.success) {
+      return validationErrorResponse(validation, corsHeaders);
+    }
+
+    const { organizationId } = validation.data;
 
     // Get subscription from database
     const { data: subscription, error: subError } = await supabaseClient
@@ -91,7 +102,6 @@ serve(async (req) => {
       try {
         const stripeSub = await stripe.subscriptions.retrieve(subscription.stripe_subscription_id);
         
-        // Update local record if status changed
         if (stripeSub.status !== subscription.status) {
           await supabaseClient
             .from("organization_subscriptions")
@@ -140,9 +150,10 @@ serve(async (req) => {
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     logStep("ERROR", { message: errorMessage });
+    captureException(error instanceof Error ? error : new Error(errorMessage));
     return new Response(JSON.stringify({ error: errorMessage }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 500,
     });
   }
-});
+}));

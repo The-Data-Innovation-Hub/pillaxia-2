@@ -1,15 +1,26 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+import { getCorsHeaders } from "../_shared/cors.ts";
+import { withSentry, captureException } from "../_shared/sentry.ts";
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
 const RED_FLAG_SEVERITY_THRESHOLD = 8; // Severity 8+ triggers alert
 
-serve(async (req) => {
+// HTML escape for XSS prevention
+function escapeHtml(text: string): string {
+  const htmlEscapes: Record<string, string> = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  };
+  return text.replace(/[&<>"']/g, (char) => htmlEscapes[char] || char);
+}
+
+serve(withSentry("check-red-flag-symptoms", async (req) => {
+  const corsHeaders = getCorsHeaders(req.headers.get("origin"));
+
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -22,7 +33,7 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
     );
 
-    // Parse request body for optional symptom_entry_id (called after symptom log)
+    // Parse request body for optional symptom_entry_id
     let symptomEntryId: string | null = null;
     try {
       const body = await req.json();
@@ -47,7 +58,6 @@ serve(async (req) => {
     if (symptomEntryId) {
       query = query.eq("id", symptomEntryId);
     } else {
-      // Check symptoms from last hour not yet alerted
       const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
       query = query.gte("recorded_at", oneHourAgo);
     }
@@ -71,7 +81,7 @@ serve(async (req) => {
     let alertsCreated = 0;
 
     for (const symptom of severeSymptoms) {
-      // Check if alert already exists for this symptom
+      // Check if alert already exists
       const { data: existingAlert } = await supabase
         .from("red_flag_alerts")
         .select("id")
@@ -83,7 +93,7 @@ serve(async (req) => {
         continue;
       }
 
-      // Find assigned clinician for this patient
+      // Find assigned clinician
       const { data: assignment } = await supabase
         .from("clinician_patient_assignments")
         .select("clinician_user_id")
@@ -115,7 +125,7 @@ serve(async (req) => {
 
       alertsCreated++;
 
-      // Get patient and clinician info for notification
+      // Get patient and clinician info
       const { data: patientProfile } = await supabase
         .from("profiles")
         .select("first_name, last_name")
@@ -135,7 +145,7 @@ serve(async (req) => {
 
       const patientName = `${patientProfile?.first_name || ""} ${patientProfile?.last_name || ""}`.trim() || "A patient";
 
-      // Send email alert to clinician
+      // Send email alert
       if (RESEND_API_KEY) {
         const emailResponse = await fetch("https://api.resend.com/emails", {
           method: "POST",
@@ -146,19 +156,19 @@ serve(async (req) => {
           body: JSON.stringify({
             from: "Pillaxia Alerts <alerts@pillaxia.com>",
             to: [clinicianProfile.email],
-            subject: `🚨 Red Flag Alert: ${patientName} reported severe ${symptom.symptom_type}`,
+            subject: `🚨 Red Flag Alert: ${escapeHtml(patientName)} reported severe ${escapeHtml(symptom.symptom_type)}`,
             html: `
               <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
                 <div style="background-color: #dc2626; color: white; padding: 16px 24px; border-radius: 8px 8px 0 0;">
                   <h2 style="margin: 0;">🚨 Red Flag Symptom Alert</h2>
                 </div>
                 <div style="border: 1px solid #e5e7eb; border-top: none; padding: 24px; border-radius: 0 0 8px 8px;">
-                  <p>Hi ${clinicianProfile.first_name || "Doctor"},</p>
-                  <p><strong>${patientName}</strong> has reported a severe symptom that requires your attention:</p>
+                  <p>Hi ${escapeHtml(clinicianProfile.first_name || "Doctor")},</p>
+                  <p><strong>${escapeHtml(patientName)}</strong> has reported a severe symptom that requires your attention:</p>
                   <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
                     <tr>
                       <td style="padding: 8px; border-bottom: 1px solid #e5e7eb;"><strong>Symptom</strong></td>
-                      <td style="padding: 8px; border-bottom: 1px solid #e5e7eb;">${symptom.symptom_type}</td>
+                      <td style="padding: 8px; border-bottom: 1px solid #e5e7eb;">${escapeHtml(symptom.symptom_type)}</td>
                     </tr>
                     <tr>
                       <td style="padding: 8px; border-bottom: 1px solid #e5e7eb;"><strong>Severity</strong></td>
@@ -173,7 +183,7 @@ serve(async (req) => {
                     ${symptom.description ? `
                     <tr>
                       <td style="padding: 8px; border-bottom: 1px solid #e5e7eb;"><strong>Notes</strong></td>
-                      <td style="padding: 8px; border-bottom: 1px solid #e5e7eb;">${symptom.description}</td>
+                      <td style="padding: 8px; border-bottom: 1px solid #e5e7eb;">${escapeHtml(symptom.description)}</td>
                     </tr>
                     ` : ""}
                   </table>
@@ -208,7 +218,7 @@ serve(async (req) => {
         }
       }
 
-      // Send push notification to clinician
+      // Send push notification
       await supabase.functions.invoke("send-push-notification", {
         body: {
           user_ids: [assignment.clinician_user_id],
@@ -230,9 +240,10 @@ serve(async (req) => {
     );
   } catch (error) {
     console.error("Error in check-red-flag-symptoms:", error);
+    captureException(error instanceof Error ? error : new Error(String(error)));
     return new Response(
       JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
-});
+}));

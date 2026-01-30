@@ -1,22 +1,21 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getCorsHeaders } from "../_shared/cors.ts";
+import { withSentry, captureException } from "../_shared/sentry.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+serve(withSentry("calculate-patient-risks", async (req) => {
+  const corsHeaders = getCorsHeaders(req.headers.get("origin"));
 
-const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
-const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-
-serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
     console.log("Calculating patient risk flags...");
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+    );
 
     const now = new Date();
     const threeDaysAgo = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
@@ -123,7 +122,6 @@ serve(async (req) => {
 
     // Upsert risk flags (resolve old ones first, then insert new)
     if (riskFlags.length > 0) {
-      // For each risk flag, check if unresolved one exists, if not insert
       for (const flag of riskFlags) {
         const { data: existing } = await supabase
           .from("patient_risk_flags")
@@ -143,7 +141,6 @@ serve(async (req) => {
             console.error("Error inserting risk flag:", insertError);
           }
         } else {
-          // Update existing flag with new values
           const { error: updateError } = await supabase
             .from("patient_risk_flags")
             .update({
@@ -204,9 +201,10 @@ serve(async (req) => {
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
     console.error("Error calculating patient risks:", error);
+    captureException(error instanceof Error ? error : new Error(errorMessage));
     return new Response(
       JSON.stringify({ error: errorMessage }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
-});
+}));

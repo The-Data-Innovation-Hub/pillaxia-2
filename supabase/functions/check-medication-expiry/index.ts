@@ -1,14 +1,23 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+import { getCorsHeaders } from "../_shared/cors.ts";
+import { withSentry, captureException } from "../_shared/sentry.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
+
+// HTML escape for XSS prevention
+function escapeHtml(text: string): string {
+  const htmlEscapes: Record<string, string> = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  };
+  return text.replace(/[&<>"']/g, (char) => htmlEscapes[char] || char);
+}
 
 async function sendEmail(to: string[], subject: string, html: string): Promise<{ id: string }> {
   const res = await fetch("https://api.resend.com/emails", {
@@ -57,7 +66,9 @@ interface ExpiryAlert {
   lot_number: string | null;
 }
 
-serve(async (req) => {
+serve(withSentry("check-medication-expiry", async (req) => {
+  const corsHeaders = getCorsHeaders(req.headers.get("origin"));
+
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -86,7 +97,7 @@ serve(async (req) => {
     console.log(`Found ${expiringDrugs?.length || 0} medications expiring within 30 days`);
 
     const alerts: ExpiryAlert[] = [];
-    const newAlerts: ExpiryAlert[] = []; // Alerts not yet sent
+    const newAlerts: ExpiryAlert[] = [];
 
     for (const drug of (expiringDrugs as ExpiringDrug[]) || []) {
       const expiryDate = new Date(drug.expiry_date);
@@ -115,7 +126,6 @@ serve(async (req) => {
 
       alerts.push(alert);
 
-      // Track alerts that haven't been sent yet (critical or expired)
       if (!drug.expiry_alert_sent && (severity === "critical" || severity === "expired")) {
         newAlerts.push(alert);
       }
@@ -136,7 +146,6 @@ serve(async (req) => {
 
     // Send notifications if there are new critical/expired alerts
     if (newAlerts.length > 0 && pharmacistIds.length > 0) {
-      // Get pharmacist emails
       const { data: pharmacistProfiles, error: profilesError } = await supabase
         .from("profiles")
         .select("user_id, email, first_name")
@@ -146,17 +155,16 @@ serve(async (req) => {
         console.error("Error fetching pharmacist profiles:", profilesError);
       }
 
-      // Build email content
       const expiredList = newAlerts.filter(a => a.severity === "expired");
       const criticalList = newAlerts.filter(a => a.severity === "critical");
 
       const buildDrugRow = (alert: ExpiryAlert) => `
         <tr style="background-color: ${alert.severity === 'expired' ? '#fef2f2' : '#fffbeb'};">
           <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">
-            <strong>${alert.name}</strong><br/>
+            <strong>${escapeHtml(alert.name)}</strong><br/>
             <span style="color: #6b7280; font-size: 14px;">
-              ${alert.strength} • ${alert.form}
-              ${alert.lot_number ? ` • Lot: ${alert.lot_number}` : ''}
+              ${escapeHtml(alert.strength)} • ${escapeHtml(alert.form)}
+              ${alert.lot_number ? ` • Lot: ${escapeHtml(alert.lot_number)}` : ''}
             </span>
           </td>
           <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: center;">
@@ -235,7 +243,6 @@ serve(async (req) => {
         </html>
       `;
 
-      // Send emails to all pharmacists
       for (const pharmacist of pharmacistProfiles || []) {
         if (!pharmacist.email) continue;
 
@@ -248,7 +255,6 @@ serve(async (req) => {
 
           console.log(`Expiry alert email sent to ${pharmacist.email}:`, emailResult.id);
 
-          // Log notification
           await supabase.from("notification_history").insert({
             user_id: pharmacist.user_id,
             channel: "email",
@@ -277,7 +283,7 @@ serve(async (req) => {
         }
       }
 
-      // Send push notifications to all pharmacists
+      // Send push notifications
       if (pharmacistIds.length > 0) {
         try {
           await supabase.functions.invoke("send-push-notification", {
@@ -308,7 +314,6 @@ serve(async (req) => {
       console.log(`Marked ${alertDrugIds.length} drugs as alert sent`);
     }
 
-    // Group by severity for summary
     const summary = {
       expired: alerts.filter(a => a.severity === "expired").length,
       critical: alerts.filter(a => a.severity === "critical").length,
@@ -332,9 +337,10 @@ serve(async (req) => {
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
     console.error("Error checking medication expiry:", error);
+    captureException(error instanceof Error ? error : new Error(errorMessage));
     return new Response(
       JSON.stringify({ error: errorMessage }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
-});
+}));
