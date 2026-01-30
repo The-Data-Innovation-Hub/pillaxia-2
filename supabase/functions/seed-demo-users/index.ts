@@ -27,9 +27,17 @@ const DEMO_USERS = [
   { email: "david.brown@demo.pillaxia.com", password: "DemoDavid2026!", role: "patient", firstName: "David", lastName: "Brown" },
 ];
 
-// Validate that an email is a demo email
-function isDemoEmail(email: string): boolean {
-  return email.endsWith("@demo.pillaxia.com");
+// E2E Test Users - dedicated accounts for automated testing
+const E2E_TEST_USERS = [
+  { email: "e2e-test@pillaxia.test", password: "TestPassword123!", role: "patient", firstName: "E2E", lastName: "Tester" },
+  { email: "e2e-clinician@pillaxia.test", password: "ClinicianPass123!", role: "clinician", firstName: "Dr. Test", lastName: "Clinician" },
+  { email: "e2e-pharmacist@pillaxia.test", password: "PharmacistPass123!", role: "pharmacist", firstName: "Test", lastName: "Pharmacist" },
+  { email: "e2e-admin@pillaxia.test", password: "AdminPass123!", role: "admin", firstName: "Test", lastName: "Admin" },
+];
+
+// Validate that an email is a demo or test email
+function isAllowedTestEmail(email: string): boolean {
+  return email.endsWith("@demo.pillaxia.com") || email.endsWith("@pillaxia.test");
 }
 
 Deno.serve(withSentry("seed-demo-users", async (req) => {
@@ -101,15 +109,18 @@ Deno.serve(withSentry("seed-demo-users", async (req) => {
     const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers();
     const existingEmails = new Set(existingUsers?.users?.map(u => u.email) || []);
 
-    for (const user of DEMO_USERS) {
-      // Double-check email is a demo email (defense in depth)
-      if (!isDemoEmail(user.email)) {
-        console.error(`Attempted to create non-demo user: ${user.email}`);
+    // Combine demo users and E2E test users
+    const allTestUsers = [...DEMO_USERS, ...E2E_TEST_USERS];
+
+    for (const user of allTestUsers) {
+      // Double-check email is allowed (defense in depth)
+      if (!isAllowedTestEmail(user.email)) {
+        console.error(`Attempted to create non-test user: ${user.email}`);
         continue;
       }
 
       if (existingEmails.has(user.email)) {
-        // Reset password for existing demo users
+        // Reset password for existing users
         const existingUser = existingUsers?.users?.find(u => u.email === user.email);
         if (existingUser) {
           const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
@@ -118,7 +129,7 @@ Deno.serve(withSentry("seed-demo-users", async (req) => {
           );
           if (updateError) {
             results.push({ email: user.email, status: "password reset failed", error: updateError.message });
-            captureException(new Error(`Demo user password reset failed: ${updateError.message}`));
+            captureException(new Error(`Test user password reset failed: ${updateError.message}`));
           } else {
             results.push({ email: user.email, status: "password reset" });
           }
@@ -140,13 +151,13 @@ Deno.serve(withSentry("seed-demo-users", async (req) => {
 
       if (error) {
         results.push({ email: user.email, status: "error", error: error.message });
-        captureException(new Error(`Demo user creation failed: ${error.message}`));
+        captureException(new Error(`Test user creation failed: ${error.message}`));
       } else {
         results.push({ email: user.email, status: "created", userId: data.user?.id });
       }
     }
 
-    console.log(`Demo user seed complete: ${results.filter(r => r.status === "created").length} created, ${results.filter(r => r.status === "password reset").length} reset`);
+    console.log(`Test user seed complete: ${results.filter(r => r.status === "created").length} created, ${results.filter(r => r.status === "password reset").length} reset`);
 
     return new Response(JSON.stringify({ success: true, results }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },

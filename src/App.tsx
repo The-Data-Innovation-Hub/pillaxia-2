@@ -8,6 +8,7 @@ import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { OrganizationProvider } from "@/contexts/OrganizationContext";
 import { LanguageProvider } from "@/i18n/LanguageContext";
 import { OfflineBanner } from "@/components/OfflineBanner";
+import { EnvironmentBanner } from "@/components/EnvironmentBanner";
 import { ThemeProvider } from "next-themes";
 import { PageLoadingFallback } from "@/components/ui/loading-spinner";
 import { OnboardingProvider, TourOverlay, OnboardingChecklist } from "@/components/onboarding";
@@ -83,6 +84,7 @@ const App = () => (
                 <LanguageProvider>
                   <OnboardingProvider>
                     <SkipLink href="#main-content" />
+                    <EnvironmentBanner />
                     <OfflineBanner />
                     <SessionTimeoutWarning />
                     <TourOverlay />
