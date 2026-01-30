@@ -6,8 +6,9 @@ import { useState, useEffect, useCallback } from "react";
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { setSentryUser, clearSentryUser, setSentryContext } from "@/lib/sentry";
+import type { Database } from "@/integrations/supabase/types";
 
-export type AppRole = "patient" | "clinician" | "pharmacist" | "admin" | "manager";
+export type AppRole = Database["public"]["Enums"]["app_role"];
 
 export interface Profile {
   id: string;
@@ -35,7 +36,7 @@ interface AuthState {
 async function fetchProfile(userId: string): Promise<Profile | null> {
   const { data, error } = await supabase
     .from("profiles")
-    .select("*")
+    .select("id, user_id, first_name, last_name, email, phone, organization, language_preference, avatar_url")
     .eq("user_id", userId)
     .maybeSingle();
 
@@ -43,7 +44,7 @@ async function fetchProfile(userId: string): Promise<Profile | null> {
     console.error("Error fetching profile:", error);
     return null;
   }
-  return data as Profile | null;
+  return data;
 }
 
 /**
@@ -59,7 +60,8 @@ async function fetchRoles(userId: string): Promise<AppRole[]> {
     console.error("Error fetching roles:", error);
     return [];
   }
-  return data.map((r) => r.role as AppRole);
+  // data is properly typed as Pick<UserRoleRow, "role">[]
+  return data.map((r) => r.role);
 }
 
 /**

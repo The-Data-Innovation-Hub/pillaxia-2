@@ -3,9 +3,13 @@ import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { setSentryUser, clearSentryUser, setSentryContext } from "@/lib/sentry";
+import type { Database } from "@/integrations/supabase/types";
 
-type AppRole = "patient" | "clinician" | "pharmacist" | "admin" | "manager";
+type AppRole = Database["public"]["Enums"]["app_role"];
+type ProfileRow = Database["public"]["Tables"]["profiles"]["Row"];
+type UserRoleRow = Database["public"]["Tables"]["user_roles"]["Row"];
 
+// Subset of profile fields used in the auth context
 interface Profile {
   id: string;
   user_id: string;
@@ -47,10 +51,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   // Fetch user profile
-  const fetchProfile = async (userId: string) => {
+  const fetchProfile = async (userId: string): Promise<Profile | null> => {
     const { data, error } = await supabase
       .from("profiles")
-      .select("*")
+      .select("id, user_id, first_name, last_name, email, phone, organization, language_preference, avatar_url")
       .eq("user_id", userId)
       .maybeSingle();
 
@@ -58,11 +62,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.error("Error fetching profile:", error);
       return null;
     }
-    return data as Profile | null;
+    return data;
   };
 
-  // Fetch user roles
-  const fetchRoles = async (userId: string) => {
+  // Fetch user roles with proper typing
+  const fetchRoles = async (userId: string): Promise<AppRole[]> => {
     const { data, error } = await supabase
       .from("user_roles")
       .select("role")
@@ -72,7 +76,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.error("Error fetching roles:", error);
       return [];
     }
-    return data.map((r) => r.role as AppRole);
+    
+    // data is properly typed as Pick<UserRoleRow, "role">[]
+    return data.map((r) => r.role);
   };
 
   useEffect(() => {
