@@ -140,3 +140,12 @@ verify_jwt = false
 
 [functions.clinical-decision-support]
 verify_jwt = false
+
+[functions.get-sentry-dsn]
+verify_jwt = false
+
+[functions.cleanup-audit-logs]
+verify_jwt = false
+
+[functions.validate-session]
+verify_jwt = false
