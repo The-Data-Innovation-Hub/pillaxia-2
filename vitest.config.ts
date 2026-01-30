@@ -21,6 +21,10 @@ export default defineConfig({
       ],
     },
     testTimeout: 10000,
+    env: {
+      // Disable demo mode in tests for consistent UI behavior
+      VITE_ENABLE_DEMO: "false",
+    },
   },
   resolve: {
     alias: {
