@@ -16,12 +16,15 @@ on:
           - staging
           - local
 
+env:
+  # Default staging URL - uses Lovable preview URL
+  DEFAULT_STAGING_URL: https://id-preview--8333c041-bf59-48ac-a717-3597c3a11358.lovable.app
+
 jobs:
-  test:
-    timeout-minutes: 60
+  # Unit tests run first
+  unit-tests:
+    name: Unit Tests
     runs-on: ubuntu-latest
-    environment: ${{ github.event.inputs.environment || 'staging' }}
-    
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -38,18 +41,76 @@ jobs:
       - name: Run unit tests
         run: npm test -- --run
 
-      - name: Install Playwright Browsers
-        run: npx playwright install --with-deps
+  # E2E tests run against staging after unit tests pass
+  e2e-tests:
+    name: E2E Tests (${{ matrix.browser }})
+    needs: unit-tests
+    timeout-minutes: 30
+    runs-on: ubuntu-latest
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox]
+        # Skip webkit and mobile for faster CI - run full suite on manual dispatch
+        include:
+          - browser: chromium
+            project: chromium
+          - browser: firefox
+            project: firefox
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - name: Build application
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright Browsers
+        run: npx playwright install --with-deps ${{ matrix.browser }}
+
+      - name: Determine test environment
+        id: env
+        run: |
+          if [ "${{ github.event.inputs.environment }}" = "local" ]; then
+            echo "Running against local build"
+            echo "is_local=true" >> $GITHUB_OUTPUT
+          else
+            echo "Running against staging"
+            echo "is_local=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build application (local only)
+        if: steps.env.outputs.is_local == 'true'
         run: npm run build
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
 
-      - name: Start server and run E2E tests (local)
-        if: github.event.inputs.environment == 'local' || github.event.inputs.environment == ''
-        run: npm run test:e2e
+      - name: Run E2E tests against staging
+        if: steps.env.outputs.is_local == 'false'
+        run: npx playwright test --config=e2e/playwright.config.ts --project=${{ matrix.project }}
+        env:
+          PLAYWRIGHT_BASE_URL: ${{ secrets.STAGING_URL || env.DEFAULT_STAGING_URL }}
+          E2E_TEST_USER_EMAIL: ${{ secrets.E2E_TEST_USER_EMAIL }}
+          E2E_TEST_USER_PASSWORD: ${{ secrets.E2E_TEST_USER_PASSWORD }}
+          E2E_CLINICIAN_EMAIL: ${{ secrets.E2E_CLINICIAN_EMAIL }}
+          E2E_CLINICIAN_PASSWORD: ${{ secrets.E2E_CLINICIAN_PASSWORD }}
+          E2E_PHARMACIST_EMAIL: ${{ secrets.E2E_PHARMACIST_EMAIL }}
+          E2E_PHARMACIST_PASSWORD: ${{ secrets.E2E_PHARMACIST_PASSWORD }}
+          E2E_ADMIN_EMAIL: ${{ secrets.E2E_ADMIN_EMAIL }}
+          E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
+
+      - name: Run E2E tests (local)
+        if: steps.env.outputs.is_local == 'true'
+        run: |
+          npx playwright test --config=e2e/playwright.config.ts --project=${{ matrix.project }}
         env:
           PLAYWRIGHT_BASE_URL: http://localhost:4173
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
@@ -58,22 +119,16 @@ jobs:
           E2E_TEST_USER_PASSWORD: ${{ secrets.E2E_TEST_USER_PASSWORD }}
           E2E_CLINICIAN_EMAIL: ${{ secrets.E2E_CLINICIAN_EMAIL }}
           E2E_CLINICIAN_PASSWORD: ${{ secrets.E2E_CLINICIAN_PASSWORD }}
-
-      - name: Run E2E tests against staging
-        if: github.event.inputs.environment == 'staging'
-        run: npx playwright test --config=e2e/playwright.config.ts
-        env:
-          PLAYWRIGHT_BASE_URL: ${{ secrets.STAGING_URL }}
-          E2E_TEST_USER_EMAIL: ${{ secrets.E2E_TEST_USER_EMAIL }}
-          E2E_TEST_USER_PASSWORD: ${{ secrets.E2E_TEST_USER_PASSWORD }}
-          E2E_CLINICIAN_EMAIL: ${{ secrets.E2E_CLINICIAN_EMAIL }}
-          E2E_CLINICIAN_PASSWORD: ${{ secrets.E2E_CLINICIAN_PASSWORD }}
+          E2E_PHARMACIST_EMAIL: ${{ secrets.E2E_PHARMACIST_EMAIL }}
+          E2E_PHARMACIST_PASSWORD: ${{ secrets.E2E_PHARMACIST_PASSWORD }}
+          E2E_ADMIN_EMAIL: ${{ secrets.E2E_ADMIN_EMAIL }}
+          E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
 
       - name: Upload Playwright Report
         uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: playwright-report
+          name: playwright-report-${{ matrix.browser }}
           path: e2e/playwright-report/
           retention-days: 30
 
@@ -81,6 +136,71 @@ jobs:
         uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: test-screenshots
+          name: test-screenshots-${{ matrix.browser }}
+          path: e2e/test-results/
+          retention-days: 30
+
+  # Full browser matrix for manual dispatch only
+  e2e-tests-full:
+    name: E2E Full Suite (${{ matrix.browser }})
+    if: github.event_name == 'workflow_dispatch'
+    needs: unit-tests
+    timeout-minutes: 45
+    runs-on: ubuntu-latest
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [webkit, Mobile Chrome, Mobile Safari]
+        include:
+          - browser: webkit
+            project: webkit
+          - browser: Mobile Chrome
+            project: Mobile Chrome
+          - browser: Mobile Safari
+            project: Mobile Safari
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright Browsers
+        run: npx playwright install --with-deps
+
+      - name: Run E2E tests
+        run: npx playwright test --config=e2e/playwright.config.ts --project="${{ matrix.project }}"
+        env:
+          PLAYWRIGHT_BASE_URL: ${{ secrets.STAGING_URL || env.DEFAULT_STAGING_URL }}
+          E2E_TEST_USER_EMAIL: ${{ secrets.E2E_TEST_USER_EMAIL }}
+          E2E_TEST_USER_PASSWORD: ${{ secrets.E2E_TEST_USER_PASSWORD }}
+          E2E_CLINICIAN_EMAIL: ${{ secrets.E2E_CLINICIAN_EMAIL }}
+          E2E_CLINICIAN_PASSWORD: ${{ secrets.E2E_CLINICIAN_PASSWORD }}
+          E2E_PHARMACIST_EMAIL: ${{ secrets.E2E_PHARMACIST_EMAIL }}
+          E2E_PHARMACIST_PASSWORD: ${{ secrets.E2E_PHARMACIST_PASSWORD }}
+          E2E_ADMIN_EMAIL: ${{ secrets.E2E_ADMIN_EMAIL }}
+          E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
+
+      - name: Upload Playwright Report
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report-${{ matrix.browser }}
+          path: e2e/playwright-report/
+          retention-days: 30
+
+      - name: Upload test screenshots
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: test-screenshots-${{ matrix.browser }}
           path: e2e/test-results/
           retention-days: 30
