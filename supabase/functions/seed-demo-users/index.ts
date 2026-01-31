@@ -94,14 +94,14 @@ Deno.serve(withSentry("seed-demo-users", async (req) => {
       .maybeSingle();
 
     if (roleError || !roleData) {
-      console.warn(`Non-admin user ${userId} attempted to seed demo users`);
+      console.info(`Non-admin user ${userId} attempted to seed demo users`);
       return new Response(JSON.stringify({ error: "Admin access required" }), {
         status: 403,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    console.log(`Admin ${userId} initiating demo user seed`);
+    console.info(`Admin ${userId} initiating demo user seed`);
 
     const results: Array<{ email: string; status: string; error?: string; userId?: string }> = [];
 
@@ -115,7 +115,7 @@ Deno.serve(withSentry("seed-demo-users", async (req) => {
     for (const user of allTestUsers) {
       // Double-check email is allowed (defense in depth)
       if (!isAllowedTestEmail(user.email)) {
-        console.error(`Attempted to create non-test user: ${user.email}`);
+        console.warn(`Attempted to create non-test user: ${user.email}`);
         continue;
       }
 
@@ -157,7 +157,7 @@ Deno.serve(withSentry("seed-demo-users", async (req) => {
       }
     }
 
-    console.log(`Test user seed complete: ${results.filter(r => r.status === "created").length} created, ${results.filter(r => r.status === "password reset").length} reset`);
+    console.info(`Test user seed complete: ${results.filter(r => r.status === "created").length} created, ${results.filter(r => r.status === "password reset").length} reset`);
 
     return new Response(JSON.stringify({ success: true, results }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },

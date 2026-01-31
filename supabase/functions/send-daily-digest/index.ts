@@ -88,7 +88,7 @@ serve(withSentry("send-daily-digest", async (req: Request): Promise<Response> =>
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const currentUtcHour = new Date().getUTCHours();
 
-    console.log(`Processing daily digest. Current UTC hour: ${currentUtcHour}`);
+    console.info(`Processing daily digest. Current UTC hour: ${currentUtcHour}`);
 
     // Get all patients with email addresses
     const { data: patients, error: patientsError } = await supabase
@@ -102,12 +102,12 @@ serve(withSentry("send-daily-digest", async (req: Request): Promise<Response> =>
       .not("email", "is", null);
 
     if (patientsError) {
-      console.error("Error fetching patients:", patientsError);
+      console.warn("Error fetching patients:", patientsError);
       captureException(patientsError);
       throw patientsError;
     }
 
-    console.log(`Found ${patients?.length || 0} patients to check`);
+    console.info(`Found ${patients?.length || 0} patients to check`);
 
     let sentCount = 0;
     let skippedCount = 0;
@@ -137,7 +137,7 @@ serve(withSentry("send-daily-digest", async (req: Request): Promise<Response> =>
           continue;
         }
 
-        console.log(`Sending digest to ${patient.email} (timezone: ${patientTimezone}, local hour: ${localHour})`);
+        console.info(`Sending digest to ${patient.email} (timezone: ${patientTimezone}, local hour: ${localHour})`);
 
         // Get yesterday's bounds in patient's timezone
         const { start: yesterdayStart, end: yesterdayEnd } = getYesterdayBoundsInTimezone(patientTimezone);
@@ -265,7 +265,7 @@ serve(withSentry("send-daily-digest", async (req: Request): Promise<Response> =>
         });
 
         if (emailResponse.error) {
-          console.error(`Failed to send digest to ${patient.email}:`, emailResponse.error);
+          console.warn(`Failed to send digest to ${patient.email}:`, emailResponse.error);
           if (notificationRecord) {
             await supabase
               .from("notification_history")
@@ -273,7 +273,7 @@ serve(withSentry("send-daily-digest", async (req: Request): Promise<Response> =>
               .eq("id", notificationRecord.id);
           }
         } else {
-          console.log(`Digest sent to ${patient.email}`);
+          console.info(`Digest sent to ${patient.email}`);
           sentCount++;
           if (notificationRecord) {
             await supabase
@@ -290,14 +290,14 @@ serve(withSentry("send-daily-digest", async (req: Request): Promise<Response> =>
           }
         }
       } catch (patientError) {
-        console.error(`Error processing patient ${patient.user_id}:`, patientError);
+        console.warn(`Error processing patient ${patient.user_id}:`, patientError);
         if (patientError instanceof Error) {
           captureException(patientError);
         }
       }
     }
 
-    console.log(`Daily digest complete: ${sentCount} sent, ${skippedCount} skipped (prefs), ${timezoneSkippedCount} skipped (not 8am local)`);
+    console.info(`Daily digest complete: ${sentCount} sent, ${skippedCount} skipped (prefs), ${timezoneSkippedCount} skipped (not 8am local)`);
 
     return new Response(
       JSON.stringify({ 

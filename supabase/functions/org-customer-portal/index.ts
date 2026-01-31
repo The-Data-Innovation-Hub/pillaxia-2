@@ -18,7 +18,7 @@ import { validateSchema, validationErrorResponse, validators } from "../_shared/
 
 const logStep = (step: string, details?: unknown) => {
   const detailsStr = details ? ` - ${JSON.stringify(details)}` : '';
-  console.log(`[ORG-CUSTOMER-PORTAL] ${step}${detailsStr}`);
+  console.info(`[ORG-CUSTOMER-PORTAL] ${step}${detailsStr}`);
 };
 
 // Input validation schema

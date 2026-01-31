@@ -45,7 +45,7 @@ serve(withSentry("send-drug-recall-alert", async (req) => {
 
     const { recall_id, notify_pharmacies = true, notify_patients = true } = validation.data;
 
-    console.log(`Processing drug recall alert for recall_id: ${recall_id}`);
+    console.info(`Processing drug recall alert for recall_id: ${recall_id}`);
 
     // Get recall details
     const { data: recall, error: recallError } = await supabase
@@ -125,7 +125,7 @@ serve(withSentry("send-drug-recall-alert", async (req) => {
               });
               if (!emailResponse.error) channelsUsed.push("email");
             } catch (e) {
-              console.error("Email notification failed:", e);
+              console.warn("Email notification failed:", e);
               captureException(e instanceof Error ? e : new Error(String(e)));
             }
           }
@@ -141,7 +141,7 @@ serve(withSentry("send-drug-recall-alert", async (req) => {
               });
               if (!smsResponse.error) channelsUsed.push("sms");
             } catch (e) {
-              console.error("SMS notification failed:", e);
+              console.warn("SMS notification failed:", e);
               captureException(e instanceof Error ? e : new Error(String(e)));
             }
           }
@@ -212,7 +212,7 @@ serve(withSentry("send-drug-recall-alert", async (req) => {
               });
               if (!emailResponse.error) channelsUsed.push("email");
             } catch (e) {
-              console.error("Patient email notification failed:", e);
+              console.warn("Patient email notification failed:", e);
               captureException(e instanceof Error ? e : new Error(String(e)));
             }
           }
@@ -229,7 +229,7 @@ serve(withSentry("send-drug-recall-alert", async (req) => {
             });
             channelsUsed.push("push");
           } catch (e) {
-            console.error("Push notification failed:", e);
+            console.warn("Push notification failed:", e);
             captureException(e instanceof Error ? e : new Error(String(e)));
           }
 
@@ -247,7 +247,7 @@ serve(withSentry("send-drug-recall-alert", async (req) => {
       }
     }
 
-    console.log(`Recall alert sent: ${notificationsSent.pharmacies} pharmacies, ${notificationsSent.patients} patients`);
+    console.info(`Recall alert sent: ${notificationsSent.pharmacies} pharmacies, ${notificationsSent.patients} patients`);
 
     return new Response(
       JSON.stringify({

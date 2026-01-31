@@ -75,7 +75,7 @@ serve(withSentry("send-clinician-message-notification", async (req: Request): Pr
     ]);
 
     if (profileResult.error) {
-      console.error("Error fetching profile:", profileResult.error);
+      console.warn("Error fetching profile:", profileResult.error);
       captureException(new Error(`Failed to fetch profile: ${profileResult.error.message}`));
       throw profileResult.error;
     }
@@ -152,7 +152,7 @@ serve(withSentry("send-clinician-message-notification", async (req: Request): Pr
           });
 
           if (emailResponse.error) {
-            console.error("Email send error:", emailResponse.error);
+            console.warn("Email send error:", emailResponse.error);
             deliveryStatus.email = { sent: false, at: now, error: emailResponse.error.message };
             
             await supabase.from("notification_history").insert({
@@ -166,7 +166,7 @@ serve(withSentry("send-clinician-message-notification", async (req: Request): Pr
               metadata: { sender_name: senderName, sender_type: senderType, message_id: messageId },
             });
           } else {
-            console.log(`Email sent to ${profile.email}, ID: ${emailResponse.data?.id}`);
+            console.info(`Email sent to ${profile.email}, ID: ${emailResponse.data?.id}`);
             deliveryStatus.email = { sent: true, at: now };
             
             await supabase.from("notification_history").insert({
@@ -219,16 +219,16 @@ serve(withSentry("send-clinician-message-notification", async (req: Request): Pr
         });
 
         if (pushError) {
-          console.error("Web push notification error:", pushError);
+          console.warn("Web push notification error:", pushError);
           deliveryStatus.push = { sent: false, at: now, error: pushError.message };
         } else if (pushData?.sent === 0) {
           deliveryStatus.push = { sent: false, at: now, error: "No active push subscription" };
         } else {
-          console.log(`Web push sent to ${pushData?.sent} device(s)`);
+          console.info(`Web push sent to ${pushData?.sent} device(s)`);
           deliveryStatus.push = { sent: true, at: now };
         }
       } catch (pushErr) {
-        console.error("Web push error:", pushErr);
+        console.warn("Web push error:", pushErr);
         captureException(pushErr instanceof Error ? pushErr : new Error(String(pushErr)));
         deliveryStatus.push = { sent: false, at: now, error: pushErr instanceof Error ? pushErr.message : "Unknown error" };
       }
@@ -247,9 +247,9 @@ serve(withSentry("send-clinician-message-notification", async (req: Request): Pr
             },
           },
         });
-        console.log("Native iOS push sent for clinician message");
+        console.info("Native iOS push sent for clinician message");
       } catch (nativePushErr) {
-        console.error("Native iOS push error:", nativePushErr);
+        console.warn("Native iOS push error:", nativePushErr);
         captureException(nativePushErr instanceof Error ? nativePushErr : new Error(String(nativePushErr)));
       }
     } else {
@@ -269,16 +269,16 @@ serve(withSentry("send-clinician-message-notification", async (req: Request): Pr
         });
 
         if (waError) {
-          console.error("WhatsApp error:", waError);
+          console.warn("WhatsApp error:", waError);
           deliveryStatus.whatsapp = { sent: false, at: now, error: waError.message };
         } else if (!waData?.success) {
           deliveryStatus.whatsapp = { sent: false, at: now, error: waData?.reason || waData?.message };
         } else {
-          console.log("WhatsApp sent successfully");
+          console.info("WhatsApp sent successfully");
           deliveryStatus.whatsapp = { sent: true, at: now };
         }
       } catch (waErr) {
-        console.error("WhatsApp exception:", waErr);
+        console.warn("WhatsApp exception:", waErr);
         captureException(waErr instanceof Error ? waErr : new Error(String(waErr)));
         deliveryStatus.whatsapp = { sent: false, at: now, error: waErr instanceof Error ? waErr.message : "Unknown error" };
       }
@@ -304,18 +304,18 @@ serve(withSentry("send-clinician-message-notification", async (req: Request): Pr
         });
 
         if (smsError) {
-          console.error("SMS error:", smsError);
+          console.warn("SMS error:", smsError);
           deliveryStatus.sms = { sent: false, at: now, error: smsError.message };
         } else if (smsData?.skipped) {
           deliveryStatus.sms = { sent: false, at: now, error: smsData.error || "SMS not configured" };
         } else if (smsData?.error) {
           deliveryStatus.sms = { sent: false, at: now, error: smsData.error };
         } else {
-          console.log("SMS sent successfully:", smsData?.sid);
+          console.info("SMS sent successfully:", smsData?.sid);
           deliveryStatus.sms = { sent: true, at: now };
         }
       } catch (smsErr) {
-        console.error("SMS exception:", smsErr);
+        console.warn("SMS exception:", smsErr);
         captureException(smsErr instanceof Error ? smsErr : new Error(String(smsErr)));
         deliveryStatus.sms = { sent: false, at: now, error: smsErr instanceof Error ? smsErr.message : "Unknown error" };
       }
@@ -331,13 +331,13 @@ serve(withSentry("send-clinician-message-notification", async (req: Request): Pr
         .eq("id", messageId);
 
       if (updateError) {
-        console.error("Failed to update delivery status:", updateError);
+        console.warn("Failed to update delivery status:", updateError);
       } else {
-        console.log("Delivery status updated for message:", messageId);
+        console.info("Delivery status updated for message:", messageId);
       }
     }
 
-    console.log("Notification results:", deliveryStatus);
+    console.info("Notification results:", deliveryStatus);
 
     return new Response(
       JSON.stringify({ 
