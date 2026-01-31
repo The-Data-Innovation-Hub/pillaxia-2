@@ -72,7 +72,7 @@ Deno.serve(async (req) => {
     const { data: userData, error: userError } = await supabaseAuth.auth.getUser();
     
     if (userError || !userData?.user?.id) {
-      console.log("[SESSION] Invalid token:", userError?.message);
+      console.info("[SESSION] Invalid token:", userError?.message);
       return new Response(
         JSON.stringify({ valid: false, reason: "Invalid or expired token" } as SessionValidationResult),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -94,7 +94,7 @@ Deno.serve(async (req) => {
       .eq("user_id", userId);
     
     if (rolesError) {
-      console.error("[SESSION] Error fetching roles:", rolesError);
+      console.warn("[SESSION] Error fetching roles:", rolesError);
     }
     
     const roles: AppRole[] = rolesData?.map(r => r.role as AppRole) || [];
@@ -106,7 +106,7 @@ Deno.serve(async (req) => {
       isPatient: roles.includes("patient"),
     };
     
-    console.log(`[SESSION] Server-verified roles for user ${userId}:`, roles);
+    console.info(`[SESSION] Server-verified roles for user ${userId}:`, roles);
     
     // Get session timeout settings
     const { data: settings } = await supabase
@@ -128,7 +128,7 @@ Deno.serve(async (req) => {
       .order("last_activity", { ascending: false });
     
     if (sessionsError) {
-      console.error("[SESSION] Error fetching sessions:", sessionsError);
+      console.warn("[SESSION] Error fetching sessions:", sessionsError);
     }
     
     const activeSessions = sessions || [];
@@ -148,7 +148,7 @@ Deno.serve(async (req) => {
       const idleMinutes = Math.floor((now.getTime() - lastActivity.getTime()) / 60000);
       
       if (idleMinutes > sessionTimeoutMinutes) {
-        console.log(`[SESSION] Session ${currentSession.id} timed out after ${idleMinutes} minutes of inactivity`);
+        console.info(`[SESSION] Session ${currentSession.id} timed out after ${idleMinutes} minutes of inactivity`);
         
         // Mark session as inactive
         await supabase
@@ -178,7 +178,7 @@ Deno.serve(async (req) => {
       
       // Check if session is explicitly expired
       if (currentSession.expires_at && new Date(currentSession.expires_at) < now) {
-        console.log(`[SESSION] Session ${currentSession.id} has expired`);
+        console.info(`[SESSION] Session ${currentSession.id} has expired`);
         
         await supabase
           .from("user_sessions")
@@ -220,7 +220,7 @@ Deno.serve(async (req) => {
     
     // No active session found - check concurrent session limits
     if (activeSessions.length >= maxConcurrentSessions) {
-      console.log(`[SESSION] User ${userId} has ${activeSessions.length} active sessions (max: ${maxConcurrentSessions})`);
+      console.info(`[SESSION] User ${userId} has ${activeSessions.length} active sessions (max: ${maxConcurrentSessions})`);
       
       // Terminate oldest session
       const oldestSession = activeSessions[activeSessions.length - 1];
@@ -256,7 +256,7 @@ Deno.serve(async (req) => {
       .single();
     
     if (createError) {
-      console.error("[SESSION] Error creating session:", createError);
+      console.warn("[SESSION] Error creating session:", createError);
       // Still return valid if we can't create session record
       return new Response(
         JSON.stringify({
@@ -270,7 +270,7 @@ Deno.serve(async (req) => {
       );
     }
     
-    console.log(`[SESSION] Created new session ${newSession.id} for user ${userId}`);
+    console.info(`[SESSION] Created new session ${newSession.id} for user ${userId}`);
     
     return new Response(
       JSON.stringify({
@@ -285,7 +285,7 @@ Deno.serve(async (req) => {
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {
-    console.error("[SESSION] Error:", error);
+    console.warn("[SESSION] Error:", error);
     return new Response(
       JSON.stringify({
         valid: false,

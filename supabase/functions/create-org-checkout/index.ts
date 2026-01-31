@@ -6,7 +6,7 @@ import { validators, validateSchema, validationErrorResponse } from "../_shared/
 
 const logStep = (step: string, details?: unknown) => {
   const detailsStr = details ? ` - ${JSON.stringify(details)}` : '';
-  console.log(`[CREATE-ORG-CHECKOUT] ${step}${detailsStr}`);
+  console.info(`[CREATE-ORG-CHECKOUT] ${step}${detailsStr}`);
 };
 
 // Pricing tiers

@@ -18,7 +18,7 @@ serve(withSentry(FUNCTION_NAME, async (req: Request): Promise<Response> => {
   const preflightResponse = handleCorsPreflightRequest(req);
   if (preflightResponse) return preflightResponse;
 
-  console.log(`[${FUNCTION_NAME}] Function started`);
+  console.info(`[${FUNCTION_NAME}] Function started`);
 
   // Check Resend API key
   const resendApiKey = Deno.env.get("RESEND_API_KEY");
@@ -99,7 +99,7 @@ serve(withSentry(FUNCTION_NAME, async (req: Request): Promise<Response> => {
 
   const { to } = validation.data;
 
-  console.log(`[${FUNCTION_NAME}] Sending test email to: ${to}`);
+  console.info(`[${FUNCTION_NAME}] Sending test email to: ${to}`);
 
   // Send the test email
   const emailResponse = await resend.emails.send({
@@ -180,7 +180,7 @@ serve(withSentry(FUNCTION_NAME, async (req: Request): Promise<Response> => {
     );
   }
 
-  console.log(`[${FUNCTION_NAME}] Test email sent successfully, ID: ${emailResponse.data?.id}`);
+  console.info(`[${FUNCTION_NAME}] Test email sent successfully, ID: ${emailResponse.data?.id}`);
 
   await serviceClient.from("notification_history").insert({
     user_id: userId,
