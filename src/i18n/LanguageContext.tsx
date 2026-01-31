@@ -1,8 +1,9 @@
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from "react";
 import { en, yo, ig, ha, type Translations } from "./translations";
 import { supabase } from "@/integrations/supabase/client";
+import { format } from "date-fns";
 
-// Force fresh module - v3
+// Force fresh module - v4
 
 export type LanguageCode = "en" | "yo" | "ig" | "ha";
 
@@ -27,6 +28,7 @@ interface LanguageContextType {
   t: Translations;
   languages: Language[];
   isLoading: boolean;
+  formatDate: (date: Date | string, formatStr: string) => string;
 }
 
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
@@ -126,12 +128,18 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     }
   }, [userId]);
 
+  const formatDateFn = useCallback((date: Date | string, formatStr: string): string => {
+    const dateObj = typeof date === "string" ? new Date(date) : date;
+    return format(dateObj, formatStr);
+  }, []);
+
   const value: LanguageContextType = {
     language,
     setLanguage,
     t: translations[language],
     languages: SUPPORTED_LANGUAGES,
     isLoading,
+    formatDate: formatDateFn,
   };
 
   return (

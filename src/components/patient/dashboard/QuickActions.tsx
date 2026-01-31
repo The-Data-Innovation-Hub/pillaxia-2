@@ -6,47 +6,49 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Plus, Calendar, ClipboardList, Bot } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { useLanguage } from "@/i18n/LanguageContext";
 
 export function QuickActions() {
   const navigate = useNavigate();
+  const { t } = useLanguage();
 
   const actions = [
     {
-      label: "Add Medication",
+      label: t.medications.addMedication,
       icon: Plus,
       path: "/dashboard/medications",
-      ariaLabel: "Navigate to add medication",
+      ariaLabel: t.medications.addMedication,
     },
     {
-      label: "View Schedule",
+      label: t.schedule.viewSchedule,
       icon: Calendar,
       path: "/dashboard/schedule",
-      ariaLabel: "Navigate to view schedule",
+      ariaLabel: t.schedule.viewSchedule,
     },
     {
-      label: "Log Symptom",
+      label: t.health.symptoms.logSymptom,
       icon: ClipboardList,
       path: "/dashboard/symptoms",
-      ariaLabel: "Navigate to log symptom",
+      ariaLabel: t.health.symptoms.logSymptom,
     },
     {
-      label: "Ask Angela",
+      label: t.angela.askAngela,
       icon: Bot,
       path: "/dashboard/angela",
-      ariaLabel: "Navigate to AI assistant Angela",
+      ariaLabel: t.angela.openAssistant,
     },
   ];
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-lg">Quick Actions</CardTitle>
+        <CardTitle className="text-lg">{t.dashboard.quickActions}</CardTitle>
       </CardHeader>
       <CardContent>
         <div 
           className="grid grid-cols-2 md:grid-cols-4 gap-3"
           role="navigation"
-          aria-label="Quick actions"
+          aria-label={t.dashboard.quickActions}
         >
           {actions.map((action) => (
             <Button

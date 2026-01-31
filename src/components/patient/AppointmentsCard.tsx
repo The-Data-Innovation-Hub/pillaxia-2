@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Calendar, Clock, MapPin, User, Check, X, Video, MonitorPlay } from "lucide-react";
 import { toast } from "sonner";
+import { useLanguage } from "@/i18n/LanguageContext";
 
 interface Appointment {
   id: string;
@@ -41,6 +42,7 @@ export function AppointmentsCard() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { t, formatDate } = useLanguage();
 
   const { data: appointments, isLoading } = useQuery({
     queryKey: ["patient-appointments", user?.id],
@@ -83,12 +85,12 @@ export function AppointmentsCard() {
       queryClient.invalidateQueries({ queryKey: ["patient-appointments"] });
       toast.success(
         status === "confirmed"
-          ? "Appointment confirmed"
-          : "Appointment cancelled"
+          ? t.appointments.confirmed
+          : t.appointments.cancelled
       );
     },
     onError: () => {
-      toast.error("Failed to update appointment");
+      toast.error(t.appointments.updateFailed);
     },
   });
 
@@ -118,7 +120,7 @@ export function AppointmentsCard() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Calendar className="h-5 w-5" />
-            Upcoming Appointments
+            {t.appointments.upcoming}
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -137,14 +139,14 @@ export function AppointmentsCard() {
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Calendar className="h-5 w-5" />
-          Upcoming Appointments
+          {t.appointments.upcoming}
         </CardTitle>
       </CardHeader>
       <CardContent>
         {upcomingAppointments.length === 0 ? (
           <div className="text-center py-6 text-muted-foreground">
             <Calendar className="h-10 w-10 mx-auto mb-3 opacity-50" />
-            <p className="text-sm">No upcoming appointments</p>
+            <p className="text-sm">{t.appointments.noUpcoming}</p>
           </div>
         ) : (
           <div className="space-y-4">
@@ -173,12 +175,12 @@ export function AppointmentsCard() {
                 <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
                   <div className="flex items-center gap-1.5">
                     <Calendar className="h-4 w-4" />
-                    {format(parseISO(appointment.appointment_date), "MMM d, yyyy")}
+                    {formatDate(parseISO(appointment.appointment_date), "MMM d, yyyy")}
                   </div>
                   <div className="flex items-center gap-1.5">
                     <Clock className="h-4 w-4" />
                     {appointment.appointment_time.slice(0, 5)} (
-                    {appointment.duration_minutes}min)
+                    {appointment.duration_minutes}{t.common.min})
                   </div>
                   {appointment.clinician && (
                     <div className="flex items-center gap-1.5">
@@ -190,7 +192,7 @@ export function AppointmentsCard() {
                   {appointment.is_video_call ? (
                     <div className="flex items-center gap-1.5 text-primary">
                       <Video className="h-4 w-4" />
-                      Video Call
+                      {t.appointments.videoCall}
                     </div>
                   ) : appointment.location ? (
                     <div className="flex items-center gap-1.5">
@@ -207,7 +209,7 @@ export function AppointmentsCard() {
                     className="gap-1 w-full sm:w-auto"
                   >
                     <MonitorPlay className="h-4 w-4" />
-                    Join Video Call
+                    {t.appointments.joinVideoCall}
                   </Button>
                 )}
 
@@ -224,7 +226,7 @@ export function AppointmentsCard() {
                       disabled={updateStatusMutation.isPending}
                     >
                       <Check className="h-4 w-4 mr-1" />
-                      Confirm
+                      {t.common.confirm}
                     </Button>
                     <Button
                       size="sm"
@@ -238,7 +240,7 @@ export function AppointmentsCard() {
                       disabled={updateStatusMutation.isPending}
                     >
                       <X className="h-4 w-4 mr-1" />
-                      Cancel
+                      {t.common.cancel}
                     </Button>
                   </div>
                 )}
@@ -247,7 +249,7 @@ export function AppointmentsCard() {
 
             {upcomingAppointments.length > 3 && (
               <p className="text-sm text-center text-muted-foreground">
-                +{upcomingAppointments.length - 3} more appointments
+                +{upcomingAppointments.length - 3} {t.appointments.moreAppointments}
               </p>
             )}
           </div>

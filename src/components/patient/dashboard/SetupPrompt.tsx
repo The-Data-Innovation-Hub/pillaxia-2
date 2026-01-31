@@ -5,12 +5,15 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Settings } from "lucide-react";
+import { useLanguage } from "@/i18n/LanguageContext";
 
 interface SetupPromptProps {
   onSetupClick: () => void;
 }
 
 export function SetupPrompt({ onSetupClick }: SetupPromptProps) {
+  const { t } = useLanguage();
+
   return (
     <Card 
       className="border-primary/30 bg-primary/5"
@@ -26,17 +29,17 @@ export function SetupPrompt({ onSetupClick }: SetupPromptProps) {
             <Settings className="h-5 w-5 text-primary" />
           </div>
           <div>
-            <h3 className="font-semibold">Set up your notifications</h3>
+            <h3 className="font-semibold">{t.notifications.setupTitle}</h3>
             <p className="text-sm text-muted-foreground">
-              Configure how you'd like to receive medication reminders
+              {t.notifications.setupDescription}
             </p>
           </div>
         </div>
         <Button 
           onClick={onSetupClick}
-          aria-label="Open notification setup wizard"
+          aria-label={t.notifications.setupTitle}
         >
-          Get Started
+          {t.common.getStarted}
         </Button>
       </CardContent>
     </Card>

@@ -6,8 +6,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { ExpiryTrackingCard } from "./ExpiryTrackingCard";
+import { useLanguage } from "@/i18n/LanguageContext";
 
 export function PharmacistDashboardHome() {
+  const { t } = useLanguage();
+
   const { data: stats, isLoading } = useQuery({
     queryKey: ["pharmacist-stats"],
     queryFn: async () => {
@@ -41,7 +44,7 @@ export function PharmacistDashboardHome() {
 
   const statCards = [
     {
-      title: "Active Prescriptions",
+      title: t.pharmacist.activePrescriptions,
       value: stats?.totalPrescriptions || 0,
       icon: FileText,
       color: "text-blue-600",
@@ -49,7 +52,7 @@ export function PharmacistDashboardHome() {
       link: "/dashboard/prescriptions",
     },
     {
-      title: "Low Refill Alerts",
+      title: t.pharmacist.lowRefillAlerts,
       value: stats?.lowStockAlerts || 0,
       icon: AlertTriangle,
       color: "text-amber-600",
@@ -57,7 +60,7 @@ export function PharmacistDashboardHome() {
       link: "/dashboard/inventory",
     },
     {
-      title: "Pending Refills",
+      title: t.pharmacist.pendingRefills,
       value: stats?.pendingRefills || 0,
       icon: RefreshCw,
       color: "text-emerald-600",
@@ -69,9 +72,9 @@ export function PharmacistDashboardHome() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Pharmacy Dashboard</h1>
+        <h1 className="text-2xl font-bold">{t.pharmacist.dashboardTitle}</h1>
         <p className="text-muted-foreground">
-          Manage prescriptions, inventory, and refill requests
+          {t.pharmacist.dashboardSubtitle}
         </p>
       </div>
 
@@ -95,7 +98,7 @@ export function PharmacistDashboardHome() {
               )}
               <Link to={stat.link}>
                 <Button variant="link" className="px-0 mt-1 h-auto text-xs">
-                  View details →
+                  {t.common.viewDetails} →
                 </Button>
               </Link>
             </CardContent>
@@ -110,25 +113,25 @@ export function PharmacistDashboardHome() {
         {/* Quick Actions */}
         <Card>
           <CardHeader>
-            <CardTitle>Quick Actions</CardTitle>
+            <CardTitle>{t.dashboard.quickActions}</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-wrap gap-3">
             <Link to="/dashboard/prescriptions">
               <Button variant="outline" className="gap-2">
                 <FileText className="h-4 w-4" />
-                View All Prescriptions
+                {t.pharmacist.viewAllPrescriptions}
               </Button>
             </Link>
             <Link to="/dashboard/refills">
               <Button variant="outline" className="gap-2">
                 <RefreshCw className="h-4 w-4" />
-                Process Refill Requests
+                {t.pharmacist.processRefillRequests}
               </Button>
             </Link>
             <Link to="/dashboard/inventory">
               <Button variant="outline" className="gap-2">
                 <Package className="h-4 w-4" />
-                Check Inventory
+                {t.pharmacist.checkInventory}
               </Button>
             </Link>
           </CardContent>
