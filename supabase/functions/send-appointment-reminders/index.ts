@@ -161,7 +161,7 @@ serve(withSentry("send-appointment-reminders", async (req: Request) => {
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    console.log("Processing appointment reminders...");
+    console.info("Processing appointment reminders...");
 
     // Get appointments scheduled for tomorrow that haven't had reminders sent
     const tomorrow = new Date();
@@ -176,12 +176,12 @@ serve(withSentry("send-appointment-reminders", async (req: Request) => {
       .in("status", ["scheduled", "confirmed"]);
 
     if (fetchError) {
-      console.error("Error fetching appointments:", fetchError);
+      console.warn("Error fetching appointments:", fetchError);
       captureException(new Error(`Failed to fetch appointments: ${fetchError.message}`));
       throw fetchError;
     }
 
-    console.log(`Found ${appointments?.length || 0} appointments needing reminders`);
+    console.info(`Found ${appointments?.length || 0} appointments needing reminders`);
 
     if (!appointments || appointments.length === 0) {
       return new Response(
@@ -290,7 +290,7 @@ serve(withSentry("send-appointment-reminders", async (req: Request) => {
           if (emailResponse.ok) {
             emailSent = true;
             results.emailSent++;
-            console.log(`Email reminder sent to ${patientProfile.email}`);
+            console.info(`Email reminder sent to ${patientProfile.email}`);
 
             // Log email notification
             await supabase.from("notification_history").insert({
@@ -304,7 +304,7 @@ serve(withSentry("send-appointment-reminders", async (req: Request) => {
             });
           } else {
             const errorText = await emailResponse.text();
-            console.error(`Failed to send email reminder: ${errorText}`);
+            console.warn(`Failed to send email reminder: ${errorText}`);
           }
         }
 
@@ -325,7 +325,7 @@ serve(withSentry("send-appointment-reminders", async (req: Request) => {
           if (smsResult.success) {
             smsSent = true;
             results.smsSent++;
-            console.log(`SMS reminder sent to ${patientProfile.phone}`);
+            console.info(`SMS reminder sent to ${patientProfile.phone}`);
 
             // Log SMS notification
             await supabase.from("notification_history").insert({
@@ -338,7 +338,7 @@ serve(withSentry("send-appointment-reminders", async (req: Request) => {
               metadata: { appointment_id: appointment.id, twilio_sid: smsResult.sid },
             });
           } else {
-            console.error(`Failed to send SMS reminder: ${smsResult.error}`);
+            console.warn(`Failed to send SMS reminder: ${smsResult.error}`);
           }
         }
 
@@ -377,7 +377,7 @@ serve(withSentry("send-appointment-reminders", async (req: Request) => {
           if (whatsappResult.success) {
             whatsappSent = true;
             results.whatsappSent++;
-            console.log(`WhatsApp reminder sent to ${patientProfile.phone} via ${provider}`);
+            console.info(`WhatsApp reminder sent to ${patientProfile.phone} via ${provider}`);
 
             // Log WhatsApp notification
             await supabase.from("notification_history").insert({
@@ -394,7 +394,7 @@ serve(withSentry("send-appointment-reminders", async (req: Request) => {
               },
             });
           } else if (whatsappResult.error !== "meta_not_configured") {
-            console.error(`Failed to send WhatsApp reminder: ${whatsappResult.error}`);
+            console.warn(`Failed to send WhatsApp reminder: ${whatsappResult.error}`);
           }
         }
 
@@ -406,19 +406,19 @@ serve(withSentry("send-appointment-reminders", async (req: Request) => {
             .eq("id", appointment.id);
 
           if (updateError) {
-            console.error(`Failed to update reminder_sent: ${updateError.message}`);
+            console.warn(`Failed to update reminder_sent: ${updateError.message}`);
           }
         } else {
           results.failed++;
         }
       } catch (appointmentError) {
-        console.error(`Error processing appointment ${appointment.id}:`, appointmentError);
+        console.warn(`Error processing appointment ${appointment.id}:`, appointmentError);
         captureException(appointmentError instanceof Error ? appointmentError : new Error(String(appointmentError)));
         results.failed++;
       }
     }
 
-    console.log(`Reminder processing complete. Email: ${results.emailSent}, SMS: ${results.smsSent}, WhatsApp: ${results.whatsappSent}, Failed: ${results.failed}`);
+    console.info(`Reminder processing complete. Email: ${results.emailSent}, SMS: ${results.smsSent}, WhatsApp: ${results.whatsappSent}, Failed: ${results.failed}`);
 
     return new Response(
       JSON.stringify({

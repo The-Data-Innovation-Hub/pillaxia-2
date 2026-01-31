@@ -52,7 +52,7 @@ async function verifyWebhookSignature(
   const svixSignature = headers.get("svix-signature");
 
   if (!svixId || !svixTimestamp || !svixSignature) {
-    console.error("Missing Svix headers");
+    console.warn("Missing Svix headers");
     return false;
   }
 
@@ -60,7 +60,7 @@ async function verifyWebhookSignature(
   const timestampSeconds = parseInt(svixTimestamp, 10);
   const now = Math.floor(Date.now() / 1000);
   if (Math.abs(now - timestampSeconds) > 300) {
-    console.error("Webhook timestamp too old or in future");
+    console.warn("Webhook timestamp too old or in future");
     return false;
   }
 
@@ -99,7 +99,7 @@ async function verifyWebhookSignature(
     }
   }
 
-  console.error("No matching signature found");
+  console.warn("No matching signature found");
   return false;
 }
 
@@ -146,7 +146,7 @@ serve(async (req: Request): Promise<Response> => {
     if (!webhookSecret) {
       const isProduction = Deno.env.get("ENVIRONMENT") === "production";
       if (isProduction) {
-        console.error("RESEND_WEBHOOK_SECRET required in production");
+        console.warn("RESEND_WEBHOOK_SECRET required in production");
         await captureMessage("RESEND_WEBHOOK_SECRET not configured in production", "fatal", { 
           functionName: FUNCTION_NAME 
         });
@@ -155,13 +155,13 @@ serve(async (req: Request): Promise<Response> => {
           { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
-      console.warn("RESEND_WEBHOOK_SECRET not configured - skipping signature verification (development)");
+      console.info("RESEND_WEBHOOK_SECRET not configured - skipping signature verification (development)");
     } else {
       // Verify webhook signature
       const isValid = await verifyWebhookSignature(payload, req.headers, webhookSecret);
       
       if (!isValid) {
-        console.error("Invalid webhook signature");
+        console.warn("Invalid webhook signature");
         await captureMessage("Invalid Resend webhook signature", "warning", { 
           functionName: FUNCTION_NAME 
         });
@@ -171,11 +171,11 @@ serve(async (req: Request): Promise<Response> => {
         );
       }
       
-      console.log("Webhook signature verified successfully");
+      console.info("Webhook signature verified successfully");
     }
 
     const event: ResendWebhookEvent = JSON.parse(payload);
-    console.log("Received Resend webhook:", event.type, event.data.email_id);
+    console.info("Received Resend webhook:", event.type, event.data.email_id);
 
     const newStatus = mapEventToStatus(event.type);
     
@@ -196,7 +196,7 @@ serve(async (req: Request): Promise<Response> => {
       .filter("metadata->resend_email_id", "eq", event.data.email_id);
 
     if (findError) {
-      console.error("Error finding notification:", findError);
+      console.warn("Error finding notification:", findError);
       // Don't fail the webhook, Resend will retry
       return new Response(
         JSON.stringify({ received: true, updated: false, reason: "find_error" }),
@@ -205,7 +205,7 @@ serve(async (req: Request): Promise<Response> => {
     }
 
     if (!notifications || notifications.length === 0) {
-      console.log("No notification found for email_id:", event.data.email_id);
+      console.info("No notification found for email_id:", event.data.email_id);
       // This is fine - maybe the email wasn't sent through our system
       return new Response(
         JSON.stringify({ received: true, updated: false, reason: "not_found" }),
@@ -250,9 +250,9 @@ serve(async (req: Request): Promise<Response> => {
         .eq("id", notification.id);
 
       if (updateError) {
-        console.error("Error updating notification:", updateError);
+        console.warn("Error updating notification:", updateError);
       } else {
-        console.log(`Updated notification ${notification.id} to status: ${newStatus}`);
+        console.info(`Updated notification ${notification.id} to status: ${newStatus}`);
       }
     }
 

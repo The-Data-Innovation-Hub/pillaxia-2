@@ -107,11 +107,11 @@ serve(withSentry("send-encouragement-email", async (req: Request): Promise<Respo
       .maybeSingle();
 
     if (settingError) {
-      console.error("Error checking notification settings:", settingError);
+      console.warn("Error checking notification settings:", settingError);
     }
 
     if (settingData && !settingData.is_enabled) {
-      console.log("Encouragement messages are disabled globally, skipping email...");
+      console.info("Encouragement messages are disabled globally, skipping email...");
       return new Response(
         JSON.stringify({ success: true, message: "Encouragement messages are disabled globally" }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -126,12 +126,12 @@ serve(withSentry("send-encouragement-email", async (req: Request): Promise<Respo
       .maybeSingle();
 
     if (prefsError) {
-      console.error("Error fetching patient preferences:", prefsError);
+      console.warn("Error fetching patient preferences:", prefsError);
     }
 
     // Check if patient has email encouragements disabled
     if (patientPrefs && !patientPrefs.email_encouragements) {
-      console.log("Patient " + patient_user_id + " has email encouragements disabled, skipping...");
+      console.info("Patient " + patient_user_id + " has email encouragements disabled, skipping...");
       return new Response(
         JSON.stringify({ success: true, message: "Patient has email encouragements disabled" }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -140,7 +140,7 @@ serve(withSentry("send-encouragement-email", async (req: Request): Promise<Respo
 
     // Check if patient is in quiet hours
     if (patientPrefs && isInQuietHours(patientPrefs)) {
-      console.log("Patient " + patient_user_id + " is in quiet hours, skipping email...");
+      console.info("Patient " + patient_user_id + " is in quiet hours, skipping email...");
       return new Response(
         JSON.stringify({ success: true, message: "Patient is in quiet hours" }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -155,7 +155,7 @@ serve(withSentry("send-encouragement-email", async (req: Request): Promise<Respo
       .maybeSingle();
 
     if (profileError) {
-      console.error("Profile fetch error:", profileError);
+      console.warn("Profile fetch error:", profileError);
       captureException(new Error(`Profile fetch error: ${profileError.message}`));
       return new Response(
         JSON.stringify({ error: "Failed to fetch patient profile" }),
@@ -164,7 +164,7 @@ serve(withSentry("send-encouragement-email", async (req: Request): Promise<Respo
     }
 
     if (!patientProfile?.email) {
-      console.log("Patient has no email configured, skipping notification");
+      console.info("Patient has no email configured, skipping notification");
       return new Response(
         JSON.stringify({ success: true, message: "No email configured for patient" }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -196,7 +196,7 @@ serve(withSentry("send-encouragement-email", async (req: Request): Promise<Respo
       .single();
 
     if (insertError || !notificationRecord) {
-      console.error("Failed to create notification record:", insertError);
+      console.warn("Failed to create notification record:", insertError);
       captureException(new Error(`Failed to create notification record: ${insertError?.message}`));
       return new Response(
         JSON.stringify({ error: "Failed to create notification record" }),
@@ -209,7 +209,7 @@ serve(withSentry("send-encouragement-email", async (req: Request): Promise<Respo
 
     const resendApiKey = Deno.env.get("RESEND_API_KEY");
     if (!resendApiKey) {
-      console.error("RESEND_API_KEY not configured");
+      console.warn("RESEND_API_KEY not configured");
       return new Response(
         JSON.stringify({ error: "Email service not configured" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -269,7 +269,7 @@ serve(withSentry("send-encouragement-email", async (req: Request): Promise<Respo
     });
 
     if (emailResponse.error) {
-      console.error("Email send error:", emailResponse.error);
+      console.warn("Email send error:", emailResponse.error);
       captureException(new Error(`Email send error: ${emailResponse.error.message}`));
       
       // Update notification as failed
@@ -287,7 +287,7 @@ serve(withSentry("send-encouragement-email", async (req: Request): Promise<Respo
       );
     }
 
-    console.log(`Encouragement email sent to ${patientProfile.email}, ID: ${emailResponse.data?.id}`);
+    console.info(`Encouragement email sent to ${patientProfile.email}, ID: ${emailResponse.data?.id}`);
 
     // Update notification as sent with Resend email ID
     await serviceClient
@@ -317,9 +317,9 @@ serve(withSentry("send-encouragement-email", async (req: Request): Promise<Respo
             },
           },
         });
-        console.log("Push notification sent for encouragement");
+        console.info("Push notification sent for encouragement");
       } catch (pushError) {
-        console.error("Failed to send push notification:", pushError);
+        console.warn("Failed to send push notification:", pushError);
         captureException(pushError instanceof Error ? pushError : new Error(String(pushError)));
       }
     }

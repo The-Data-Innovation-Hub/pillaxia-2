@@ -56,7 +56,7 @@ serve(withSentry("retry-notification", async (req) => {
     .maybeSingle();
 
   if (fetchError) {
-    console.error("Error fetching notification:", fetchError);
+    console.warn("Error fetching notification:", fetchError);
     captureException(new Error(String(fetchError)));
     return new Response(
       JSON.stringify({ error: "Failed to fetch notification" }),
@@ -71,7 +71,7 @@ serve(withSentry("retry-notification", async (req) => {
     );
   }
 
-  console.log(`Retrying ${notification.channel} notification: ${notification.id}`);
+  console.info(`Retrying ${notification.channel} notification: ${notification.id}`);
 
     let retryResult: { success: boolean; error?: string } = { success: false };
 

@@ -40,7 +40,7 @@ serve(withSentry("send-availability-alert", async (req) => {
 
     const { availability_id, medication_name, pharmacy_id } = validation.data;
 
-    console.log(`Processing availability alert for: ${medication_name} at pharmacy ${pharmacy_id}`);
+    console.info(`Processing availability alert for: ${medication_name} at pharmacy ${pharmacy_id}`);
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -54,7 +54,7 @@ serve(withSentry("send-availability-alert", async (req) => {
       .single();
 
     if (pharmacyError) {
-      console.error("Failed to fetch pharmacy:", pharmacyError);
+      console.warn("Failed to fetch pharmacy:", pharmacyError);
       captureException(new Error(`Failed to fetch pharmacy: ${pharmacyError.message}`));
       throw pharmacyError;
     }
@@ -67,7 +67,7 @@ serve(withSentry("send-availability-alert", async (req) => {
       .single();
 
     if (availError) {
-      console.error("Failed to fetch availability:", availError);
+      console.warn("Failed to fetch availability:", availError);
     }
 
     // Find patients who:
@@ -89,7 +89,7 @@ serve(withSentry("send-availability-alert", async (req) => {
       .eq("pharmacy_id", pharmacy_id);
 
     if (subError) {
-      console.error("Failed to fetch subscriptions:", subError);
+      console.warn("Failed to fetch subscriptions:", subError);
       captureException(new Error(`Failed to fetch subscriptions: ${subError.message}`));
       throw subError;
     }
@@ -130,7 +130,7 @@ serve(withSentry("send-availability-alert", async (req) => {
       }
     }
 
-    console.log(`Found ${matchingPatients.length} patients to notify`);
+    console.info(`Found ${matchingPatients.length} patients to notify`);
 
     const notificationPromises: Promise<unknown>[] = [];
 
@@ -145,7 +145,7 @@ serve(withSentry("send-availability-alert", async (req) => {
         .maybeSingle();
 
       if (recentNotif) {
-        console.log(`Patient ${patient.patientId} already notified recently, skipping`);
+        console.info(`Patient ${patient.patientId} already notified recently, skipping`);
         continue;
       }
 
@@ -204,9 +204,9 @@ serve(withSentry("send-availability-alert", async (req) => {
               `,
             },
           }).then(() => {
-            channelsUsed.push("email");
+          channelsUsed.push("email");
           }).catch((err) => {
-            console.error("Email error:", err);
+            console.warn("Email error:", err);
             captureException(err instanceof Error ? err : new Error(String(err)));
           })
         );
@@ -219,9 +219,9 @@ serve(withSentry("send-availability-alert", async (req) => {
           supabase.functions.invoke("send-sms-notification", {
             body: { to: profile.phone, message: smsMessage },
           }).then(() => {
-            channelsUsed.push("sms");
+          channelsUsed.push("sms");
           }).catch((err) => {
-            console.error("SMS error:", err);
+            console.warn("SMS error:", err);
             captureException(err instanceof Error ? err : new Error(String(err)));
           })
         );
@@ -239,9 +239,9 @@ serve(withSentry("send-availability-alert", async (req) => {
               notificationType: "medication_reminder",
             },
           }).then(() => {
-            channelsUsed.push("whatsapp");
+          channelsUsed.push("whatsapp");
           }).catch((err) => {
-            console.error("WhatsApp error:", err);
+            console.warn("WhatsApp error:", err);
             captureException(err instanceof Error ? err : new Error(String(err)));
           })
         );
@@ -258,9 +258,9 @@ serve(withSentry("send-availability-alert", async (req) => {
               data: { type: "availability_alert", pharmacy_id },
             },
           }).then(() => {
-            channelsUsed.push("push");
+          channelsUsed.push("push");
           }).catch((err) => {
-            console.error("Push error:", err);
+            console.warn("Push error:", err);
             captureException(err instanceof Error ? err : new Error(String(err)));
           })
         );
@@ -293,7 +293,7 @@ serve(withSentry("send-availability-alert", async (req) => {
 
     await Promise.allSettled(notificationPromises);
 
-    console.log(`Completed sending availability alerts to ${matchingPatients.length} patients`);
+    console.info(`Completed sending availability alerts to ${matchingPatients.length} patients`);
 
     return new Response(
       JSON.stringify({ success: true, notified: matchingPatients.length }),
