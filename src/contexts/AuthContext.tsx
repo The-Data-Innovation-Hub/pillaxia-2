@@ -77,7 +77,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     
     // data is properly typed as Pick<UserRoleRow, "role">[]
-    return data.map((r) => r.role);
+    return data?.map((r) => r.role) ?? [];
   };
 
   useEffect(() => {
