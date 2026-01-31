@@ -211,7 +211,7 @@ Deno.serve(withSentry("send-medication-reminders", async (req: Request) => {
   if (preflightResponse) return preflightResponse;
 
   try {
-    console.log("Starting medication reminder job...");
+    console.info("Starting medication reminder job...");
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
@@ -247,7 +247,7 @@ Deno.serve(withSentry("send-medication-reminders", async (req: Request) => {
     const userIds = Array.from(dosesByUser.keys());
     const preferencesMap = await fetchUserPreferences(supabase, userIds);
 
-    console.log(`Sending reminders to ${dosesByUser.size} users`);
+    console.info(`Sending reminders to ${dosesByUser.size} users`);
 
     const emailResults: NotificationResult[] = [];
     const smsResults: NotificationResult[] = [];

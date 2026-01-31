@@ -66,7 +66,7 @@ serve(withSentry("send-missed-dose-alerts", async (req) => {
   }
 
   if (setting && !setting.is_enabled) {
-    console.log("Missed dose alerts are disabled globally, skipping notification");
+    console.info("Missed dose alerts are disabled globally, skipping notification");
     return new Response(
       JSON.stringify({ success: true, skipped: true, reason: "notifications_disabled" }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -85,7 +85,7 @@ serve(withSentry("send-missed-dose-alerts", async (req) => {
 
   const { patientUserId, medicationName, scheduledTime } = validation.data;
 
-  console.log(`Processing missed dose alert for patient ${patientUserId}, medication: ${medicationName}`);
+  console.info(`Processing missed dose alert for patient ${patientUserId}, medication: ${medicationName}`);
 
   // Check patient notification preferences
   const { data: patientPrefs, error: prefsError } = await supabase
@@ -99,7 +99,7 @@ serve(withSentry("send-missed-dose-alerts", async (req) => {
   }
 
   if (patientPrefs && isInQuietHours(patientPrefs)) {
-    console.log(`Patient ${patientUserId} is in quiet hours, skipping missed dose alert`);
+    console.info(`Patient ${patientUserId} is in quiet hours, skipping missed dose alert`);
     return new Response(
       JSON.stringify({ success: true, skipped: true, reason: "patient_quiet_hours" }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -139,7 +139,7 @@ serve(withSentry("send-missed-dose-alerts", async (req) => {
   }
 
   if (!caregiverRelations || caregiverRelations.length === 0) {
-    console.log("No caregivers found for this patient");
+    console.info("No caregivers found for this patient");
     return new Response(
       JSON.stringify({ success: true, notified: 0, reason: "no_caregivers" }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -241,7 +241,7 @@ serve(withSentry("send-missed-dose-alerts", async (req) => {
         
         const emailData = await response.json();
         notificationResults.email++;
-        console.log("Email sent to caregiver " + caregiver.user_id + ", ID: " + emailData.id);
+        console.info("Email sent to caregiver " + caregiver.user_id + ", ID: " + emailData.id);
 
         await supabase
           .from("notification_history")
@@ -281,9 +281,9 @@ serve(withSentry("send-missed-dose-alerts", async (req) => {
 
         if (whatsappResult?.success) {
           notificationResults.whatsapp++;
-          console.log("WhatsApp sent to caregiver " + caregiver.user_id + " via " + (whatsappResult.provider || "unknown"));
+          console.info("WhatsApp sent to caregiver " + caregiver.user_id + " via " + (whatsappResult.provider || "unknown"));
         } else if (whatsappResult?.skipped) {
-          console.log("WhatsApp skipped for caregiver " + caregiver.user_id + ": " + (whatsappResult?.reason || "not configured"));
+          console.info("WhatsApp skipped for caregiver " + caregiver.user_id + ": " + (whatsappResult?.reason || "not configured"));
           notificationResults.skipped++;
         } else {
           throw new Error(whatsappResult?.error || "WhatsApp send failed");
@@ -313,9 +313,9 @@ serve(withSentry("send-missed-dose-alerts", async (req) => {
 
         if (smsResult?.success) {
           notificationResults.sms++;
-          console.log("SMS sent to caregiver " + caregiver.user_id);
+          console.info("SMS sent to caregiver " + caregiver.user_id);
         } else if (smsResult?.skipped) {
-          console.log("SMS skipped for caregiver " + caregiver.user_id + ": " + (smsResult?.error || "not configured"));
+          console.info("SMS skipped for caregiver " + caregiver.user_id + ": " + (smsResult?.error || "not configured"));
           notificationResults.skipped++;
         } else {
           throw new Error(smsResult?.error || "SMS send failed");
@@ -327,7 +327,7 @@ serve(withSentry("send-missed-dose-alerts", async (req) => {
     }
   }
 
-  console.log("Notification results:", notificationResults);
+  console.info("Notification results:", notificationResults);
 
   // Send push notification to all caregivers
   if (caregiverIds.length > 0) {
@@ -344,7 +344,7 @@ serve(withSentry("send-missed-dose-alerts", async (req) => {
           },
         },
       });
-      console.log("Web push notifications sent to caregivers");
+      console.info("Web push notifications sent to caregivers");
     } catch (pushError) {
       console.error("Failed to send web push notifications:", pushError);
     }
@@ -362,7 +362,7 @@ serve(withSentry("send-missed-dose-alerts", async (req) => {
           },
         },
       });
-      console.log("Native iOS push notifications sent to caregivers");
+      console.info("Native iOS push notifications sent to caregivers");
     } catch (nativePushError) {
       console.error("Failed to send native iOS push notifications:", nativePushError);
     }

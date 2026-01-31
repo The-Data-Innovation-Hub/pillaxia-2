@@ -26,7 +26,7 @@ serve(withSentry(FUNCTION_NAME, async (req: Request): Promise<Response> => {
   const TWILIO_PHONE_NUMBER = Deno.env.get("TWILIO_PHONE_NUMBER");
 
   if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN || !TWILIO_PHONE_NUMBER) {
-    console.log(`[${FUNCTION_NAME}] Twilio credentials not configured, SMS disabled`);
+    console.info(`[${FUNCTION_NAME}] Twilio credentials not configured, SMS disabled`);
     return new Response(
       JSON.stringify({ error: "SMS not configured", skipped: true }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -72,7 +72,7 @@ serve(withSentry(FUNCTION_NAME, async (req: Request): Promise<Response> => {
     }
 
     if (!profile?.phone) {
-      console.log(`[${FUNCTION_NAME}] No phone number for user ${user_id}`);
+      console.info(`[${FUNCTION_NAME}] No phone number for user ${user_id}`);
       return new Response(
         JSON.stringify({ error: "No phone number on file", skipped: true }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -94,7 +94,7 @@ serve(withSentry(FUNCTION_NAME, async (req: Request): Promise<Response> => {
   // Truncate message to safe length
   const safeMessage = message.substring(0, 1600);
 
-  console.log(`[${FUNCTION_NAME}] Sending SMS to ${formattedPhone}: ${safeMessage.substring(0, 50)}...`);
+  console.info(`[${FUNCTION_NAME}] Sending SMS to ${formattedPhone}: ${safeMessage.substring(0, 50)}...`);
 
   // Send via Twilio with status callback
   const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${TWILIO_ACCOUNT_SID}/Messages.json`;
@@ -146,7 +146,7 @@ serve(withSentry(FUNCTION_NAME, async (req: Request): Promise<Response> => {
       );
     }
 
-    console.log(`[${FUNCTION_NAME}] SMS sent successfully:`, twilioResult.sid);
+    console.info(`[${FUNCTION_NAME}] SMS sent successfully:`, twilioResult.sid);
 
     // Log successful notification
     if (user_id) {
