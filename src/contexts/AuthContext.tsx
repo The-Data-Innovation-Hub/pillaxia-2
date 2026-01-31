@@ -6,8 +6,7 @@ import { setSentryUser, clearSentryUser, setSentryContext } from "@/lib/sentry";
 import type { Database } from "@/integrations/supabase/types";
 
 type AppRole = Database["public"]["Enums"]["app_role"];
-type ProfileRow = Database["public"]["Tables"]["profiles"]["Row"];
-type UserRoleRow = Database["public"]["Tables"]["user_roles"]["Row"];
+// ProfileRow and UserRoleRow inferred from query selects
 
 // Subset of profile fields used in the auth context
 interface Profile {

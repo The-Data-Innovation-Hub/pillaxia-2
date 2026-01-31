@@ -148,7 +148,7 @@ const AuthModals = ({
         if (onOpenChange) onOpenChange(false);
         navigate("/dashboard");
       }
-    } catch (err) {
+    } catch (_err) {
       toast.error("An unexpected error occurred");
     } finally {
       setLoading(false);
@@ -172,7 +172,7 @@ const AuthModals = ({
       setName("");
       setSignupEmail("");
       setOrganization("");
-    } catch (err) {
+    } catch (_err) {
       toast.error("Something went wrong");
     } finally {
       setLoading(false);
