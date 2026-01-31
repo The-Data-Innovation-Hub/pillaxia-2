@@ -70,7 +70,7 @@ serve(withSentry("send-native-push", async (req) => {
 
   const { user_ids, payload } = validation.data;
 
-  console.log(`Sending native push to ${user_ids.length} user(s)`);
+  console.info(`Sending native push to ${user_ids.length} user(s)`);
 
   // Fetch iOS subscriptions
   const { data: subscriptions, error: subError } = await supabase
@@ -90,7 +90,7 @@ serve(withSentry("send-native-push", async (req) => {
   }
 
   if (!subscriptions || subscriptions.length === 0) {
-    console.log("No iOS push subscriptions found");
+    console.info("No iOS push subscriptions found");
     return new Response(
       JSON.stringify({ success: true, sent: 0, message: "No iOS subscriptions found" }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -99,7 +99,7 @@ serve(withSentry("send-native-push", async (req) => {
 
   // Check if APNs is configured
   if (!apnsKeyId || !apnsTeamId || !apnsPrivateKey) {
-    console.log("APNs not configured - logging notification instead");
+    console.info("APNs not configured - logging notification instead");
       
     // Log the notifications even without APNs
     for (const sub of subscriptions) {
@@ -206,10 +206,10 @@ serve(withSentry("send-native-push", async (req) => {
       .from("push_subscriptions")
       .delete()
       .in("native_token", expiredTokens);
-    console.log(`Cleaned up ${expiredTokens.length} expired iOS token(s)`);
+    console.info(`Cleaned up ${expiredTokens.length} expired iOS token(s)`);
   }
 
-  console.log(`Native push results: ${sent} sent, ${failed} failed`);
+  console.info(`Native push results: ${sent} sent, ${failed} failed`);
 
   return new Response(
     JSON.stringify({ success: true, sent, failed }),

@@ -23,7 +23,7 @@ serve(async (req) => {
   try {
     const { patient_user_id, medication_name, status, refills_granted, pharmacist_notes }: RefillNotificationRequest = await req.json();
 
-    console.log(`Processing refill notification for patient ${patient_user_id}, medication: ${medication_name}, status: ${status}`);
+    console.info(`Processing refill notification for patient ${patient_user_id}, medication: ${medication_name}, status: ${status}`);
 
     if (!patient_user_id || !medication_name || !status) {
       throw new Error("Missing required fields: patient_user_id, medication_name, status");
@@ -163,7 +163,7 @@ serve(async (req) => {
           });
 
           results.email = { success: true, id: emailResponse.data?.id };
-          console.log("Email sent successfully:", emailResponse.data?.id);
+          console.info("Email sent successfully:", emailResponse.data?.id);
         }
       } catch (emailError) {
         console.error("Failed to send email:", emailError);
@@ -184,7 +184,7 @@ serve(async (req) => {
         });
 
         results.push = { success: !pushResponse.error, data: pushResponse.data };
-        console.log("Push notification result:", pushResponse);
+        console.info("Push notification result:", pushResponse);
       } catch (pushError) {
         console.error("Failed to send push notification:", pushError);
         results.push = { success: false, error: String(pushError) };
@@ -219,7 +219,7 @@ serve(async (req) => {
         });
 
         results.sms = { success: !smsResponse.error, data: smsResponse.data };
-        console.log("SMS notification result:", smsResponse);
+        console.info("SMS notification result:", smsResponse);
 
         // Log SMS to notification history
         await supabase.from("notification_history").insert({
@@ -266,7 +266,7 @@ serve(async (req) => {
         });
 
         results.whatsapp = { success: !whatsappResponse.error, data: whatsappResponse.data };
-        console.log("WhatsApp notification result:", whatsappResponse);
+        console.info("WhatsApp notification result:", whatsappResponse);
 
         // Log WhatsApp to notification history
         await supabase.from("notification_history").insert({

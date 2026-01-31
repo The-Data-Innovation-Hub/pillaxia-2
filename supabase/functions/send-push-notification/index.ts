@@ -158,7 +158,7 @@ serve(withSentry(FUNCTION_NAME, async (req: Request): Promise<Response> => {
 
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-  console.log(`[${FUNCTION_NAME}] Sending push to ${user_ids.length} user(s)`);
+  console.info(`[${FUNCTION_NAME}] Sending push to ${user_ids.length} user(s)`);
 
   const { data: subscriptions, error: subError } = await supabase
     .from("push_subscriptions")
@@ -175,14 +175,14 @@ serve(withSentry(FUNCTION_NAME, async (req: Request): Promise<Response> => {
   }
 
   if (!subscriptions || subscriptions.length === 0) {
-    console.log(`[${FUNCTION_NAME}] No push subscriptions found for users`);
+    console.info(`[${FUNCTION_NAME}] No push subscriptions found for users`);
     return new Response(
       JSON.stringify({ success: true, sent: 0, message: "No subscriptions found" }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 
-  console.log(`[${FUNCTION_NAME}] Found ${subscriptions.length} subscription(s)`);
+  console.info(`[${FUNCTION_NAME}] Found ${subscriptions.length} subscription(s)`);
 
   let sent = 0;
   let failed = 0;
@@ -263,10 +263,10 @@ serve(withSentry(FUNCTION_NAME, async (req: Request): Promise<Response> => {
       .from("push_subscriptions")
       .delete()
       .in("endpoint", expiredEndpoints);
-    console.log(`[${FUNCTION_NAME}] Cleaned up ${expiredEndpoints.length} expired subscription(s)`);
+    console.info(`[${FUNCTION_NAME}] Cleaned up ${expiredEndpoints.length} expired subscription(s)`);
   }
 
-  console.log(`[${FUNCTION_NAME}] Push results: ${sent} sent, ${failed} failed`);
+  console.info(`[${FUNCTION_NAME}] Push results: ${sent} sent, ${failed} failed`);
 
   return new Response(
     JSON.stringify({

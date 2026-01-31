@@ -81,7 +81,7 @@ serve(withSentry("send-prescription-status-notification", async (req) => {
 
     const { patient_user_id, medication_name, new_status, pharmacy } = validation.data;
 
-    console.log(`Sending prescription status notification: ${new_status} for ${medication_name} to user ${patient_user_id}`);
+    console.info(`Sending prescription status notification: ${new_status} for ${medication_name} to user ${patient_user_id}`);
 
     // Get patient profile and notification preferences
     const [profileResult, prefsResult] = await Promise.all([
@@ -101,7 +101,7 @@ serve(withSentry("send-prescription-status-notification", async (req) => {
     const prefs = prefsResult.data;
 
     if (!profile) {
-      console.log("Patient profile not found");
+      console.info("Patient profile not found");
       return new Response(
         JSON.stringify({ success: false, error: "Patient not found" }),
         { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -179,7 +179,7 @@ serve(withSentry("send-prescription-status-notification", async (req) => {
           results.email.error = emailError.message;
         } else {
           results.email.sent = true;
-          console.log("Email sent successfully");
+          console.info("Email sent successfully");
         }
 
         // Log to notification history
@@ -225,7 +225,7 @@ serve(withSentry("send-prescription-status-notification", async (req) => {
           results.push.error = pushError.message;
         } else if (pushResult?.sent > 0) {
           results.push.sent = true;
-          console.log("Push notification sent");
+          console.info("Push notification sent");
         }
       } catch (err) {
         console.error("Push notification error:", err);
@@ -234,7 +234,7 @@ serve(withSentry("send-prescription-status-notification", async (req) => {
       }
     }
 
-    console.log("Notification results:", results);
+    console.info("Notification results:", results);
 
     return new Response(
       JSON.stringify({

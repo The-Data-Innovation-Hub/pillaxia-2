@@ -277,7 +277,7 @@ serve(withSentry("send-prescription", async (req) => {
     `;
 
     // Send email
-    console.log(`[SEND-PRESCRIPTION] Sending prescription ${prescriptionId} to ${pharmacy.email}`);
+    console.info(`[SEND-PRESCRIPTION] Sending prescription ${prescriptionId} to ${pharmacy.email}`);
     
     const { data: emailResult, error: emailError } = await resend.emails.send({
       from: "Pillaxia E-Prescribing <prescriptions@resend.dev>",
@@ -295,7 +295,7 @@ serve(withSentry("send-prescription", async (req) => {
       );
     }
 
-    console.log(`[SEND-PRESCRIPTION] Email sent successfully:`, emailResult);
+    console.info(`[SEND-PRESCRIPTION] Email sent successfully:`, emailResult);
 
     // Use service role client to update prescription
     const serviceClient = createClient(

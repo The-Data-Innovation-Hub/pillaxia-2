@@ -74,7 +74,7 @@ const handler = withSentry("send-security-alert", async (req: Request): Promise<
 
     const { userId, eventType, severity, description, metadata }: SecurityAlertRequest = body;
 
-    console.log(`Processing security alert: ${eventType} for user ${userId}`);
+    console.info(`Processing security alert: ${eventType} for user ${userId}`);
 
     // Get user email from profile
     const { data: profile, error: profileError } = await supabase
@@ -237,7 +237,7 @@ const handler = withSentry("send-security-alert", async (req: Request): Promise<
       );
     }
 
-    console.log("Security alert email sent successfully:", emailData);
+    console.info("Security alert email sent successfully:", emailData);
 
     return new Response(
       JSON.stringify({ success: true, messageId: emailData?.id }),

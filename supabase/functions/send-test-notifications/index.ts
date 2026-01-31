@@ -54,7 +54,7 @@ serve(withSentry("send-test-notifications", async (req: Request): Promise<Respon
 
     const { user_id } = validation.data;
 
-    console.log("Sending test notifications to user:", user_id);
+    console.info("Sending test notifications to user:", user_id);
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -109,7 +109,7 @@ serve(withSentry("send-test-notifications", async (req: Request): Promise<Respon
 
         if (response.ok) {
           results.push({ channel: "email", success: true, message: `Sent to ${profile.email}` });
-          console.log("Email test sent successfully");
+          console.info("Email test sent successfully");
         } else {
           const errorText = await response.text();
           results.push({ channel: "email", success: false, message: errorText });
@@ -145,7 +145,7 @@ serve(withSentry("send-test-notifications", async (req: Request): Promise<Respon
 
         if (smsResult?.success) {
           results.push({ channel: "sms", success: true, message: `Sent to ${profile.phone}` });
-          console.log("SMS test sent successfully");
+          console.info("SMS test sent successfully");
         } else if (smsResult?.skipped) {
           results.push({ channel: "sms", success: false, message: smsResult?.error || "SMS not configured" });
         } else {
@@ -184,7 +184,7 @@ serve(withSentry("send-test-notifications", async (req: Request): Promise<Respon
             message: `Sent to ${profile.phone}`,
             provider: waResult.provider 
           });
-          console.log("WhatsApp test sent via", waResult.provider);
+          console.info("WhatsApp test sent via", waResult.provider);
         } else if (waResult?.skipped) {
           results.push({ channel: "whatsapp", success: false, message: waResult?.reason || "WhatsApp not configured" });
         } else {
@@ -217,7 +217,7 @@ serve(withSentry("send-test-notifications", async (req: Request): Promise<Respon
 
       if (pushResult?.sent > 0) {
         results.push({ channel: "push", success: true, message: `Sent to ${pushResult.sent} device(s)` });
-        console.log("Push test sent to", pushResult.sent, "devices");
+        console.info("Push test sent to", pushResult.sent, "devices");
       } else {
         results.push({ channel: "push", success: false, message: "No push subscriptions found" });
       }
@@ -228,7 +228,7 @@ serve(withSentry("send-test-notifications", async (req: Request): Promise<Respon
     }
 
     const successCount = results.filter(r => r.success).length;
-    console.log("Test notifications complete:", successCount, "of", results.length, "succeeded");
+    console.info("Test notifications complete:", successCount, "of", results.length, "succeeded");
 
     return new Response(
       JSON.stringify({
