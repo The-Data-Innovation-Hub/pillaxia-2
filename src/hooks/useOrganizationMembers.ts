@@ -29,14 +29,22 @@ export function useOrganizationMembers() {
     queryFn: async (): Promise<OrganizationMemberWithProfile[]> => {
       if (!organization?.id) return [];
 
-      // Fetch members first
+      // Fetch members - RLS now restricts to managers/admins/org admins or own membership
+      // Regular members will only see their own membership record
       const { data: membersData, error: membersError } = await supabase
         .from("organization_members")
         .select("*")
         .eq("organization_id", organization.id)
         .order("joined_at", { ascending: false });
 
-      if (membersError) throw membersError;
+      if (membersError) {
+        // If access denied, return empty - user doesn't have permission to view members
+        if (membersError.code === 'PGRST301' || membersError.message?.includes('permission')) {
+          console.info('User does not have permission to view all organization members');
+          return [];
+        }
+        throw membersError;
+      }
       if (!membersData || membersData.length === 0) return [];
 
       // Fetch profiles for all member user_ids
