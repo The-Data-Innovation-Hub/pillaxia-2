@@ -42,7 +42,7 @@ Deno.serve(withSentry("twilio-video-token", async (req: Request): Promise<Respon
 
     // Validate Twilio configuration
     if (!twilioAccountSid || !twilioApiKey || !twilioApiSecret) {
-      console.error("Twilio credentials not configured");
+      console.warn("Twilio credentials not configured");
       return new Response(JSON.stringify({ error: "Video service not configured" }), {
         status: 503,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -130,7 +130,7 @@ Deno.serve(withSentry("twilio-video-token", async (req: Request): Promise<Respon
         const twilioRoom = await twilioResponse.json();
         
         if (!twilioResponse.ok) {
-          console.error('Twilio room creation failed:', twilioRoom);
+          console.warn('Twilio room creation failed:', twilioRoom);
           captureException(new Error(`Twilio room creation failed: ${JSON.stringify(twilioRoom)}`));
           return new Response(JSON.stringify({ error: 'Failed to create video room', details: twilioRoom }), {
             status: 500,
@@ -155,7 +155,7 @@ Deno.serve(withSentry("twilio-video-token", async (req: Request): Promise<Respon
           .single();
 
         if (roomError) {
-          console.error('Database error:', roomError);
+          console.warn('Database error:', roomError);
           captureException(roomError);
           return new Response(JSON.stringify({ error: 'Failed to save room' }), {
             status: 500,
@@ -171,7 +171,7 @@ Deno.serve(withSentry("twilio-video-token", async (req: Request): Promise<Respon
             .eq('id', appointmentId);
         }
 
-        console.log('Video room created:', videoRoom.id);
+        console.info('Video room created:', videoRoom.id);
 
         return new Response(JSON.stringify({ 
           success: true, 
@@ -264,9 +264,9 @@ Deno.serve(withSentry("twilio-video-token", async (req: Request): Promise<Respon
             });
         }
 
-        console.log('Token generated for user:', userId, 'room:', roomName);
+        console.info('Token generated for user:', userId, 'room:', roomName);
 
-        return new Response(JSON.stringify({ 
+        return new Response(JSON.stringify({
           token: AccessToken,
           identity: userIdentity,
           roomName: roomName,
@@ -398,7 +398,7 @@ Deno.serve(withSentry("twilio-video-token", async (req: Request): Promise<Respon
     });
 
   } catch (error) {
-    console.error('Error in twilio-video-token:', error);
+    console.warn('Error in twilio-video-token:', error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     if (error instanceof Error) captureException(error);
     return new Response(JSON.stringify({ error: errorMessage }), {

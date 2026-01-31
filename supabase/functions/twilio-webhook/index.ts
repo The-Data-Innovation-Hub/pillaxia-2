@@ -36,7 +36,7 @@ interface TwilioStatusCallback {
 
 const logStep = (step: string, details?: unknown) => {
   const detailsStr = details ? ` - ${JSON.stringify(details)}` : '';
-  console.log(`[${FUNCTION_NAME}] ${step}${detailsStr}`);
+  console.info(`[${FUNCTION_NAME}] ${step}${detailsStr}`);
 };
 
 // Map Twilio status to our internal status

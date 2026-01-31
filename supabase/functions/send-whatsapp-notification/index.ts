@@ -61,15 +61,15 @@ async function sendViaTwilio(
 
     if (!response.ok) {
       const errorData = await response.json();
-      console.error("Twilio WhatsApp error:", errorData);
+      console.warn("Twilio WhatsApp error:", errorData);
       return { success: false, error: errorData.message || "twilio_api_error" };
     }
 
     const result = await response.json();
-    console.log("Twilio WhatsApp sent successfully:", result.sid);
+    console.info("Twilio WhatsApp sent successfully:", result.sid);
     return { success: true, messageId: result.sid };
   } catch (error) {
-    console.error("Twilio exception:", error);
+    console.warn("Twilio exception:", error);
     return { success: false, error: String(error) };
   }
 }
@@ -106,15 +106,15 @@ async function sendViaMeta(
 
     if (!response.ok) {
       const errorData = await response.json();
-      console.error("Meta WhatsApp API error:", errorData);
+      console.warn("Meta WhatsApp API error:", errorData);
       return { success: false, error: JSON.stringify(errorData) };
     }
 
     const result = await response.json();
-    console.log("Meta WhatsApp sent successfully:", result);
+    console.info("Meta WhatsApp sent successfully:", result);
     return { success: true, messageId: result.messages?.[0]?.id };
   } catch (error) {
-    console.error("Meta exception:", error);
+    console.warn("Meta exception:", error);
     return { success: false, error: String(error) };
   }
 }
@@ -182,12 +182,12 @@ serve(withSentry("send-whatsapp-notification", async (req: Request): Promise<Res
         .maybeSingle();
 
       if (prefError) {
-        console.error("Error checking patient preferences:", prefError);
+        console.warn("Error checking patient preferences:", prefError);
         captureException(prefError);
       }
 
       if (prefData && prefData.whatsapp_clinician_messages === false) {
-        console.log("Patient has disabled WhatsApp notifications for clinician messages, skipping...");
+        console.info("Patient has disabled WhatsApp notifications for clinician messages, skipping...");
         return new Response(
           JSON.stringify({ 
             success: false, 
@@ -205,12 +205,12 @@ serve(withSentry("send-whatsapp-notification", async (req: Request): Promise<Res
         .maybeSingle();
 
       if (prefError) {
-        console.error("Error checking patient preferences:", prefError);
+        console.warn("Error checking patient preferences:", prefError);
         captureException(prefError);
       }
 
       if (prefData && prefData.whatsapp_reminders === false) {
-        console.log("Patient has disabled WhatsApp reminders, skipping...");
+        console.info("Patient has disabled WhatsApp reminders, skipping...");
         return new Response(
           JSON.stringify({ 
             success: false, 
@@ -229,12 +229,12 @@ serve(withSentry("send-whatsapp-notification", async (req: Request): Promise<Res
         .maybeSingle();
 
       if (settingError) {
-        console.error("Error checking notification settings:", settingError);
+        console.warn("Error checking notification settings:", settingError);
         captureException(settingError);
       }
 
       if (settingData && !settingData.is_enabled) {
-        console.log("Encouragement messages are disabled, skipping WhatsApp notification...");
+        console.info("Encouragement messages are disabled, skipping WhatsApp notification...");
         return new Response(
           JSON.stringify({ 
             success: false, 
@@ -255,13 +255,13 @@ serve(withSentry("send-whatsapp-notification", async (req: Request): Promise<Res
         .maybeSingle();
 
       if (profileError) {
-        console.error("Error fetching profile:", profileError);
+        console.warn("Error fetching profile:", profileError);
         captureException(profileError);
         throw profileError;
       }
 
       if (!profile?.phone) {
-        console.log("No phone number configured for recipient, skipping WhatsApp notification");
+        console.info("No phone number configured for recipient, skipping WhatsApp notification");
         return new Response(
           JSON.stringify({ 
             success: false, 
@@ -296,12 +296,12 @@ serve(withSentry("send-whatsapp-notification", async (req: Request): Promise<Res
     }
 
     // Try Twilio first (primary), then Meta (fallback)
-    console.log("Attempting WhatsApp via Twilio...");
+    console.info("Attempting WhatsApp via Twilio...");
     let result = await sendViaTwilio(formattedPhone, messageBody);
     let provider = "twilio";
 
     if (!result.success && result.error === "twilio_not_configured") {
-      console.log("Twilio not configured, trying Meta Graph API...");
+      console.info("Twilio not configured, trying Meta Graph API...");
       result = await sendViaMeta(formattedPhone.replace("+", ""), messageBody);
       provider = "meta";
     }
@@ -358,7 +358,7 @@ serve(withSentry("send-whatsapp-notification", async (req: Request): Promise<Res
 
       // If neither is configured, return gracefully
       if (result.error === "meta_not_configured" || result.error === "twilio_not_configured") {
-        console.log("WhatsApp not configured (neither Twilio nor Meta), skipping...");
+        console.info("WhatsApp not configured (neither Twilio nor Meta), skipping...");
         return new Response(
           JSON.stringify({ 
             success: false, 
@@ -373,7 +373,7 @@ serve(withSentry("send-whatsapp-notification", async (req: Request): Promise<Res
       throw new Error(`WhatsApp API error: ${result.error}`);
     }
   } catch (error: unknown) {
-    console.error("Error in send-whatsapp-notification:", error);
+    console.warn("Error in send-whatsapp-notification:", error);
     if (error instanceof Error) {
       captureException(error);
     }

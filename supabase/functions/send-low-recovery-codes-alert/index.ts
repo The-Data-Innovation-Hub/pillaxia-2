@@ -39,7 +39,7 @@ serve(withSentry("send-low-recovery-codes-alert", async (req: Request): Promise<
 
   const { email, firstName, remainingCodes } = validation.data;
 
-  console.log(`Sending low recovery codes alert to ${email}, remaining: ${remainingCodes}`);
+  console.info(`Sending low recovery codes alert to ${email}, remaining: ${remainingCodes}`);
 
   const name = firstName || "there";
   const codeWord = remainingCodes === 1 ? "code" : "codes";
@@ -118,7 +118,7 @@ serve(withSentry("send-low-recovery-codes-alert", async (req: Request): Promise<
     `,
   });
 
-  console.log("Low recovery codes alert sent successfully:", emailResponse);
+  console.info("Low recovery codes alert sent successfully:", emailResponse);
 
   return new Response(JSON.stringify({ success: true, ...emailResponse }), {
     status: 200,

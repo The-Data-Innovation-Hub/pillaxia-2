@@ -8,7 +8,7 @@ const FUNCTION_NAME = "stripe-webhook";
 
 const logStep = (step: string, details?: unknown) => {
   const detailsStr = details ? ` - ${JSON.stringify(details)}` : '';
-  console.log(`[STRIPE-WEBHOOK] ${step}${detailsStr}`);
+  console.info(`[STRIPE-WEBHOOK] ${step}${detailsStr}`);
 };
 
 serve(withSentry(FUNCTION_NAME, async (req: Request): Promise<Response> => {
