@@ -7,6 +7,7 @@ on:
     paths-ignore:
       - '.github/workflows/bump-version.yml'
       - 'src/lib/version.ts'
+      - 'src/lib/changelog.ts'
 
 jobs:
   bump-version:
@@ -46,10 +47,47 @@ jobs:
           echo "new_version=$MAJOR.$NEW_MINOR" >> $GITHUB_OUTPUT
           echo "Bumped version to: $MAJOR.$NEW_MINOR"
 
+      - name: Update changelog
+        run: |
+          NEW_VERSION="${{ steps.bump_version.outputs.new_version }}"
+          TODAY=$(date +%Y-%m-%d)
+          COMMIT_MSG="${{ github.event.head_commit.message }}"
+          
+          # Extract first line of commit message for title
+          TITLE=$(echo "$COMMIT_MSG" | head -n 1 | sed 's/"/\\"/g')
+          
+          # Determine change type from commit message
+          if echo "$COMMIT_MSG" | grep -qiE "^(feat|feature)"; then
+            TYPE="feature"
+          elif echo "$COMMIT_MSG" | grep -qiE "^fix"; then
+            TYPE="fix"
+          elif echo "$COMMIT_MSG" | grep -qiE "^(security|sec)"; then
+            TYPE="security"
+          else
+            TYPE="improvement"
+          fi
+          
+          # Create new changelog entry
+          NEW_ENTRY="  {
+    version: \"$NEW_VERSION\",
+    date: \"$TODAY\",
+    title: \"$TITLE\",
+    changes: [
+      {
+        type: \"$TYPE\",
+        description: \"$TITLE\",
+      },
+    ],
+  },"
+          
+          # Insert new entry after the opening bracket of CHANGELOG array
+          sed -i "/^export const CHANGELOG: ChangelogEntry\[\] = \[$/a\\
+$NEW_ENTRY" src/lib/changelog.ts
+
       - name: Commit and push version bump
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
-          git add src/lib/version.ts
+          git add src/lib/version.ts src/lib/changelog.ts
           git commit -m "chore: bump version to v${{ steps.bump_version.outputs.new_version }} [skip ci]"
           git push
