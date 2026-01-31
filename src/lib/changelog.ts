@@ -17,6 +17,29 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.36",
+    date: "2026-01-31",
+    title: "TypeScript & Test Suite Fixes",
+    changes: [
+      {
+        type: "fix",
+        description: "Fixed empty interface errors in shadcn UI components",
+      },
+      {
+        type: "fix",
+        description: "Fixed Function type usage in test files",
+      },
+      {
+        type: "improvement",
+        description: "Test suite now passes with 61/61 tests",
+      },
+      {
+        type: "improvement",
+        description: "Auto-changelog updates on version bump",
+      },
+    ],
+  },
+  {
     version: "1.26",
     date: "2026-01-30",
     title: "Production Readiness - Phase 1",
