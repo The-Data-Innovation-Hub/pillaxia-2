@@ -133,7 +133,7 @@ describe("useAuth Hook", () => {
     });
 
     it("clears state on session end", async () => {
-      let authCallback: Function;
+      let authCallback: (event: string, session: unknown) => void;
       
       vi.mocked(supabase.auth.onAuthStateChange).mockImplementation((callback) => {
         authCallback = callback;
