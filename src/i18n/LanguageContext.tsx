@@ -1,11 +1,11 @@
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from "react";
-import { en, yo, ig, ha, type Translations } from "./translations";
+import { en, yo, ig, ha, fr, type Translations } from "./translations";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 
 // Force fresh module - v4
 
-export type LanguageCode = "en" | "yo" | "ig" | "ha";
+export type LanguageCode = "en" | "yo" | "ig" | "ha" | "fr";
 
 export interface Language {
   code: LanguageCode;
@@ -15,12 +15,13 @@ export interface Language {
 
 export const SUPPORTED_LANGUAGES: Language[] = [
   { code: "en", name: "English", nativeName: "English" },
+  { code: "fr", name: "French", nativeName: "Français" },
   { code: "yo", name: "Yoruba", nativeName: "Èdè Yorùbá" },
   { code: "ig", name: "Igbo", nativeName: "Asụsụ Igbo" },
   { code: "ha", name: "Hausa", nativeName: "Hausa" },
 ];
 
-const translations: Record<LanguageCode, Translations> = { en, yo, ig, ha };
+const translations: Record<LanguageCode, Translations> = { en, fr, yo, ig, ha };
 
 interface LanguageContextType {
   language: LanguageCode;
