@@ -6,8 +6,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
+import { useLanguage } from "@/i18n/LanguageContext";
 
 export function AdminDashboardHome() {
+  const { t } = useLanguage();
+
   const { data: stats, isLoading } = useQuery({
     queryKey: ["admin-stats"],
     queryFn: async () => {
@@ -63,7 +66,7 @@ export function AdminDashboardHome() {
 
   const statCards = [
     {
-      title: "Total Users",
+      title: t.admin.totalUsers,
       value: stats?.totalUsers || 0,
       icon: Users,
       color: "text-blue-600",
@@ -71,7 +74,7 @@ export function AdminDashboardHome() {
       link: "/dashboard/users",
     },
     {
-      title: "Organizations",
+      title: t.admin.organizations,
       value: stats?.totalOrganizations || 0,
       icon: Building2,
       color: "text-violet-600",
@@ -79,14 +82,14 @@ export function AdminDashboardHome() {
       link: "/dashboard/organization",
     },
     {
-      title: "Total Medications",
+      title: t.admin.totalMedications,
       value: stats?.totalMedications || 0,
       icon: Pill,
       color: "text-emerald-600",
       bgColor: "bg-emerald-50",
     },
     {
-      title: "Recent Activity (24h)",
+      title: t.admin.recentActivity,
       value: stats?.recentAuditLogs || 0,
       icon: Activity,
       color: "text-amber-600",
@@ -96,10 +99,10 @@ export function AdminDashboardHome() {
   ];
 
   const roleCards = [
-    { role: "Patients", count: stats?.roleCounts?.patient || 0, icon: Users },
-    { role: "Clinicians", count: stats?.roleCounts?.clinician || 0, icon: Activity },
-    { role: "Pharmacists", count: stats?.roleCounts?.pharmacist || 0, icon: Pill },
-    { role: "Admins", count: stats?.roleCounts?.admin || 0, icon: Shield },
+    { role: t.admin.patients, count: stats?.roleCounts?.patient || 0, icon: Users },
+    { role: t.admin.clinicians, count: stats?.roleCounts?.clinician || 0, icon: Activity },
+    { role: t.admin.pharmacists, count: stats?.roleCounts?.pharmacist || 0, icon: Pill },
+    { role: t.admin.admins, count: stats?.roleCounts?.admin || 0, icon: Shield },
   ];
 
   const { isAdmin, isManager } = useAuth();
@@ -108,17 +111,17 @@ export function AdminDashboardHome() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold">
-          {isManager && !isAdmin ? "Manager Dashboard" : "Admin Dashboard"}
+          {isManager && !isAdmin ? t.admin.managerDashboard : t.admin.dashboardTitle}
         </h1>
         <p className="text-muted-foreground">
-          {isManager && !isAdmin ? "Organization overview and management" : "System overview and management"}
+          {isManager && !isAdmin ? t.admin.managerSubtitle : t.admin.dashboardSubtitle}
         </p>
       </div>
 
       {/* Main Stats */}
       <div className={`grid gap-4 md:grid-cols-2 ${isManager && !isAdmin ? 'lg:grid-cols-3' : 'lg:grid-cols-4'}`}>
         {statCards
-          .filter(stat => !(isManager && !isAdmin && stat.title === "Organizations"))
+          .filter(stat => !(isManager && !isAdmin && stat.title === t.admin.organizations))
           .map((stat) => (
             <Card key={stat.title} className="hover:shadow-md transition-shadow">
               <CardHeader className="pb-2">
@@ -138,7 +141,7 @@ export function AdminDashboardHome() {
                 {stat.link && (
                   <Link to={stat.link}>
                     <Button variant="link" className="px-0 mt-1 h-auto text-xs">
-                      View details →
+                      {t.common.viewDetails} →
                     </Button>
                   </Link>
                 )}
@@ -150,7 +153,7 @@ export function AdminDashboardHome() {
       {/* Role Distribution */}
       <Card>
         <CardHeader>
-          <CardTitle>User Distribution by Role</CardTitle>
+          <CardTitle>{t.admin.userDistribution}</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid gap-4 sm:grid-cols-4">
@@ -177,25 +180,25 @@ export function AdminDashboardHome() {
       {/* Quick Actions */}
       <Card>
         <CardHeader>
-          <CardTitle>Quick Actions</CardTitle>
+          <CardTitle>{t.dashboard.quickActions}</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-wrap gap-3">
           <Link to="/dashboard/users">
             <Button variant="outline" className="gap-2">
               <Users className="h-4 w-4" />
-              Manage Users
+              {t.admin.manageUsers}
             </Button>
           </Link>
           <Link to="/dashboard/analytics">
             <Button variant="outline" className="gap-2">
               <Activity className="h-4 w-4" />
-              View Analytics
+              {t.admin.viewAnalytics}
             </Button>
           </Link>
           <Link to="/dashboard/audit-logs">
             <Button variant="outline" className="gap-2">
               <FileText className="h-4 w-4" />
-              Audit Logs
+              {t.admin.auditLogs}
             </Button>
           </Link>
         </CardContent>

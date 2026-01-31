@@ -10,6 +10,7 @@ import { RefillRequestsCard } from "./RefillRequestsCard";
 import { toast } from "sonner";
 import { useCachedMedications } from "@/hooks/useCachedMedications";
 import { useOfflineStatus } from "@/hooks/useOfflineStatus";
+import { useLanguage } from "@/i18n/LanguageContext";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -34,6 +35,7 @@ interface MedicationForRefill {
 export function MedicationsPage() {
   const { medications, loading, isFromCache, refetch } = useCachedMedications();
   const { isOffline } = useOfflineStatus();
+  const { t } = useLanguage();
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [photoImportOpen, setPhotoImportOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -49,11 +51,11 @@ export function MedicationsPage() {
         .eq("id", deleteId);
 
       if (error) throw error;
-      toast.success("Medication deleted");
+      toast.success(t.medications.deletedSuccess);
       refetch();
     } catch (error) {
       console.error("Error deleting medication:", error);
-      toast.error("Failed to delete medication");
+      toast.error(t.medications.deleteFailed);
     } finally {
       setDeleteId(null);
     }
@@ -71,21 +73,21 @@ export function MedicationsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Medications</h1>
+          <h1 className="text-2xl font-bold">{t.medications.title}</h1>
           <p className="text-muted-foreground">
-            Manage your medication list and schedules
+            {t.medications.subtitle}
           </p>
           {isFromCache && (
             <div className="flex items-center gap-1.5 text-xs text-warning mt-1">
               <CloudOff className="h-3 w-3" />
-              <span>Showing cached data</span>
+              <span>{t.offline.showingCachedData}</span>
               {!isOffline && (
                 <button 
                   onClick={refetch}
                   className="inline-flex items-center gap-1 text-primary hover:underline ml-1"
                 >
                   <RefreshCw className="h-3 w-3" />
-                  Refresh
+                  {t.common.refresh}
                 </button>
               )}
             </div>
@@ -94,11 +96,11 @@ export function MedicationsPage() {
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => setPhotoImportOpen(true)} disabled={isOffline}>
             <Camera className="h-4 w-4 mr-2" />
-            Scan Rx
+            {t.medications.scanRx}
           </Button>
           <Button onClick={() => setAddDialogOpen(true)} disabled={isOffline}>
             <Plus className="h-4 w-4 mr-2" />
-            Add Medication
+            {t.medications.addMedication}
           </Button>
         </div>
       </div>
@@ -109,13 +111,13 @@ export function MedicationsPage() {
       {medications.length === 0 ? (
         <div className="text-center py-12 bg-muted/30 rounded-lg">
           <div className="text-4xl mb-4">💊</div>
-          <h3 className="text-lg font-medium mb-2">No medications yet</h3>
+          <h3 className="text-lg font-medium mb-2">{t.medications.noMedications}</h3>
           <p className="text-muted-foreground mb-4">
-            Add your first medication to start tracking
+            {t.medications.addFirst}
           </p>
           <Button onClick={() => setAddDialogOpen(true)}>
             <Plus className="h-4 w-4 mr-2" />
-            Add Medication
+            {t.medications.addMedication}
           </Button>
         </div>
       ) : (
@@ -128,7 +130,7 @@ export function MedicationsPage() {
                 instructions: med.instructions || undefined,
                 schedules: med.medication_schedules,
               }}
-              onEdit={(id) => toast.info("Edit feature coming soon")}
+              onEdit={(id) => toast.info(t.common.comingSoon)}
               onDelete={(id) => setDeleteId(id)}
               onRequestRefill={(id) => {
                 const medication = medications.find((m) => m.id === id);
@@ -165,16 +167,15 @@ export function MedicationsPage() {
       <AlertDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
         <AlertDialogContent className="bg-background">
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Medication?</AlertDialogTitle>
+            <AlertDialogTitle>{t.medications.deleteConfirmTitle}</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete this medication and all its schedules.
-              This action cannot be undone.
+              {t.medications.deleteConfirmDescription}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t.common.cancel}</AlertDialogCancel>
           <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-            Delete
+            {t.common.delete}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

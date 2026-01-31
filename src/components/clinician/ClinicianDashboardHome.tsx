@@ -9,9 +9,11 @@ import { Button } from "@/components/ui/button";
 import { RedFlagAlertsCard } from "./RedFlagAlertsCard";
 import { PolypharmacyWarningsCard } from "./PolypharmacyWarningsCard";
 import { PatientRiskFlagsCard } from "./PatientRiskFlagsCard";
+import { useLanguage } from "@/i18n/LanguageContext";
 
 export function ClinicianDashboardHome() {
   const { user } = useAuth();
+  const { t } = useLanguage();
 
   const { data: stats, isLoading } = useQuery({
     queryKey: ["clinician-stats", user?.id],
@@ -81,7 +83,7 @@ export function ClinicianDashboardHome() {
 
   const statCards = [
     {
-      title: "Assigned Patients",
+      title: t.clinician.assignedPatients,
       value: stats?.patientCount || 0,
       icon: Users,
       color: "text-blue-600",
@@ -89,7 +91,7 @@ export function ClinicianDashboardHome() {
       link: "/dashboard/patients",
     },
     {
-      title: "Active Medications",
+      title: t.clinician.activeMedications,
       value: stats?.activeMedications || 0,
       icon: Pill,
       color: "text-green-600",
@@ -97,7 +99,7 @@ export function ClinicianDashboardHome() {
       link: "/dashboard/medications",
     },
     {
-      title: "Low Adherence Alerts",
+      title: t.clinician.lowAdherenceAlerts,
       value: stats?.lowAdherenceCount || 0,
       icon: AlertTriangle,
       color: "text-amber-600",
@@ -109,9 +111,9 @@ export function ClinicianDashboardHome() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Clinician Dashboard</h1>
+        <h1 className="text-2xl font-bold">{t.clinician.dashboardTitle}</h1>
         <p className="text-muted-foreground">
-          Monitor your patients' medication adherence and health status
+          {t.clinician.dashboardSubtitle}
         </p>
       </div>
 
@@ -135,7 +137,7 @@ export function ClinicianDashboardHome() {
               )}
               <Link to={stat.link}>
                 <Button variant="link" className="px-0 mt-1 h-auto text-xs">
-                  View details →
+                  {t.common.viewDetails} →
                 </Button>
               </Link>
             </CardContent>
@@ -155,31 +157,31 @@ export function ClinicianDashboardHome() {
       {/* Quick Actions */}
       <Card>
         <CardHeader>
-          <CardTitle>Quick Actions</CardTitle>
+          <CardTitle>{t.dashboard.quickActions}</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-wrap gap-3">
           <Link to="/dashboard/patients">
             <Button variant="outline" className="gap-2">
               <Users className="h-4 w-4" />
-              View Patient Roster
+              {t.clinician.viewPatientRoster}
             </Button>
           </Link>
           <Link to="/dashboard/appointments">
             <Button variant="outline" className="gap-2">
               <CalendarDays className="h-4 w-4" />
-              Manage Appointments
+              {t.clinician.manageAppointments}
             </Button>
           </Link>
           <Link to="/dashboard/adherence">
             <Button variant="outline" className="gap-2">
               <Activity className="h-4 w-4" />
-              Check Adherence Reports
+              {t.clinician.checkAdherenceReports}
             </Button>
           </Link>
           <Link to="/dashboard/soap-notes">
             <Button variant="outline" className="gap-2">
               <FileText className="h-4 w-4" />
-              Write SOAP Notes
+              {t.clinician.writeSOAPNotes}
             </Button>
           </Link>
         </CardContent>
