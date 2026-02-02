@@ -153,7 +153,20 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
 export function useLanguage() {
   const context = useContext(LanguageContext);
   if (context === undefined) {
-    throw new Error("useLanguage must be used within a LanguageProvider");
+    // Return a safe fallback instead of throwing during initialization edge cases
+    // This prevents crashes when components render before the provider is ready
+    console.warn("useLanguage called outside LanguageProvider - using fallback");
+    return {
+      language: "en" as LanguageCode,
+      setLanguage: async () => {},
+      t: en,
+      languages: SUPPORTED_LANGUAGES,
+      isLoading: false,
+      formatDate: (date: Date | string, formatStr: string) => {
+        const dateObj = typeof date === "string" ? new Date(date) : date;
+        return format(dateObj, formatStr);
+      },
+    };
   }
   return context;
 }
