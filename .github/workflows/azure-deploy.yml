@@ -75,11 +75,12 @@ jobs:
         env:
           SWA_CLI_DEPLOYMENT_TOKEN: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
 
-      # Zip API without node_modules; Azure runs npm install on the server after upload
+      # Zip API with node_modules (zipdeploy does not run npm install; app needs deps to start)
       - name: Create API deployment zip
         run: |
           cd api
-          zip -r ../api-deploy.zip . -x '*.git*' -x 'node_modules/*'
+          npm ci --omit=dev
+          zip -r ../api-deploy.zip . -x '*.git*'
 
       # Deploy API via Kudu with isAsync=true so the step returns in ~1 min (no 5–10 min polling)
       # Uses AZURE_API_PUBLISH_PROFILE; app name from secret or parsed from publish profile
