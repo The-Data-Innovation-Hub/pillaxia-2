@@ -16,7 +16,7 @@ jobs:
   bump-version:
     runs-on: ubuntu-latest
     # Only on main, and skip if commit was from this workflow
-    if: github.ref == 'refs/heads/main' && !contains(github.event.head_commit.message, '[skip ci]') && !contains(github.event.head_commit.message, 'chore: bump version')
+    if: "github.ref == 'refs/heads/main' && !contains(github.event.head_commit.message, '[skip ci]') && !contains(github.event.head_commit.message, 'chore: bump version')"
     
     permissions:
       contents: write

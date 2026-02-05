@@ -1,5 +1,6 @@
 # Azure Deployment Workflow
-# Deploys Pillaxia to Azure: Static Web App, API (App Service), Functions
+# Deploys Pillaxia to Azure: Static Web App, API (App Service).
+# Azure Functions deploy is in a separate workflow (azure-deploy-functions.yml) when needed.
 # Run migrations via workflow_dispatch
 
 name: Azure Deploy
@@ -77,31 +78,41 @@ jobs:
           zip -r ../api-deploy.zip . -x '*.git*' -x 'node_modules/*'
 
       # Deploy API via Kudu with isAsync=true so the step returns in ~1 min (no 5–10 min polling)
-      # Uses AZURE_API_PUBLISH_PROFILE only; deployment continues on Azure in the background
+      # Uses AZURE_API_PUBLISH_PROFILE; app name from secret or parsed from publish profile
       - name: Deploy API to Azure Web App (async)
         run: |
-          printf '%s\n' "$PUBLISH_PROFILE" > publish-profile.xml
-          DEPLOY_PWD=$(tr -d '\n' < publish-profile.xml | sed -n 's/.*userPWD="\([^"]*\)".*/\1/p')
-          if [ -z "$DEPLOY_PWD" ]; then echo "Could not read userPWD from publish profile"; exit 1; fi
-          # Kudu username is $appname (dollar sign + app name)
+          echo "$PUBLISH_PROFILE" > publish-profile.xml
+          # App name: use secret if set, else parse from publish profile (e.g. publishUrl="...app-name.scm.azurewebsites.net...")
+          if [ -n "$APP_NAME" ]; then
+            echo "Using app name from secret: $APP_NAME"
+          else
+            APP_NAME=$(sed -n 's/.*[pP]ublish[Uu]rl="[^"]*\/\/\([^.:/]*\)\.scm\.azurewebsites\.net[^"]*".*/\1/p' publish-profile.xml | head -1)
+            if [ -z "$APP_NAME" ]; then
+              APP_NAME=$(grep -oE '[a-zA-Z0-9-]+\.scm\.azurewebsites\.net' publish-profile.xml | head -1 | sed 's/\.scm\.azurewebsites\.net//')
+            fi
+            echo "Using app name from publish profile: $APP_NAME"
+          fi
+          if [ -z "$APP_NAME" ]; then
+            echo "::error::Could not determine app name. Add secret AZURE_API_APP_NAME (e.g. pillaxia-dev-api) or use a publish profile that contains .scm.azurewebsites.net."
+            exit 1
+          fi
+          # Extract userPWD (try sed first, then Python for different XML formats)
+          DEPLOY_PWD=$(tr -d '\n\r' < publish-profile.xml | sed -n 's/.*[uU]ser[Pp][Ww][Dd]="\([^"]*\)".*/\1/p' | head -1)
+          if [ -z "$DEPLOY_PWD" ]; then
+            DEPLOY_PWD=$(python3 -c "import xml.etree.ElementTree as ET; root = ET.parse('publish-profile.xml').getroot(); [print(p.get('userPWD') or p.get('userPwd')) for p in root.iter() if p.get('userPWD') or p.get('userPwd')]" 2>/dev/null | head -1)
+          fi
+          if [ -z "$DEPLOY_PWD" ]; then
+            echo "::error::Could not read userPWD from publish profile. Re-download from Azure: App Service > Download publish profile, then paste the full file into secret AZURE_API_PUBLISH_PROFILE."
+            exit 1
+          fi
           curl -f -X POST \
-            -u "\$$APP_NAME:$DEPLOY_PWD" \
+            -u "$APP_NAME:$DEPLOY_PWD" \
             --data-binary @api-deploy.zip \
             "https://$APP_NAME.scm.azurewebsites.net/api/zipdeploy?isAsync=true"
           rm -f publish-profile.xml
         env:
           PUBLISH_PROFILE: ${{ secrets.AZURE_API_PUBLISH_PROFILE }}
           APP_NAME: ${{ secrets.AZURE_API_APP_NAME }}
-
-      - name: Install Functions dependencies
-        run: cd functions && npm ci
-
-      - name: Deploy Functions to Azure Functions
-        uses: Azure/functions-action@v1
-        with:
-          app-name: ${{ secrets.AZURE_FUNCTION_APP_NAME }}
-          package: ./functions
-          publish-profile: ${{ secrets.AZURE_FUNCTIONS_PUBLISH_PROFILE }}
 
   run-migrations:
     name: Run Migrations
