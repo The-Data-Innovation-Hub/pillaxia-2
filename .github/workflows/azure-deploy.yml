@@ -109,8 +109,10 @@ jobs:
             echo "::error::Could not read userPWD from publish profile. Re-download from Azure: App Service > Download publish profile, then paste the full file into secret AZURE_API_PUBLISH_PROFILE."
             exit 1
           fi
+          # Kudu expects username as $AppName (with $) for site-level publish profile credentials
+          DEPLOY_USER="\$$APP_NAME"
           curl -f -X POST \
-            -u "$APP_NAME:$DEPLOY_PWD" \
+            -u "$DEPLOY_USER:$DEPLOY_PWD" \
             --data-binary @api-deploy.zip \
             "https://$APP_NAME.scm.azurewebsites.net/api/zipdeploy?isAsync=true"
           rm -f publish-profile.xml
