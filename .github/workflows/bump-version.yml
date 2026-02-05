@@ -1,16 +1,8 @@
 name: Auto Bump Version
 
+# Manual only - run from Actions tab when you want to bump version
 on:
-  push:
-    branches:
-      - main
-    paths-ignore:
-      - '.github/workflows/bump-version.yml'
-      - 'src/lib/version.ts'
-      - 'src/lib/changelog.ts'
-      - '.github/workflows/bump-version.yml'
-      - 'src/lib/version.ts'
-      - 'src/lib/changelog.ts'
+  workflow_dispatch:
 
 jobs:
   bump-version:
