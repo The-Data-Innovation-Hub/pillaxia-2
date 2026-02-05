@@ -69,6 +69,9 @@ const Auth = () => {
   const [checkingDeviceTrust, setCheckingDeviceTrust] = useState(false);
   const [pendingUserId, setPendingUserId] = useState<string | null>(null);
 
+  const useAzureAuth = import.meta.env.VITE_USE_AZURE_AUTH === "true";
+  const [azureRedirecting, setAzureRedirecting] = useState(false);
+
   // Device trust functions
   const DEVICE_TOKEN_KEY = "pillaxia_device_token";
   
@@ -533,6 +536,50 @@ const Auth = () => {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  // Azure/Entra: already signed in -> go to dashboard
+  if (useAzureAuth && user) {
+    navigate("/dashboard", { replace: true });
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  // Azure/Entra: show a single "Sign in" button so the user triggers the redirect (avoids interaction_in_progress)
+  if (useAzureAuth && !user) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center gap-6 bg-background p-4">
+        <p className="text-muted-foreground text-center">
+          Sign in or create an account with Microsoft to continue.
+        </p>
+        <Button
+          size="lg"
+          className="bg-primary hover:bg-pillaxia-navy-dark text-primary-foreground"
+          disabled={azureRedirecting}
+          onClick={async () => {
+            setAzureRedirecting(true);
+            try {
+              const { error } = await signIn("", "");
+              if (error) toast.error(error.message);
+            } finally {
+              setAzureRedirecting(false);
+            }
+          }}
+        >
+          {azureRedirecting ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Redirecting…
+            </>
+          ) : (
+            "Sign in with Microsoft"
+          )}
+        </Button>
       </div>
     );
   }

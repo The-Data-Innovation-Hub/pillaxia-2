@@ -10,11 +10,12 @@ const Dashboard = () => {
   const navigate = useNavigate();
   const { user, profile, roles, loading, signOut, isAdmin, isManager, isClinician, isPharmacist, isPatient, isAdminOrManager } = useAuth();
 
+  const loginPath = import.meta.env.VITE_USE_AZURE_AUTH === "true" ? "/" : "/auth";
   useEffect(() => {
     if (!loading && !user) {
-      navigate("/auth");
+      navigate(loginPath);
     }
-  }, [user, loading, navigate]);
+  }, [user, loading, navigate, loginPath]);
 
   if (loading) {
     return (

@@ -181,7 +181,7 @@ const AuthModals = ({
 
   const handleGoToFullAuth = () => {
     if (onOpenChange) onOpenChange(false);
-    navigate("/auth");
+    navigate(import.meta.env.VITE_USE_AZURE_AUTH === "true" ? "/" : "/auth");
   };
 
   return (

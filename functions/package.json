@@ -1,0 +1,24 @@
+{
+  "name": "pillaxia-functions",
+  "version": "1.0.0",
+  "description": "Azure Functions - Migrated from Supabase Edge Functions",
+  "type": "module",
+  "main": "src/functions.js",
+  "scripts": {
+    "build": "func extensions install",
+    "start": "func start",
+    "test": "echo \"No tests yet\""
+  },
+  "dependencies": {
+    "@azure/functions": "^4.0.0",
+    "pg": "^8.12.0",
+    "node-fetch": "^3.3.2",
+    "resend": "^3.2.0",
+    "stripe": "^14.14.0",
+    "twilio": "^4.21.0",
+    "dotenv": "^16.4.5"
+  },
+  "devDependencies": {
+    "azure-functions-core-tools": "^4.0.0"
+  }
+}

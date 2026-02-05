@@ -110,7 +110,7 @@ export function NotificationsSettingsTab() {
         description: "Your session ended. Sign in again to send a test notification.",
         variant: "destructive",
       });
-      navigate("/auth");
+      navigate(import.meta.env.VITE_USE_AZURE_AUTH === "true" ? "/" : "/auth");
       return;
     }
     
@@ -174,7 +174,7 @@ export function NotificationsSettingsTab() {
         description: "Your session ended. Sign in again to send test notifications.",
         variant: "destructive",
       });
-      navigate("/auth");
+      navigate(import.meta.env.VITE_USE_AZURE_AUTH === "true" ? "/" : "/auth");
       return;
     }
 

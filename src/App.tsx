@@ -4,7 +4,9 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { AuthProvider } from "@/contexts/AuthContext";
+import { AzureAuthProvider } from "@/contexts/AzureAuthContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { OrganizationProvider } from "@/contexts/OrganizationContext";
 import { LanguageProvider } from "@/i18n/LanguageContext";
 import { OfflineBanner } from "@/components/OfflineBanner";
@@ -70,6 +72,7 @@ import {
 } from "@/routes/lazy-routes";
 
 const queryClient = new QueryClient();
+const useAzureAuth = import.meta.env.VITE_USE_AZURE_AUTH === "true";
 
 const App = () => (
   <SentryErrorBoundary>
@@ -79,7 +82,8 @@ const App = () => (
           <Toaster />
           <Sonner />
           <BrowserRouter>
-            <AuthProvider>
+            {import.meta.env.VITE_USE_AZURE_AUTH === 'true' ? (
+              <AzureAuthProvider>
               <OrganizationProvider>
                 <LanguageProvider>
                   <OnboardingProvider>
@@ -93,7 +97,24 @@ const App = () => (
                   </OnboardingProvider>
                 </LanguageProvider>
               </OrganizationProvider>
-            </AuthProvider>
+              </AzureAuthProvider>
+            ) : (
+              <AuthProvider>
+                <OrganizationProvider>
+                  <LanguageProvider>
+                    <OnboardingProvider>
+                      <SkipLink href="#main-content" />
+                      <EnvironmentBanner />
+                      <OfflineBanner />
+                      <SessionTimeoutWarning />
+                      <TourOverlay />
+                      <OnboardingChecklist />
+                      <AppRoutes />
+                    </OnboardingProvider>
+                  </LanguageProvider>
+                </OrganizationProvider>
+              </AuthProvider>
+            )}
           </BrowserRouter>
         </TooltipProvider>
       </QueryClientProvider>
@@ -110,7 +131,16 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/" element={<Index />} />
-      <Route path="/auth" element={<Auth />} />
+      <Route
+        path="/auth"
+        element={
+          useAzureAuth ? (
+            <Navigate to="/" replace />
+          ) : (
+            <Auth />
+          )
+        }
+      />
     
       {/* Protected Dashboard Routes */}
       <Route
@@ -184,7 +214,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   }
 
   if (!user) {
-    return <Navigate to="/auth" replace />;
+    return <Navigate to={useAzureAuth ? "/" : "/auth"} replace />;
   }
 
   return <>{children}</>;

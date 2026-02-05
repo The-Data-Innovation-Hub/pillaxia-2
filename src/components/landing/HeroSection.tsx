@@ -1,9 +1,14 @@
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
+import { useState } from "react";
+import { Loader2 } from "lucide-react";
 import heroImage from "@/assets/hero-angela.png";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { VersionBadge } from "@/components/VersionBadge";
+import { useAuth } from "@/contexts/AuthContext";
+
+const useAzureAuth = import.meta.env.VITE_USE_AZURE_AUTH === "true";
 
 interface HeroSectionProps {
   onGetStarted?: () => void;
@@ -12,6 +17,21 @@ interface HeroSectionProps {
 const HeroSection = ({ onGetStarted }: HeroSectionProps) => {
   const navigate = useNavigate();
   const { t } = useLanguage();
+  const { signIn } = useAuth();
+  const [azureRedirecting, setAzureRedirecting] = useState(false);
+
+  const handleLoginClick = async () => {
+    if (useAzureAuth) {
+      setAzureRedirecting(true);
+      try {
+        await signIn("", "");
+      } finally {
+        setAzureRedirecting(false);
+      }
+    } else {
+      navigate("/auth");
+    }
+  };
   
   return (
     <section className="relative bg-background overflow-hidden pt-32 pb-20">
@@ -91,9 +111,19 @@ const HeroSection = ({ onGetStarted }: HeroSectionProps) => {
                 size="lg"
                 variant="outline"
                 className="border-pillaxia-cyan text-pillaxia-cyan hover:bg-pillaxia-cyan hover:text-primary-foreground text-xl py-6 px-8 rounded-xl shadow-lg"
-                onClick={() => navigate("/auth")}
+                onClick={handleLoginClick}
+                disabled={azureRedirecting}
               >
-                {t.nav.login}
+                {useAzureAuth
+                  ? (azureRedirecting ? (
+                      <>
+                        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                        Redirecting…
+                      </>
+                    ) : (
+                      "Sign in with Microsoft"
+                    ))
+                  : t.nav.login}
               </Button>
             </motion.div>
           </div>
