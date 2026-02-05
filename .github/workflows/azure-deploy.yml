@@ -12,6 +12,11 @@ on:
       - 'docs/**'
   workflow_dispatch:
     inputs:
+      branch:
+        description: 'Branch to deploy (e.g. feature/azure or main)'
+        required: false
+        default: 'main'
+        type: string
       run_migrations:
         description: 'Run database migrations'
         required: false
@@ -25,6 +30,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.branch || github.ref }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
