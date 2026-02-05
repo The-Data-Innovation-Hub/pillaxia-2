@@ -57,24 +57,41 @@ jobs:
           VITE_AZURE_B2C_TENANT: ${{ secrets.VITE_AZURE_B2C_TENANT }}
           VITE_AZURE_B2C_POLICY: ${{ secrets.VITE_AZURE_B2C_POLICY }}
 
+      # Deploy frontend to Azure Static Web Apps (only when DEPLOY_STATIC_WEB_APP variable is 'true')
+      # Uses SWA CLI so the token is passed via env; the Azure/static-web-apps-deploy action often fails with "deployment_token was not provided"
       - name: Deploy to Azure Static Web Apps
-        uses: Azure/static-web-apps-deploy@v1
-        with:
-          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
-          repo_token: ${{ secrets.GITHUB_TOKEN }}
-          action: "upload"
-          app_location: "/"
-          output_location: "dist"
+        if: vars.DEPLOY_STATIC_WEB_APP == 'true'
+        run: |
+          if [ -z "$SWA_CLI_DEPLOYMENT_TOKEN" ]; then
+            echo "::error::Secret AZURE_STATIC_WEB_APPS_API_TOKEN is missing. Add it in Settings > Secrets (name exactly AZURE_STATIC_WEB_APPS_API_TOKEN)."
+            exit 1
+          fi
+          npx --yes @azure/static-web-apps-cli deploy ./dist --deployment-token "$SWA_CLI_DEPLOYMENT_TOKEN" --env production
+        env:
+          SWA_CLI_DEPLOYMENT_TOKEN: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
 
-      - name: Install API dependencies
-        run: cd api && npm ci
+      # Zip API without node_modules; Azure runs npm install on the server after upload
+      - name: Create API deployment zip
+        run: |
+          cd api
+          zip -r ../api-deploy.zip . -x '*.git*' -x 'node_modules/*'
 
-      - name: Deploy API to Azure Web App
-        uses: azure/webapps-deploy@v2
-        with:
-          app-name: ${{ secrets.AZURE_API_APP_NAME }}
-          publish-profile: ${{ secrets.AZURE_API_PUBLISH_PROFILE }}
-          package: ./api
+      # Deploy API via Kudu with isAsync=true so the step returns in ~1 min (no 5–10 min polling)
+      # Uses AZURE_API_PUBLISH_PROFILE only; deployment continues on Azure in the background
+      - name: Deploy API to Azure Web App (async)
+        run: |
+          printf '%s\n' "$PUBLISH_PROFILE" > publish-profile.xml
+          DEPLOY_PWD=$(tr -d '\n' < publish-profile.xml | sed -n 's/.*userPWD="\([^"]*\)".*/\1/p')
+          if [ -z "$DEPLOY_PWD" ]; then echo "Could not read userPWD from publish profile"; exit 1; fi
+          # Kudu username is $appname (dollar sign + app name)
+          curl -f -X POST \
+            -u "\$$APP_NAME:$DEPLOY_PWD" \
+            --data-binary @api-deploy.zip \
+            "https://$APP_NAME.scm.azurewebsites.net/api/zipdeploy?isAsync=true"
+          rm -f publish-profile.xml
+        env:
+          PUBLISH_PROFILE: ${{ secrets.AZURE_API_PUBLISH_PROFILE }}
+          APP_NAME: ${{ secrets.AZURE_API_APP_NAME }}
 
       - name: Install Functions dependencies
         run: cd functions && npm ci
