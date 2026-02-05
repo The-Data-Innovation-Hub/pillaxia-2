@@ -35,6 +35,9 @@ jobs:
           ref: ${{ github.event.inputs.branch || github.ref }}
           persist-credentials: false
 
+      - name: Clean git config (avoid extraheader cleanup warning)
+        run: git config --global --unset-all http.https://github.com/.extraheader 2>/dev/null || true
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
