@@ -26,6 +26,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Search, User, Shield, Stethoscope, Pill, Building2, Plus, Trash2 } from "lucide-react";
@@ -315,6 +316,9 @@ export function UserManagementPage() {
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle>Add Role</DialogTitle>
+            <DialogDescription className="sr-only">
+              Choose a role to assign: Patient, Clinician, Pharmacist, Manager, or Admin
+            </DialogDescription>
             <p className="text-xs text-muted-foreground font-normal mt-1">
               Roles: Patient · Clinician · Pharmacist · Manager · Admin
             </p>

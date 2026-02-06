@@ -187,7 +187,7 @@ const TABLE_ACL = {
   drug_transfers:                  { roles: ['pharmacist', 'admin'] },
 
   // ── Reference / read-only for everyone ────────
-  user_roles:                      { readonly: true },
+  user_roles:                      { roles: ['admin', 'manager'] }, // admins/managers can assign roles in User Management
   medication_catalog:              { readonly: true },
   drug_interactions:               { readonly: true },
   notification_settings:           { readonly: true },
@@ -471,6 +471,12 @@ async function readinessCheck(_req, res) {
 app.get('/health/ready', readinessCheck);
 app.get('/health', readinessCheck); // backward-compat alias
 app.get('/health/live', (_req, res) => res.json({ status: 'ok' }));
+
+// Sentry DSN for frontend (no auth; returns null if not configured)
+app.get('/api/get-sentry-dsn', (_req, res) => {
+  const dsn = (process.env.SENTRY_DSN || process.env.SENTRY_PUBLIC_DSN || '').trim() || null;
+  res.json({ dsn });
+});
 
 // ── API documentation (Swagger UI) ──
 try {
