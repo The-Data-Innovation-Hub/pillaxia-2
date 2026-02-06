@@ -3,7 +3,7 @@ import { renderHook, waitFor } from "@testing-library/react";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import React from "react";
 
-// Mock MSAL / Azure auth
+// Mock MSAL / Azure auth — include handleRedirectPromise as a top-level export
 vi.mock("@/lib/azure-auth", () => ({
   getMsalInstance: vi.fn(() => Promise.resolve({
     getAllAccounts: vi.fn(() => []),
@@ -12,10 +12,12 @@ vi.mock("@/lib/azure-auth", () => ({
     loginRedirect: vi.fn(),
     logoutRedirect: vi.fn(),
   })),
+  handleRedirectPromise: vi.fn(() => Promise.resolve(null)),
   getAccount: vi.fn(() => null),
-  acquireTokenSilent: vi.fn(() => Promise.resolve({ accessToken: "test-token" })),
-  loginRedirect: vi.fn(),
-  logoutRedirect: vi.fn(),
+  acquireTokenSilent: vi.fn(() => Promise.resolve(null)),
+  signInWithRedirect: vi.fn(),
+  signOut: vi.fn(),
+  getLoginScopes: vi.fn(() => ["openid", "profile", "email"]),
 }));
 
 // Mock API client
@@ -26,7 +28,7 @@ vi.mock("@/integrations/api/client", () => ({
       eq: vi.fn().mockReturnThis(),
       single: vi.fn().mockResolvedValue({ data: null, error: null }),
       maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
-      limit: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockResolvedValue({ data: [], error: null }),
     })),
   },
 }));
@@ -36,6 +38,11 @@ vi.mock("@/lib/sentry", () => ({
   setSentryUser: vi.fn(),
   clearSentryUser: vi.fn(),
   setSentryContext: vi.fn(),
+}));
+
+// Mock sonner
+vi.mock("sonner", () => ({
+  toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() },
 }));
 
 const wrapper = ({ children }: { children: React.ReactNode }) => (

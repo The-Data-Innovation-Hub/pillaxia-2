@@ -13,10 +13,11 @@ vi.mock("@/hooks/useOfflineStatus", () => ({
   useOfflineStatus: () => ({ isOnline: mockIsOnline.current }),
 }));
 
+// Use a stable object reference to prevent infinite re-renders from effect dependencies
+const stableUser = { id: "test-user", email: "test@example.com" };
+const stableAuthReturn = { user: stableUser };
 vi.mock("@/contexts/AuthContext", () => ({
-  useAuth: () => ({
-    user: { id: "test-user", email: "test@example.com" },
-  }),
+  useAuth: () => stableAuthReturn,
 }));
 
 const mockGetMedications = vi.fn().mockResolvedValue([]);
@@ -117,7 +118,8 @@ describe("useCachedMedications", () => {
   });
 
   it("handles network errors gracefully", async () => {
-    mockOrder.mockResolvedValueOnce({ data: null, error: new Error("Network error") });
+    // Make the network call throw
+    mockOrder.mockResolvedValue({ data: null, error: new Error("Network error") });
 
     const { result } = renderHook(() => useCachedMedications());
 
@@ -125,6 +127,7 @@ describe("useCachedMedications", () => {
       expect(result.current.loading).toBe(false);
     });
 
+    // The hook should have recorded the error
     expect(result.current.error).toBeTruthy();
   });
 });

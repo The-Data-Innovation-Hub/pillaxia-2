@@ -13,16 +13,18 @@ vi.mock("@/hooks/useOfflineStatus", () => ({
   useOfflineStatus: () => ({ isOnline: mockIsOnline.current }),
 }));
 
-// Mock schedule cache
-const mockGetSchedule = vi.fn().mockResolvedValue([]);
+// Mock schedule cache — use the actual method names: getTodaysSchedule, saveTodaysSchedule
+const mockGetTodaysSchedule = vi.fn().mockResolvedValue([]);
 const mockGetTimestamp = vi.fn().mockResolvedValue(null);
-const mockSaveSchedule = vi.fn().mockResolvedValue(undefined);
+const mockSaveTodaysSchedule = vi.fn().mockResolvedValue(undefined);
+const mockUpdateLogStatus = vi.fn().mockResolvedValue(undefined);
 
 vi.mock("@/lib/cache", () => ({
   scheduleCache: {
-    getSchedule: (...args: unknown[]) => mockGetSchedule(...args),
+    getTodaysSchedule: (...args: unknown[]) => mockGetTodaysSchedule(...args),
     getCacheTimestamp: (...args: unknown[]) => mockGetTimestamp(...args),
-    saveSchedule: (...args: unknown[]) => mockSaveSchedule(...args),
+    saveTodaysSchedule: (...args: unknown[]) => mockSaveTodaysSchedule(...args),
+    updateLogStatus: (...args: unknown[]) => mockUpdateLogStatus(...args),
   },
   medicationCache: {
     getMedications: vi.fn().mockResolvedValue([]),
@@ -39,6 +41,9 @@ const mockScheduleData = [
     user_id: "test-user-id",
     scheduled_time: new Date().toISOString(),
     status: "pending",
+    taken_at: null,
+    medications: { name: "Aspirin", dosage: "100", dosage_unit: "mg", form: "tablet" },
+    medication_schedules: { quantity: 1, with_food: false },
   },
 ];
 
@@ -66,7 +71,7 @@ describe("useCachedTodaysSchedule", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockIsOnline.current = true;
-    mockGetSchedule.mockResolvedValue([]);
+    mockGetTodaysSchedule.mockResolvedValue([]);
     mockGetTimestamp.mockResolvedValue(null);
   });
 
@@ -76,13 +81,14 @@ describe("useCachedTodaysSchedule", () => {
 
     await waitFor(() => {
       expect(result.current).toBeDefined();
+      expect(result.current.loading).toBe(false);
     });
 
-    expect(result.current.loading !== undefined || result.current.isLoading !== undefined).toBe(true);
+    expect(result.current.logs).toBeDefined();
   });
 
   it("loads from cache first when available", async () => {
-    mockGetSchedule.mockResolvedValue(mockScheduleData);
+    mockGetTodaysSchedule.mockResolvedValue(mockScheduleData);
     mockGetTimestamp.mockResolvedValue(Date.now());
 
     const { useCachedTodaysSchedule } = await import("@/hooks/useCachedTodaysSchedule");
@@ -90,14 +96,15 @@ describe("useCachedTodaysSchedule", () => {
 
     await waitFor(() => {
       expect(result.current).toBeDefined();
+      expect(result.current.loading).toBe(false);
     });
 
-    expect(mockGetSchedule).toHaveBeenCalled();
+    expect(mockGetTodaysSchedule).toHaveBeenCalled();
   });
 
   it("does not fetch from network when offline", async () => {
     mockIsOnline.current = false;
-    mockGetSchedule.mockResolvedValue(mockScheduleData);
+    mockGetTodaysSchedule.mockResolvedValue(mockScheduleData);
     mockGetTimestamp.mockResolvedValue(Date.now());
 
     const { useCachedTodaysSchedule } = await import("@/hooks/useCachedTodaysSchedule");
@@ -105,9 +112,10 @@ describe("useCachedTodaysSchedule", () => {
 
     await waitFor(() => {
       expect(result.current).toBeDefined();
+      expect(result.current.loading).toBe(false);
     });
 
     // Should not save to cache when offline
-    expect(mockSaveSchedule).not.toHaveBeenCalled();
+    expect(mockSaveTodaysSchedule).not.toHaveBeenCalled();
   });
 });

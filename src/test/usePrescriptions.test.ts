@@ -9,6 +9,12 @@ vi.mock("@/contexts/AuthContext", () => ({
     user: { id: "test-user-id", email: "test@example.com" },
     profile: { role: "patient" },
     roles: ["patient"],
+    isClinician: false,
+    isPharmacist: false,
+    isPatient: true,
+    isAdmin: false,
+    isManager: false,
+    isAdminOrManager: false,
   }),
 }));
 
@@ -16,22 +22,31 @@ vi.mock("@/contexts/AuthContext", () => ({
 const mockPrescriptions = [
   {
     id: "rx-1",
-    patient_id: "test-user-id",
-    clinician_id: "doctor-1",
+    patient_user_id: "test-user-id",
+    clinician_user_id: "doctor-1",
+    prescription_number: "RX-001",
     medication_name: "Aspirin",
     dosage: "100mg",
+    dosage_unit: "mg",
+    form: "tablet",
+    quantity: 30,
+    refills_authorized: 2,
+    refills_remaining: 2,
+    sig: "Take one daily",
     status: "active",
+    is_controlled_substance: false,
+    dispense_as_written: false,
+    date_written: "2026-01-01",
     created_at: "2026-01-01T00:00:00Z",
+    updated_at: "2026-01-01T00:00:00Z",
+    pharmacy: { name: "Test Pharmacy", phone: null, email: null },
   },
 ];
 
 const mockProfiles = [
-  { user_id: "doctor-1", first_name: "Dr.", last_name: "Smith" },
-  { user_id: "test-user-id", first_name: "Test", last_name: "Patient" },
+  { user_id: "doctor-1", first_name: "Dr.", last_name: "Smith", email: null, phone: null, license_number: "MD123" },
+  { user_id: "test-user-id", first_name: "Test", last_name: "Patient", email: "test@example.com", phone: null, license_number: null },
 ];
-
-const mockLimitFn = vi.fn();
-const mockInFn = vi.fn();
 
 vi.mock("@/integrations/db", () => ({
   db: {
@@ -39,13 +54,13 @@ vi.mock("@/integrations/db", () => ({
       if (table === "prescriptions") {
         return {
           select: vi.fn().mockReturnValue({
+            order: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnThis(),
+              in: vi.fn().mockReturnThis(),
+              then: (resolve: (v: any) => void) => resolve({ data: mockPrescriptions, error: null }),
+            }),
             or: vi.fn().mockReturnValue({
-              order: vi.fn().mockReturnValue({
-                limit: () => {
-                  mockLimitFn();
-                  return Promise.resolve({ data: mockPrescriptions, error: null });
-                },
-              }),
+              order: vi.fn().mockResolvedValue({ data: mockPrescriptions, error: null }),
             }),
           }),
         };
@@ -53,10 +68,7 @@ vi.mock("@/integrations/db", () => ({
       if (table === "profiles") {
         return {
           select: vi.fn().mockReturnValue({
-            in: () => {
-              mockInFn();
-              return Promise.resolve({ data: mockProfiles, error: null });
-            },
+            in: vi.fn().mockResolvedValue({ data: mockProfiles, error: null }),
           }),
         };
       }
@@ -66,7 +78,12 @@ vi.mock("@/integrations/db", () => ({
         limit: vi.fn().mockResolvedValue({ data: [], error: null }),
       };
     }),
+    rpc: vi.fn().mockResolvedValue({ data: "RX-002", error: null }),
   },
+}));
+
+vi.mock("sonner", () => ({
+  toast: { success: vi.fn(), error: vi.fn() },
 }));
 
 function createWrapper() {
@@ -97,14 +114,14 @@ describe("usePrescriptions", () => {
     expect(result.current.prescriptions).toBeDefined();
   });
 
-  it("returns loading state initially", () => {
-    const { usePrescriptions } = require("@/hooks/usePrescriptions");
+  it("returns loading state initially", async () => {
+    const { usePrescriptions } = await import("@/hooks/usePrescriptions");
 
     const { result } = renderHook(() => usePrescriptions(), {
       wrapper: createWrapper(),
     });
 
-    // Should be loading initially
+    // Should be loading initially or finish quickly
     expect(result.current.isLoading).toBeDefined();
   });
 });

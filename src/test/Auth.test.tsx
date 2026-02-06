@@ -6,20 +6,26 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "next-themes";
 import { AuthProvider } from "@/contexts/AuthContext";
 
-// Mock MSAL / Azure auth
-const mockLoginRedirect = vi.fn();
+// Use vi.hoisted so the mock fn is available when vi.mock (hoisted) runs
+const { mockSignInWithRedirect } = vi.hoisted(() => ({
+  mockSignInWithRedirect: vi.fn(),
+}));
+
+// Mock MSAL / Azure auth — signInWithRedirect is what AuthContext calls
 vi.mock("@/lib/azure-auth", () => ({
   getMsalInstance: vi.fn(() => Promise.resolve({
     getAllAccounts: vi.fn(() => []),
     handleRedirectPromise: vi.fn(() => Promise.resolve(null)),
-    acquireTokenSilent: vi.fn(() => Promise.resolve({ accessToken: "test-token" })),
-    loginRedirect: mockLoginRedirect,
+    acquireTokenSilent: vi.fn(() => Promise.resolve({ accessToken: "test-token", idToken: "test-id-token" })),
+    loginRedirect: vi.fn(),
     logoutRedirect: vi.fn(),
   })),
+  handleRedirectPromise: vi.fn(() => Promise.resolve(null)),
   getAccount: vi.fn(() => null),
-  acquireTokenSilent: vi.fn(() => Promise.resolve({ accessToken: "test-token" })),
-  loginRedirect: mockLoginRedirect,
-  logoutRedirect: vi.fn(),
+  acquireTokenSilent: vi.fn(() => Promise.resolve(null)),
+  signInWithRedirect: mockSignInWithRedirect,
+  signOut: vi.fn(),
+  getLoginScopes: vi.fn(() => ["openid", "profile", "email"]),
 }));
 
 // Mock API client
@@ -30,7 +36,7 @@ vi.mock("@/integrations/api/client", () => ({
       eq: vi.fn().mockReturnThis(),
       single: vi.fn().mockResolvedValue({ data: null, error: null }),
       maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
-      limit: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockResolvedValue({ data: [], error: null }),
     })),
   },
 }));
@@ -42,11 +48,18 @@ vi.mock("@/lib/sentry", () => ({
   setSentryContext: vi.fn(),
 }));
 
+// Mock sonner
+vi.mock("sonner", () => ({
+  toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() },
+}));
+
 // Import after mocking
 import Auth from "@/pages/Auth";
 
 // Mock react-router-dom navigation
-const mockNavigate = vi.fn();
+const { mockNavigate } = vi.hoisted(() => ({
+  mockNavigate: vi.fn(),
+}));
 vi.mock("react-router-dom", async () => {
   const actual = await vi.importActual("react-router-dom");
   return {
@@ -86,7 +99,7 @@ describe("Auth Page (Azure AD B2C)", () => {
     });
   });
 
-  it("calls loginRedirect when Sign in button is clicked", async () => {
+  it("calls signInWithRedirect when Sign in button is clicked", async () => {
     const user = userEvent.setup();
     const Wrapper = createWrapper();
     render(<Auth />, { wrapper: Wrapper });
@@ -98,9 +111,9 @@ describe("Auth Page (Azure AD B2C)", () => {
     const signInButton = screen.getByText(/sign in with microsoft/i);
     await user.click(signInButton);
 
-    // The signIn function in AuthContext calls loginRedirect
+    // AuthContext.signIn calls signInWithRedirect from azure-auth
     await waitFor(() => {
-      expect(mockLoginRedirect).toHaveBeenCalled();
+      expect(mockSignInWithRedirect).toHaveBeenCalled();
     });
   });
 

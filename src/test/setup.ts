@@ -60,19 +60,23 @@ Object.defineProperty(window, "indexedDB", {
   writable: true,
 });
 
-// Mock Azure auth (MSAL)
+// Mock Azure auth (MSAL) — must export all named exports the app uses
 vi.mock("@/lib/azure-auth", () => ({
   getMsalInstance: vi.fn(() => Promise.resolve({
     getAllAccounts: vi.fn(() => []),
     handleRedirectPromise: vi.fn(() => Promise.resolve(null)),
-    acquireTokenSilent: vi.fn(() => Promise.resolve({ accessToken: "test-token" })),
+    acquireTokenSilent: vi.fn(() => Promise.resolve({ accessToken: "test-token", idToken: "test-id-token" })),
     loginRedirect: vi.fn(),
     logoutRedirect: vi.fn(),
+    initialize: vi.fn(() => Promise.resolve()),
   })),
+  handleRedirectPromise: vi.fn(() => Promise.resolve(null)),
   getAccount: vi.fn(() => null),
-  acquireTokenSilent: vi.fn(() => Promise.resolve({ accessToken: "test-token" })),
-  loginRedirect: vi.fn(),
-  logoutRedirect: vi.fn(),
+  acquireTokenSilent: vi.fn(() => Promise.resolve(null)),
+  signInWithRedirect: vi.fn(),
+  signInPopup: vi.fn(),
+  signOut: vi.fn(),
+  getLoginScopes: vi.fn(() => ["openid", "profile", "email"]),
 }));
 
 // Mock API client (database access layer)
