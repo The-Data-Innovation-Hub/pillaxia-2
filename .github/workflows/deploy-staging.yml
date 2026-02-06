@@ -1,15 +1,10 @@
 # Staging Deployment Workflow
-# Deploys to the staging slot for non-main branches or manual trigger.
-# Useful for pre-production testing and validation.
+# Deploys to staging for non-main branches via manual trigger only.
+# Automatic deployment for feature/azure is handled by azure-deploy.yml.
 
 name: Deploy to Staging
 
 on:
-  push:
-    branches-ignore: [main]
-    paths-ignore:
-      - '**.md'
-      - 'docs/**'
   workflow_dispatch:
     inputs:
       branch:
@@ -61,24 +56,25 @@ jobs:
           fi
           DEPLOY_PWD=$(tr -d '\n\r' < publish-profile.xml | sed -n 's/.*[uU]ser[Pp][Ww][Dd]="\([^"]*\)".*/\1/p' | head -1)
           DEPLOY_USER="\$$APP_NAME"
+          echo "Deploying to $APP_NAME..."
           curl -f -X POST \
             -u "$DEPLOY_USER:$DEPLOY_PWD" \
             --data-binary @api-deploy.zip \
-            "https://$APP_NAME-staging.scm.azurewebsites.net/api/zipdeploy?isAsync=true"
+            "https://$APP_NAME.scm.azurewebsites.net/api/zipdeploy?isAsync=true"
           rm -f publish-profile.xml
         env:
           PUBLISH_PROFILE: ${{ secrets.AZURE_API_PUBLISH_PROFILE }}
           APP_NAME_SECRET: ${{ secrets.AZURE_API_APP_NAME }}
 
-      - name: Health check staging
+      - name: Health check
         run: |
           sleep 30
           for i in 1 2 3 4 5; do
-            STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://${APP_NAME}-staging.azurewebsites.net/health/ready")
-            if [ "$STATUS" = "200" ]; then echo "Staging healthy"; exit 0; fi
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://${APP_NAME}.azurewebsites.net/health/ready")
+            if [ "$STATUS" = "200" ]; then echo "Healthy"; exit 0; fi
             echo "Attempt $i: got status $STATUS, retrying in 10s..."
             sleep 10
           done
-          echo "::warning::Staging health check did not succeed after 5 attempts"
+          echo "::warning::Health check did not succeed after 5 attempts"
         env:
           APP_NAME: ${{ secrets.AZURE_API_APP_NAME }}
