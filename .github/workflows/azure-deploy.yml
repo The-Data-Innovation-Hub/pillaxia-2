@@ -159,15 +159,15 @@ jobs:
           fi
           DEPLOY_USER="\$$APP_NAME"
 
-          # Deploy to staging slot (mandatory for production safety)
-          if [ "$USE_STAGING_SLOT" = "true" ]; then
+          # Deploy to staging slot on main (production safety), direct on feature branches
+          if [ "$USE_STAGING_SLOT" = "true" ] && [ "$GITHUB_REF" = "refs/heads/main" ]; then
             echo "Deploying to staging slot..."
             curl -f -X POST \
               -u "$DEPLOY_USER:$DEPLOY_PWD" \
               --data-binary @api-deploy.zip \
               "https://$APP_NAME-staging.scm.azurewebsites.net/api/zipdeploy?isAsync=true"
           else
-            echo "Deploying directly (staging slot disabled via USE_STAGING_SLOT=false)..."
+            echo "Deploying directly..."
             curl -f -X POST \
               -u "$DEPLOY_USER:$DEPLOY_PWD" \
               --data-binary @api-deploy.zip \
@@ -179,9 +179,9 @@ jobs:
           APP_NAME: ${{ secrets.AZURE_API_APP_NAME }}
           USE_STAGING_SLOT: ${{ vars.USE_STAGING_SLOT || 'true' }}
 
-      # Health check staging slot (if using staging slot)
+      # Health check staging slot (only on main with staging enabled)
       - name: Health check staging slot
-        if: vars.USE_STAGING_SLOT == 'true'
+        if: vars.USE_STAGING_SLOT == 'true' && github.ref == 'refs/heads/main'
         run: |
           echo "Waiting 30s for staging slot to warm up..."
           sleep 30
@@ -196,15 +196,15 @@ jobs:
         env:
           APP_NAME: ${{ secrets.AZURE_API_APP_NAME }}
 
-      # Swap staging to production (if using staging slot)
+      # Swap staging to production (only on main with staging enabled)
       - name: Swap staging to production
-        if: vars.USE_STAGING_SLOT == 'true'
+        if: vars.USE_STAGING_SLOT == 'true' && github.ref == 'refs/heads/main'
         uses: azure/login@v2
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
       - name: Execute slot swap
-        if: vars.USE_STAGING_SLOT == 'true'
+        if: vars.USE_STAGING_SLOT == 'true' && github.ref == 'refs/heads/main'
         run: |
           az webapp deployment slot swap \
             -g "$RESOURCE_GROUP" \
