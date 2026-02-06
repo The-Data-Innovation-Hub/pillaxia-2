@@ -44,10 +44,10 @@ jobs:
           NEW_VERSION="${{ steps.bump_version.outputs.new_version }}"
           TODAY=$(date +%Y-%m-%d)
           COMMIT_MSG="${{ github.event.head_commit.message }}"
-          
+
           # Extract first line of commit message for title
           TITLE=$(echo "$COMMIT_MSG" | head -n 1 | sed 's/"/\\"/g')
-          
+
           # Determine change type from commit message
           if echo "$COMMIT_MSG" | grep -qiE "^(feat|feature)"; then
             TYPE="feature"
@@ -58,23 +58,27 @@ jobs:
           else
             TYPE="improvement"
           fi
-          
-          # Create new changelog entry
-          NEW_ENTRY="  {
-    version: \"$NEW_VERSION\",
-    date: \"$TODAY\",
-    title: \"$TITLE\",
-    changes: [
-      {
-        type: \"$TYPE\",
-        description: \"$TITLE\",
-      },
-    ],
-  },"
-          
+
+          # Create new changelog entry (indented for the TS array)
+          NEW_ENTRY=$(cat <<ENTRY_EOF
+            {
+              version: "$NEW_VERSION",
+              date: "$TODAY",
+              title: "$TITLE",
+              changes: [
+                {
+                  type: "$TYPE",
+                  description: "$TITLE",
+                },
+              ],
+            },
+          ENTRY_EOF
+          )
+
           # Insert new entry after the opening bracket of CHANGELOG array
+          ESCAPED=$(echo "$NEW_ENTRY" | sed 's/[&/\]/\\&/g')
           sed -i "/^export const CHANGELOG: ChangelogEntry\[\] = \[$/a\\
-$NEW_ENTRY" src/lib/changelog.ts
+          $ESCAPED" src/lib/changelog.ts
 
       - name: Commit and push version bump
         run: |
