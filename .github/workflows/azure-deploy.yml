@@ -264,7 +264,7 @@ jobs:
     name: Deployment Notification
     needs: [build-and-deploy, health-check]
     runs-on: ubuntu-latest
-    if: always() && secrets.DEPLOY_NOTIFICATION_WEBHOOK != ''
+    if: always()
     steps:
       - name: Notify on success
         if: needs.health-check.result == 'success'
