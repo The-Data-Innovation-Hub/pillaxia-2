@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/db";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Users, Pill, Activity, Shield, FileText, Building2 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -15,12 +15,12 @@ export function AdminDashboardHome() {
     queryKey: ["admin-stats"],
     queryFn: async () => {
       // Get total users
-      const { count: totalUsers } = await supabase
+      const { count: totalUsers } = await db
         .from("profiles")
         .select("*", { count: "exact", head: true });
 
       // Get user role counts
-      const { data: roles } = await supabase
+      const { data: roles } = await db
         .from("user_roles")
         .select("role");
 
@@ -38,18 +38,18 @@ export function AdminDashboardHome() {
       });
 
       // Get total medications
-      const { count: totalMedications } = await supabase
+      const { count: totalMedications } = await db
         .from("medications")
         .select("*", { count: "exact", head: true });
 
       // Get total organizations
-      const { count: totalOrganizations } = await supabase
+      const { count: totalOrganizations } = await db
         .from("organizations")
         .select("*", { count: "exact", head: true });
 
       // Get recent audit logs count (last 24h)
       const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-      const { count: recentAuditLogs } = await supabase
+      const { count: recentAuditLogs } = await db
         .from("audit_log")
         .select("*", { count: "exact", head: true })
         .gte("created_at", oneDayAgo);

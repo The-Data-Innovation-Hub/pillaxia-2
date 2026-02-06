@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/db";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -48,7 +48,7 @@ export function useSecurityNotificationPreferences() {
     queryFn: async (): Promise<SecurityNotificationPreferences> => {
       if (!user?.id) throw new Error("User not authenticated");
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from("security_notification_preferences")
         .select("*")
         .eq("user_id", user.id)
@@ -58,7 +58,7 @@ export function useSecurityNotificationPreferences() {
 
       // If no preferences exist, create default ones
       if (!data) {
-        const { data: newData, error: insertError } = await supabase
+        const { data: newData, error: insertError } = await db
           .from("security_notification_preferences")
           .insert({ user_id: user.id, ...DEFAULT_PREFERENCES })
           .select()
@@ -77,7 +77,7 @@ export function useSecurityNotificationPreferences() {
     mutationFn: async (updates: Partial<Omit<SecurityNotificationPreferences, 'id' | 'user_id' | 'created_at' | 'updated_at'>>) => {
       if (!user?.id) throw new Error("User not authenticated");
 
-      const { error } = await supabase
+      const { error } = await db
         .from("security_notification_preferences")
         .update(updates)
         .eq("user_id", user.id);

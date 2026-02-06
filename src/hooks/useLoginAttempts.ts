@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/db";
 
 interface LockoutStatus {
   locked: boolean;
@@ -19,7 +19,7 @@ interface LoginAttemptResult {
 export function useLoginAttempts() {
   const checkAccountLocked = useCallback(async (email: string): Promise<LockoutStatus> => {
     try {
-      const { data, error } = await supabase.rpc("check_account_locked", {
+      const { data, error } = await db.rpc("check_account_locked", {
         p_email: email,
       });
 
@@ -44,7 +44,7 @@ export function useLoginAttempts() {
       try {
         const userAgent = navigator.userAgent;
 
-        const { data, error } = await supabase.rpc("record_login_attempt", {
+        const { data, error } = await db.rpc("record_login_attempt", {
           p_email: email,
           p_success: success,
           p_ip_address: ipAddress || null,

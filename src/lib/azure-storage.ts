@@ -1,6 +1,6 @@
 /**
  * Azure Blob Storage client
- * Replaces Supabase Storage when VITE_USE_AZURE_AUTH=true
+ * Azure Blob Storage client for file uploads.
  * Uses API endpoint for uploads (avoids exposing storage credentials to client)
  */
 

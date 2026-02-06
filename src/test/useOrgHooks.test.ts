@@ -7,21 +7,21 @@ import { renderHook, waitFor, act } from "@testing-library/react";
 import { useOrgData } from "@/hooks/useOrgData";
 import { useOrgBranding, DEFAULT_BRANDING } from "@/hooks/useOrgBranding";
 
-// Mock Supabase client
-const mockSupabase = {
+// Mock API client (db)
+const mockDb = {
   from: vi.fn(),
 };
 
-vi.mock("@/integrations/supabase/client", () => ({
-  supabase: {
-    from: (table: string) => mockSupabase.from(table),
+vi.mock("@/integrations/db", () => ({
+  db: {
+    from: (table: string) => mockDb.from(table),
   },
 }));
 
 describe("useOrgData", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockSupabase.from.mockReturnValue({
+    mockDb.from.mockReturnValue({
       select: vi.fn(() => ({
         eq: vi.fn(() => ({
           maybeSingle: vi.fn(() => Promise.resolve({ data: null, error: null })),

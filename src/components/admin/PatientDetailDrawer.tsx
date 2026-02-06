@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/db";
 import {
   Sheet,
   SheetContent,
@@ -86,7 +86,7 @@ export function PatientDetailDrawer({ patient, open, onOpenChange }: PatientDeta
       if (!patient?.user_id) return [];
       
       const startDate = subDays(new Date(), 30);
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from("patient_engagement_scores")
         .select("score_date, overall_score, adherence_score, app_usage_score, notification_score")
         .eq("user_id", patient.user_id)
@@ -311,8 +311,8 @@ export function PatientDetailDrawer({ patient, open, onOpenChange }: PatientDeta
                   />
                   <p className="text-xs text-muted-foreground">
                     {currentScore.metrics?.adherence?.taken || 0} of {currentScore.metrics?.adherence?.total || 0} doses taken
-                    {currentScore.metrics?.adherence?.missed > 0 && (
-                      <span className="text-red-600"> • {currentScore.metrics.adherence.missed} missed</span>
+                    {(currentScore.metrics?.adherence?.missed ?? 0) > 0 && (
+                      <span className="text-red-600"> • {currentScore.metrics?.adherence?.missed} missed</span>
                     )}
                   </p>
                 </div>

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNotificationSettings } from "@/hooks/useNotificationSettings";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/db";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -52,7 +52,7 @@ const ChatDialog = ({
   const { data: messages = [], isLoading } = useQuery({
     queryKey: ["chat-messages", caregiverId, patientId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from("caregiver_messages")
         .select("id, message, sender_type, is_read, created_at")
         .eq("caregiver_user_id", caregiverId)
@@ -63,6 +63,7 @@ const ChatDialog = ({
       return data as Message[];
     },
     enabled: open,
+    refetchInterval: 3000,
   });
 
   // Send message mutation
@@ -70,7 +71,7 @@ const ChatDialog = ({
     mutationFn: async (text: string) => {
       const senderType = viewerRole;
       
-      const { error } = await supabase.from("caregiver_messages").insert({
+      const { error } = await db.from("caregiver_messages").insert({
         caregiver_user_id: caregiverId,
         patient_user_id: patientId,
         message: text,
@@ -81,7 +82,7 @@ const ChatDialog = ({
       if (error) throw error;
 
       // Send WhatsApp notification (fire and forget)
-      supabase.functions.invoke("send-whatsapp-notification", {
+      db.functions.invoke("send-whatsapp-notification", {
         body: {
           recipientId: viewerRole === "patient" ? caregiverId : patientId,
           senderName: viewerRole === "patient" ? "Your patient" : caregiverName,
@@ -110,7 +111,7 @@ const ChatDialog = ({
     );
 
     if (unreadMessages.length > 0) {
-      supabase
+      db
         .from("caregiver_messages")
         .update({ is_read: true })
         .in("id", unreadMessages.map((m) => m.id))
@@ -121,31 +122,6 @@ const ChatDialog = ({
         });
     }
   }, [open, messages, user, viewerRole, caregiverId, patientId, queryClient]);
-
-  // Realtime subscription
-  useEffect(() => {
-    if (!open) return;
-
-    const channel = supabase
-      .channel(`chat-${caregiverId}-${patientId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "caregiver_messages",
-          filter: `patient_user_id=eq.${patientId}`,
-        },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ["chat-messages", caregiverId, patientId] });
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [open, caregiverId, patientId, queryClient]);
 
   // Scroll to bottom when messages change
   useEffect(() => {

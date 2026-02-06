@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/db";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -79,7 +79,7 @@ export function CaregiversPageContent() {
   const { data: invitations, isLoading } = useQuery({
     queryKey: ["caregiver-invitations", user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from("caregiver_invitations")
         .select("*")
         .eq("patient_user_id", user!.id)
@@ -91,7 +91,7 @@ export function CaregiversPageContent() {
       const invitationsWithProfiles = await Promise.all(
         (data || []).map(async (inv) => {
           if (inv.caregiver_user_id) {
-            const { data: profile } = await supabase
+            const { data: profile } = await db
               .from("profiles")
               .select("first_name, last_name")
               .eq("user_id", inv.caregiver_user_id)
@@ -110,7 +110,7 @@ export function CaregiversPageContent() {
   // Send invitation mutation
   const sendInvitationMutation = useMutation({
     mutationFn: async ({ email, name, perms }: { email: string; name: string; perms: typeof permissions }) => {
-      const { error } = await supabase.from("caregiver_invitations").insert({
+      const { error } = await db.from("caregiver_invitations").insert({
         patient_user_id: user!.id,
         caregiver_email: email.toLowerCase().trim(),
         caregiver_name: name.trim() || null,
@@ -140,7 +140,7 @@ export function CaregiversPageContent() {
   // Delete invitation mutation
   const deleteInvitationMutation = useMutation({
     mutationFn: async (invitationId: string) => {
-      const { error } = await supabase
+      const { error } = await db
         .from("caregiver_invitations")
         .delete()
         .eq("id", invitationId);
@@ -160,7 +160,7 @@ export function CaregiversPageContent() {
   // Update invitation mutation
   const updateInvitationMutation = useMutation({
     mutationFn: async ({ id, name, perms }: { id: string; name: string; perms: typeof permissions }) => {
-      const { error } = await supabase
+      const { error } = await db
         .from("caregiver_invitations")
         .update({
           caregiver_name: name.trim() || null,

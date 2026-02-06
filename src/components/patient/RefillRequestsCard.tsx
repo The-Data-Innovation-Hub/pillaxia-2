@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/db";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -28,7 +28,7 @@ export function RefillRequestsCard() {
   const { data: requests, isLoading } = useQuery({
     queryKey: ["patient-refill-requests", user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from("refill_requests")
         .select(`
           id,

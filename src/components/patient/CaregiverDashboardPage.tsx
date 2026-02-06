@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/db";
 import { useAuth } from "@/contexts/AuthContext";
 import { useMissedDoseAlerts } from "@/hooks/useMissedDoseAlerts";
 import {
@@ -79,7 +79,7 @@ export function CaregiverDashboardPage() {
       if (!user) return [];
 
       // Get all accepted invitations for this caregiver
-      const { data: invitations, error: invError } = await supabase
+      const { data: invitations, error: invError } = await db
         .from("caregiver_invitations")
         .select("*")
         .eq("caregiver_user_id", user.id)
@@ -94,7 +94,7 @@ export function CaregiverDashboardPage() {
           const permissions = (inv.permissions as CaregiverPermissions) || {};
 
           // Fetch patient profile
-          const { data: profile } = await supabase
+          const { data: profile } = await db
             .from("profiles")
             .select("first_name, last_name, email")
             .eq("user_id", inv.patient_user_id)
@@ -103,7 +103,7 @@ export function CaregiverDashboardPage() {
           // Fetch medications if permitted
           let medications: PatientWithData["medications"] = [];
           if (permissions.view_medications) {
-            const { data: meds } = await supabase
+            const { data: meds } = await db
               .from("medications")
               .select("id, name, dosage, dosage_unit, is_active")
               .eq("user_id", inv.patient_user_id)
@@ -115,7 +115,7 @@ export function CaregiverDashboardPage() {
           let adherenceStats = { total: 0, taken: 0, missed: 0, pending: 0, percentage: 0 };
           if (permissions.view_adherence) {
             const sevenDaysAgo = subDays(new Date(), 7);
-            const { data: logs } = await supabase
+            const { data: logs } = await db
               .from("medication_logs")
               .select("status")
               .eq("user_id", inv.patient_user_id)
@@ -137,7 +137,7 @@ export function CaregiverDashboardPage() {
           let recentSymptoms: PatientWithData["recentSymptoms"] = [];
           if (permissions.view_symptoms) {
             const sevenDaysAgo = subDays(new Date(), 7);
-            const { data: symptoms } = await supabase
+            const { data: symptoms } = await db
               .from("symptom_entries")
               .select("id, symptom_type, severity, recorded_at, description")
               .eq("user_id", inv.patient_user_id)
@@ -171,7 +171,7 @@ export function CaregiverDashboardPage() {
       patient_name: p.patient_profile?.first_name
         ? `${p.patient_profile.first_name} ${p.patient_profile.last_name || ""}`
         : "Patient",
-      medications: new Map(p.medications.map((m) => [m.id, m.name])),
+      medications: new Map<string, string>(p.medications.map((m: any) => [m.id, m.name])),
     }));
   }, [patients]);
 

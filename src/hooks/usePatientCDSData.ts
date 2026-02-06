@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/db";
 
 interface PatientCDSData {
   id: string;
@@ -41,21 +41,21 @@ export function usePatientCDSData(patientId: string | null) {
       if (!patientId) return null;
 
       // Fetch patient profile
-      const { data: profile } = await supabase
+      const { data: profile } = await db
         .from("profiles")
         .select("first_name, last_name")
         .eq("user_id", patientId)
         .single();
 
       // Fetch chronic conditions
-      const { data: conditions } = await supabase
+      const { data: conditions } = await db
         .from("patient_chronic_conditions")
         .select("condition_name")
         .eq("user_id", patientId)
         .eq("is_active", true);
 
       // Fetch allergies
-      const { data: allergies } = await supabase
+      const { data: allergies } = await db
         .from("patient_allergies")
         .select("allergen")
         .eq("user_id", patientId);
@@ -64,7 +64,7 @@ export function usePatientCDSData(patientId: string | null) {
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-      const { data: symptoms } = await supabase
+      const { data: symptoms } = await db
         .from("symptom_entries")
         .select("symptom_type, severity, description")
         .eq("user_id", patientId)
@@ -73,7 +73,7 @@ export function usePatientCDSData(patientId: string | null) {
         .limit(20);
 
       // Fetch latest vitals
-      const { data: vitals } = await supabase
+      const { data: vitals } = await db
         .from("patient_vitals")
         .select("blood_pressure_systolic, blood_pressure_diastolic, heart_rate, temperature, respiratory_rate, oxygen_saturation")
         .eq("user_id", patientId)
@@ -82,7 +82,7 @@ export function usePatientCDSData(patientId: string | null) {
         .single();
 
       // Fetch recent lab results
-      const { data: labResults } = await supabase
+      const { data: labResults } = await db
         .from("lab_results")
         .select("test_name, result_value, reference_range, is_abnormal")
         .eq("user_id", patientId)
@@ -90,7 +90,7 @@ export function usePatientCDSData(patientId: string | null) {
         .limit(20);
 
       // Fetch active medications
-      const { data: medications } = await supabase
+      const { data: medications } = await db
         .from("medications")
         .select("name, dosage, form")
         .eq("user_id", patientId)

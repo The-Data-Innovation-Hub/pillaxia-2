@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/db";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -31,7 +31,7 @@ import {
 import { Search, User, Shield, Stethoscope, Pill, Plus, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
-import type { Database } from "@/integrations/supabase/types";
+import type { Database } from "@/types/database";
 
 type AppRole = Database["public"]["Enums"]["app_role"];
 
@@ -57,7 +57,7 @@ export function UserManagementPage() {
     queryKey: ["admin-users"],
     queryFn: async () => {
       // Get all profiles
-      const { data: profiles, error } = await supabase
+      const { data: profiles, error } = await db
         .from("profiles")
         .select("*")
         .order("created_at", { ascending: false });
@@ -65,7 +65,7 @@ export function UserManagementPage() {
       if (error) throw error;
 
       // Get all user roles
-      const { data: allRoles } = await supabase.from("user_roles").select("*");
+      const { data: allRoles } = await db.from("user_roles").select("*");
 
       // Map users with their roles
       const usersWithRoles: UserWithRoles[] = (profiles || []).map((profile) => {
@@ -91,7 +91,7 @@ export function UserManagementPage() {
 
   const addRoleMutation = useMutation({
     mutationFn: async ({ userId, role }: { userId: string; role: AppRole }) => {
-      const { error } = await supabase.from("user_roles").insert({
+      const { error } = await db.from("user_roles").insert({
         user_id: userId,
         role: role,
       });
@@ -111,7 +111,7 @@ export function UserManagementPage() {
 
   const removeRoleMutation = useMutation({
     mutationFn: async ({ userId, role }: { userId: string; role: AppRole }) => {
-      const { error } = await supabase
+      const { error } = await db
         .from("user_roles")
         .delete()
         .eq("user_id", userId)

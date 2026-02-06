@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/db";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNotificationSettings } from "@/hooks/useNotificationSettings";
 import { toast } from "@/hooks/use-toast";
@@ -53,7 +53,7 @@ export function SendEncouragementDialog({
       if (!user) throw new Error("Not authenticated");
 
       // Insert the message into the database
-      const { error } = await supabase.from("caregiver_messages").insert({
+      const { error } = await db.from("caregiver_messages").insert({
         caregiver_user_id: user.id,
         patient_user_id: patientUserId,
         message: messageText.trim(),
@@ -63,7 +63,7 @@ export function SendEncouragementDialog({
 
       // Send email notification (fire and forget - don't fail if email fails)
       try {
-        await supabase.functions.invoke("send-encouragement-email", {
+        await db.functions.invoke("send-encouragement-email", {
           body: {
             patient_user_id: patientUserId,
             caregiver_name: caregiverName,

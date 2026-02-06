@@ -6,11 +6,13 @@
 
 import { app } from '@azure/functions';
 import { query } from '../shared/db.js';
+import { createFunctionLogger } from '../shared/logger.js';
 
 app.timer('send-medication-reminders', {
   schedule: '0 */5 * * * *',
   handler: async (myTimer, context) => {
-    context.log('Send medication reminders triggered');
+    const log = createFunctionLogger('send-medication-reminders', context);
+    log.info('Send medication reminders triggered');
 
     const now = new Date();
     const startTime = new Date(now.getTime());
@@ -39,7 +41,7 @@ app.timer('send-medication-reminders', {
 
       for (const [userId, doses] of dosesByUser) {
         const medNames = [...new Set(doses.map((d) => d.med_name))].join(', ');
-        context.log(`Sending reminder to user ${userId}: ${medNames}`);
+        log.info(`Sending reminder to user ${userId}`, { userId, medNames });
 
         await invokeFunction('send-push-notification', {
           user_ids: [userId],
@@ -68,7 +70,7 @@ app.timer('send-medication-reminders', {
 
       return { processed: dosesByUser.size };
     } catch (err) {
-      context.log.error('Send medication reminders error:', err);
+      log.error('Send medication reminders error', { error: err.message });
       throw err;
     }
   },

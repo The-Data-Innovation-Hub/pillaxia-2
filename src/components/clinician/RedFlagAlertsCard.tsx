@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/db";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -39,7 +39,7 @@ export function RedFlagAlertsCard() {
   const { data: alerts, isLoading } = useQuery({
     queryKey: ["red-flag-alerts", user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from("red_flag_alerts")
         .select("*")
         .eq("clinician_user_id", user!.id)
@@ -50,6 +50,7 @@ export function RedFlagAlertsCard() {
       return data as RedFlagAlert[];
     },
     enabled: !!user,
+    refetchInterval: 15000,
   });
 
   // Fetch patient profiles
@@ -57,7 +58,7 @@ export function RedFlagAlertsCard() {
     if (alerts?.length) {
       const patientIds = [...new Set(alerts.map((a) => a.patient_user_id))];
       
-      supabase
+      db
         .from("profiles")
         .select("user_id, first_name, last_name")
         .in("user_id", patientIds)
@@ -69,38 +70,10 @@ export function RedFlagAlertsCard() {
     }
   }, [alerts]);
 
-  // Subscribe to realtime alerts
-  useEffect(() => {
-    if (!user) return;
-
-    const channel = supabase
-      .channel("red-flag-alerts")
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "red_flag_alerts",
-          filter: `clinician_user_id=eq.${user.id}`,
-        },
-        (payload) => {
-          queryClient.invalidateQueries({ queryKey: ["red-flag-alerts"] });
-          toast.error("🚨 New red flag alert!", {
-            description: `Severe ${payload.new.symptom_type} reported`,
-          });
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [user, queryClient]);
-
   // Acknowledge mutation
   const acknowledgeMutation = useMutation({
     mutationFn: async (alertId: string) => {
-      const { error } = await supabase
+      const { error } = await db
         .from("red_flag_alerts")
         .update({
           is_acknowledged: true,

@@ -12,7 +12,7 @@ import { test as base, expect, Page } from "@playwright/test";
  */
 
 // Test user credentials - use environment variables for CI, fallback to defaults for local
-// These match the E2E_TEST_USERS in supabase/functions/seed-demo-users/index.ts
+// These match the E2E test users configured in Azure AD B2C
 export const TEST_USER = {
   email: process.env.E2E_TEST_USER_EMAIL || "e2e-test@pillaxia.test",
   password: process.env.E2E_TEST_USER_PASSWORD || "TestPassword123!",

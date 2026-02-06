@@ -7,6 +7,7 @@
 import { app } from '@azure/functions';
 import Stripe from 'stripe';
 import { query } from '../shared/db.js';
+import { createFunctionLogger } from '../shared/logger.js';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', { apiVersion: '2024-06-20' });
 
@@ -14,12 +15,13 @@ app.http('stripe-webhook', {
   methods: ['POST'],
   authLevel: 'function',
   handler: async (req, context) => {
+    const log = createFunctionLogger('stripe-webhook', context);
     const sig = req.headers.get('stripe-signature') || '';
     const body = await req.text();
     const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
     if (!webhookSecret) {
-      context.log.error('STRIPE_WEBHOOK_SECRET not configured');
+      log.error('STRIPE_WEBHOOK_SECRET not configured');
       return { status: 400, body: 'Webhook secret not configured' };
     }
 
@@ -27,7 +29,7 @@ app.http('stripe-webhook', {
     try {
       event = stripe.webhooks.constructEvent(body, sig, webhookSecret);
     } catch (err) {
-      context.log.error('Stripe webhook signature verification failed:', err.message);
+      log.error('Stripe webhook signature verification failed', { error: err.message });
       return { status: 400, body: `Webhook Error: ${err.message}` };
     }
 
@@ -68,16 +70,16 @@ app.http('stripe-webhook', {
         }
         case 'invoice.payment_failed': {
           const invoice = event.data.object;
-          context.log.warn('Payment failed for invoice:', invoice.id);
+          log.warn('Payment failed for invoice', { invoiceId: invoice.id });
           break;
         }
         default:
-          context.log(`Unhandled event type: ${event.type}`);
+          log.info(`Unhandled event type: ${event.type}`);
       }
 
       return { status: 200, body: JSON.stringify({ received: true }) };
     } catch (err) {
-      context.log.error('Stripe webhook handler error:', err);
+      log.error('Stripe webhook handler error', { error: err.message });
       return { status: 500, body: JSON.stringify({ error: err.message }) };
     }
   },

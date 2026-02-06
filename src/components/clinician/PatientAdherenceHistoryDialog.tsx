@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/db";
 import {
   Dialog,
   DialogContent,
@@ -54,7 +54,7 @@ export function PatientAdherenceHistoryDialog({
   const { data: logs, isLoading } = useQuery({
     queryKey: ["patient-adherence-history", patientId, startDate, endDate],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from("medication_logs")
         .select(`
           id,

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/db";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -37,7 +37,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { format, subDays } from "date-fns";
-import type { Database } from "@/integrations/supabase/types";
+import type { Database } from "@/types/database";
 
 type SecurityEventType = Database["public"]["Enums"]["security_event_type"];
 
@@ -82,7 +82,7 @@ export function SecurityDashboardPage() {
   const { data: securityEvents, isLoading: loadingEvents, refetch: refetchEvents } = useQuery({
     queryKey: ["security-events", eventFilter, severityFilter, dateRange],
     queryFn: async () => {
-      let query = supabase
+      let query = db
         .from("security_events")
         .select("*")
         .gte("created_at", subDays(new Date(), parseInt(dateRange)).toISOString())
@@ -106,7 +106,7 @@ export function SecurityDashboardPage() {
   const { data: dataAccessLogs, isLoading: loadingAccess } = useQuery({
     queryKey: ["data-access-logs", dateRange],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from("data_access_log")
         .select("*")
         .gte("created_at", subDays(new Date(), parseInt(dateRange)).toISOString())
@@ -122,7 +122,7 @@ export function SecurityDashboardPage() {
   const { data: activeSessions, isLoading: loadingSessions, refetch: refetchSessions } = useQuery({
     queryKey: ["active-sessions"],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from("user_sessions")
         .select("*")
         .eq("is_active", true)

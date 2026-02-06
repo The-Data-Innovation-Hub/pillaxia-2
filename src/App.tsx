@@ -1,12 +1,10 @@
-import { Suspense, useEffect, useState } from "react";
+import { Suspense } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { AuthProvider } from "@/contexts/AuthContext";
-import { AzureAuthProvider } from "@/contexts/AzureAuthContext";
-import { useAuth } from "@/contexts/AuthContext";
+import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { OrganizationProvider } from "@/contexts/OrganizationContext";
 import { LanguageProvider } from "@/i18n/LanguageContext";
 import { OfflineBanner } from "@/components/OfflineBanner";
@@ -72,7 +70,6 @@ import {
 } from "@/routes/lazy-routes";
 
 const queryClient = new QueryClient();
-const useAzureAuth = import.meta.env.VITE_USE_AZURE_AUTH === "true";
 
 const App = () => (
   <SentryErrorBoundary>
@@ -82,8 +79,7 @@ const App = () => (
           <Toaster />
           <Sonner />
           <BrowserRouter>
-            {import.meta.env.VITE_USE_AZURE_AUTH === 'true' ? (
-              <AzureAuthProvider>
+            <AuthProvider>
               <OrganizationProvider>
                 <LanguageProvider>
                   <OnboardingProvider>
@@ -97,24 +93,7 @@ const App = () => (
                   </OnboardingProvider>
                 </LanguageProvider>
               </OrganizationProvider>
-              </AzureAuthProvider>
-            ) : (
-              <AuthProvider>
-                <OrganizationProvider>
-                  <LanguageProvider>
-                    <OnboardingProvider>
-                      <SkipLink href="#main-content" />
-                      <EnvironmentBanner />
-                      <OfflineBanner />
-                      <SessionTimeoutWarning />
-                      <TourOverlay />
-                      <OnboardingChecklist />
-                      <AppRoutes />
-                    </OnboardingProvider>
-                  </LanguageProvider>
-                </OrganizationProvider>
-              </AuthProvider>
-            )}
+            </AuthProvider>
           </BrowserRouter>
         </TooltipProvider>
       </QueryClientProvider>
@@ -130,17 +109,8 @@ function SuspenseRoute({ children }: { children: React.ReactNode }) {
 function AppRoutes() {
   return (
     <Routes>
-      <Route path="/" element={<Index />} />
-      <Route
-        path="/auth"
-        element={
-          useAzureAuth ? (
-            <Navigate to="/" replace />
-          ) : (
-            <Auth />
-          )
-        }
-      />
+      <Route path="/" element={<HomeOrDashboard />} />
+      <Route path="/auth" element={<Auth />} />
     
       {/* Protected Dashboard Routes */}
       <Route
@@ -205,6 +175,21 @@ function AppRoutes() {
   );
 }
 
+// Redirect authenticated users to dashboard, show landing page otherwise
+function HomeOrDashboard() {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return <PageLoadingFallback />;
+  }
+
+  if (user) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  return <Index />;
+}
+
 // Protected route wrapper
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -214,7 +199,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   }
 
   if (!user) {
-    return <Navigate to={useAzureAuth ? "/" : "/auth"} replace />;
+    return <Navigate to="/" replace />;
   }
 
   return <>{children}</>;
@@ -238,13 +223,11 @@ function DashboardRouter() {
   }
 
   // If roles aren't verified yet but we have a session, show loading
-  // This prevents brief flash of wrong layout
   if (!verified) {
     return <PageLoadingFallback />;
   }
 
   // Route based on server-verified role priority
-  // These roles come from the server and cannot be manipulated client-side
   if (isAdmin || isManager) {
     return <AdminLayout />;
   }
@@ -265,7 +248,6 @@ function DashboardRouter() {
 function DashboardHome() {
   const { isAdmin, isManager, isClinician, isPharmacist, verified, loading } = useServerVerifiedRoles();
   
-  // Wait for server verification
   if (loading || !verified) {
     return <PageLoadingFallback />;
   }

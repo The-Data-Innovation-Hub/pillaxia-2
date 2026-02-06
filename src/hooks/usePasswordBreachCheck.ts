@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/db";
 
 interface BreachCheckResult {
   breached: boolean;
@@ -22,7 +22,7 @@ export function usePasswordBreachCheck() {
     setBreachResult(null);
 
     try {
-      const { data, error } = await supabase.functions.invoke('check-password-breach', {
+      const { data, error } = await db.functions.invoke('check-password-breach', {
         body: { password },
       });
 

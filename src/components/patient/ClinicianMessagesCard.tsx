@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { db } from "@/integrations/db";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   Card,
@@ -25,7 +25,6 @@ interface Conversation {
 
 export function ClinicianMessagesCard() {
   const { user } = useAuth();
-  const queryClient = useQueryClient();
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
 
   // Fetch patient profile for name
@@ -33,7 +32,7 @@ export function ClinicianMessagesCard() {
     queryKey: ["patient-profile", user?.id],
     queryFn: async () => {
       if (!user) return null;
-      const { data } = await supabase
+      const { data } = await db
         .from("profiles")
         .select("first_name, last_name")
         .eq("user_id", user.id)
@@ -53,7 +52,7 @@ export function ClinicianMessagesCard() {
       if (!user) return [];
 
       // Get all messages for this patient from clinicians
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from("clinician_messages")
         .select("id, message, is_read, created_at, clinician_user_id, sender_type")
         .eq("patient_user_id", user.id)
@@ -66,20 +65,20 @@ export function ClinicianMessagesCard() {
       const clinicianIds = [...new Set(data.map((m) => m.clinician_user_id))];
       
       // Fetch clinician profiles
-      const { data: profiles } = await supabase
+      const { data: profiles } = await db
         .from("profiles")
         .select("user_id, first_name, last_name")
         .in("user_id", clinicianIds);
 
       const profileMap = new Map(
-        profiles?.map((p) => [p.user_id, p]) || []
+        profiles?.map((p: any) => [p.user_id, p]) || []
       );
 
       // Build conversation summaries
       const convMap = new Map<string, Conversation>();
       for (const msg of data) {
         if (!convMap.has(msg.clinician_user_id)) {
-          const profile = profileMap.get(msg.clinician_user_id);
+          const profile = profileMap.get(msg.clinician_user_id) as any;
           convMap.set(msg.clinician_user_id, {
             clinician_user_id: msg.clinician_user_id,
             clinician_name: profile?.first_name 
@@ -100,32 +99,8 @@ export function ClinicianMessagesCard() {
       return Array.from(convMap.values());
     },
     enabled: !!user,
+    refetchInterval: 10000,
   });
-
-  // Subscribe to realtime updates
-  useEffect(() => {
-    if (!user) return;
-
-    const channel = supabase
-      .channel("patient-clinician-messages-realtime")
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "clinician_messages",
-          filter: `patient_user_id=eq.${user.id}`,
-        },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ["patient-clinician-messages"] });
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [user, queryClient]);
 
   const totalUnread = conversations?.reduce((acc, c) => acc + c.unread_count, 0) || 0;
 

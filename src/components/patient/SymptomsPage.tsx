@@ -1,7 +1,7 @@
 // Force module refresh - v6
 import { useState, useMemo } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/db";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -47,7 +47,7 @@ export function SymptomsPage() {
     }
 
     try {
-      const { error } = await supabase
+      const { error } = await db
         .from("symptom_entries")
         .delete()
         .eq("id", id);

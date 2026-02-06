@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/db";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
@@ -47,7 +47,7 @@ export function EngagementTrendsChart() {
   const { data: patients, isLoading: patientsLoading } = useQuery({
     queryKey: ["engagement-patients"],
     queryFn: async () => {
-      const { data: scores, error: scoresError } = await supabase
+      const { data: scores, error: scoresError } = await db
         .from("patient_engagement_scores")
         .select("user_id, risk_level, score_date")
         .order("score_date", { ascending: false });
@@ -65,7 +65,7 @@ export function EngagementTrendsChart() {
       const userIds = Array.from(latestByUser.keys());
       if (userIds.length === 0) return [];
 
-      const { data: profiles } = await supabase
+      const { data: profiles } = await db
         .from("profiles")
         .select("user_id, first_name, last_name, email")
         .in("user_id", userIds);
@@ -91,7 +91,7 @@ export function EngagementTrendsChart() {
     queryFn: async () => {
       const startDate = subDays(new Date(), parseInt(dateRange));
 
-      let query = supabase
+      let query = db
         .from("patient_engagement_scores")
         .select("user_id, score_date, overall_score, adherence_score, app_usage_score, notification_score")
         .gte("score_date", format(startDate, "yyyy-MM-dd"))

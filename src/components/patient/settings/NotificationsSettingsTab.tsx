@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/db";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/hooks/use-toast";
 import { useUnifiedPushNotifications } from "@/hooks/useUnifiedPushNotifications";
@@ -24,7 +24,6 @@ import {
   BellRing,
   Mail,
   Smartphone,
-  MessageCircle,
   Moon,
   Clock,
   AlertTriangle,
@@ -32,8 +31,6 @@ import {
   Pill,
   Loader2,
   Send,
-  Stethoscope,
-  MessageSquare,
   CheckCircle,
 } from "lucide-react";
 
@@ -41,16 +38,11 @@ interface NotificationPreferences {
   id: string;
   user_id: string;
   email_reminders: boolean;
-  sms_reminders: boolean;
   in_app_reminders: boolean;
   email_missed_alerts: boolean;
   in_app_missed_alerts: boolean;
   email_encouragements: boolean;
   in_app_encouragements: boolean;
-  email_clinician_messages: boolean;
-  push_clinician_messages: boolean;
-  whatsapp_clinician_messages: boolean;
-  sms_clinician_messages: boolean;
   quiet_hours_enabled: boolean;
   quiet_hours_start: string;
   quiet_hours_end: string;
@@ -58,16 +50,11 @@ interface NotificationPreferences {
 
 const DEFAULT_PREFERENCES: Omit<NotificationPreferences, "id" | "user_id"> = {
   email_reminders: true,
-  sms_reminders: true,
   in_app_reminders: true,
   email_missed_alerts: true,
   in_app_missed_alerts: true,
   email_encouragements: true,
   in_app_encouragements: true,
-  email_clinician_messages: true,
-  push_clinician_messages: true,
-  whatsapp_clinician_messages: true,
-  sms_clinician_messages: true,
   quiet_hours_enabled: false,
   quiet_hours_start: "22:00",
   quiet_hours_end: "07:00",
@@ -110,13 +97,13 @@ export function NotificationsSettingsTab() {
         description: "Your session ended. Sign in again to send a test notification.",
         variant: "destructive",
       });
-      navigate(import.meta.env.VITE_USE_AZURE_AUTH === "true" ? "/" : "/auth");
+      navigate("/");
       return;
     }
     
     setSendingTest(true);
     try {
-      const { data, error } = await supabase.functions.invoke("send-push-notification", {
+      const { data, error } = await db.functions.invoke("send-push-notification", {
         body: {
           user_ids: [user.id],
           payload: {
@@ -174,13 +161,13 @@ export function NotificationsSettingsTab() {
         description: "Your session ended. Sign in again to send test notifications.",
         variant: "destructive",
       });
-      navigate(import.meta.env.VITE_USE_AZURE_AUTH === "true" ? "/" : "/auth");
+      navigate("/");
       return;
     }
 
     setSendingAllChannelsTest(true);
     try {
-      const { data, error } = await supabase.functions.invoke("send-test-notifications", {
+      const { data, error } = await db.functions.invoke("send-test-notifications", {
         body: { user_id: user.id },
       });
 
@@ -228,7 +215,7 @@ export function NotificationsSettingsTab() {
     queryFn: async () => {
       if (!user) return null;
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from("patient_notification_preferences")
         .select("*")
         .eq("user_id", user.id)
@@ -244,7 +231,7 @@ export function NotificationsSettingsTab() {
     mutationFn: async () => {
       if (!user) throw new Error("Not authenticated");
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from("patient_notification_preferences")
         .insert({ user_id: user.id, ...DEFAULT_PREFERENCES })
         .select()
@@ -268,7 +255,7 @@ export function NotificationsSettingsTab() {
     mutationFn: async (updates: Partial<NotificationPreferences>) => {
       if (!user) throw new Error("Not authenticated");
 
-      const { error } = await supabase
+      const { error } = await db
         .from("patient_notification_preferences")
         .update(updates)
         .eq("user_id", user.id);
@@ -527,28 +514,6 @@ export function NotificationsSettingsTab() {
 
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <MessageCircle className="h-4 w-4 text-muted-foreground" />
-              <div>
-                <Label htmlFor="sms_reminders" className="font-medium">
-                  SMS Reminders
-                </Label>
-                <p className="text-sm text-muted-foreground">
-                  Receive medication reminders via text message
-                </p>
-              </div>
-            </div>
-            <Switch
-              id="sms_reminders"
-              checked={prefs.sms_reminders}
-              onCheckedChange={(checked) => handleToggle("sms_reminders", checked)}
-              disabled={updatePreferenceMutation.isPending}
-            />
-          </div>
-
-          <Separator />
-
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
               <Smartphone className="h-4 w-4 text-muted-foreground" />
               <div>
                 <Label htmlFor="in_app_reminders" className="font-medium">
@@ -675,106 +640,6 @@ export function NotificationsSettingsTab() {
               id="in_app_encouragements"
               checked={prefs.in_app_encouragements}
               onCheckedChange={(checked) => handleToggle("in_app_encouragements", checked)}
-              disabled={updatePreferenceMutation.isPending}
-            />
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Clinician Messages */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Stethoscope className="h-5 w-5 text-primary" />
-            Clinician Messages
-          </CardTitle>
-          <CardDescription>
-            Choose how you receive messages from your healthcare providers
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Mail className="h-4 w-4 text-muted-foreground" />
-              <div>
-                <Label htmlFor="email_clinician_messages" className="font-medium">
-                  Email Notifications
-                </Label>
-                <p className="text-sm text-muted-foreground">
-                  Receive an email when your clinician sends a message
-                </p>
-              </div>
-            </div>
-            <Switch
-              id="email_clinician_messages"
-              checked={prefs.email_clinician_messages}
-              onCheckedChange={(checked) => handleToggle("email_clinician_messages", checked)}
-              disabled={updatePreferenceMutation.isPending}
-            />
-          </div>
-
-          <Separator />
-
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Bell className="h-4 w-4 text-muted-foreground" />
-              <div>
-                <Label htmlFor="push_clinician_messages" className="font-medium">
-                  Push Notifications
-                </Label>
-                <p className="text-sm text-muted-foreground">
-                  Get push alerts for new clinician messages
-                </p>
-              </div>
-            </div>
-            <Switch
-              id="push_clinician_messages"
-              checked={prefs.push_clinician_messages}
-              onCheckedChange={(checked) => handleToggle("push_clinician_messages", checked)}
-              disabled={updatePreferenceMutation.isPending}
-            />
-          </div>
-
-          <Separator />
-
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <MessageSquare className="h-4 w-4 text-muted-foreground" />
-              <div>
-                <Label htmlFor="whatsapp_clinician_messages" className="font-medium">
-                  WhatsApp Notifications
-                </Label>
-                <p className="text-sm text-muted-foreground">
-                  Receive WhatsApp messages for clinician communications
-                </p>
-              </div>
-            </div>
-            <Switch
-              id="whatsapp_clinician_messages"
-              checked={prefs.whatsapp_clinician_messages}
-              onCheckedChange={(checked) => handleToggle("whatsapp_clinician_messages", checked)}
-              disabled={updatePreferenceMutation.isPending}
-            />
-          </div>
-
-          <Separator />
-
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <MessageCircle className="h-4 w-4 text-muted-foreground" />
-              <div>
-                <Label htmlFor="sms_clinician_messages" className="font-medium">
-                  SMS Notifications
-                </Label>
-                <p className="text-sm text-muted-foreground">
-                  Receive text messages for clinician communications
-                </p>
-              </div>
-            </div>
-            <Switch
-              id="sms_clinician_messages"
-              checked={prefs.sms_clinician_messages}
-              onCheckedChange={(checked) => handleToggle("sms_clinician_messages", checked)}
               disabled={updatePreferenceMutation.isPending}
             />
           </div>

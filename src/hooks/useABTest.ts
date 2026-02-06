@@ -1,4 +1,4 @@
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/db";
 
 interface ABTestResult {
   testId: string;
@@ -29,7 +29,7 @@ export async function getABTestVariant(
 ): Promise<ABTestResult | null> {
   try {
     // Get active test for this notification type
-    const { data: testData, error: testError } = await supabase
+    const { data: testData, error: testError } = await db
       .from("email_ab_tests" as any)
       .select("*")
       .eq("notification_type", notificationType)
@@ -45,7 +45,7 @@ export async function getABTestVariant(
     const test = testData as unknown as ABTestRecord;
 
     // Check if user already has an assignment for this test
-    const { data: assignmentData } = await supabase
+    const { data: assignmentData } = await db
       .from("email_ab_assignments" as any)
       .select("variant")
       .eq("test_id", test.id)
@@ -86,7 +86,7 @@ export async function recordABTestAssignment(
   notificationId: string
 ): Promise<void> {
   try {
-    await supabase.from("email_ab_assignments" as any).insert({
+    await db.from("email_ab_assignments" as any).insert({
       test_id: testId,
       user_id: userId,
       variant,

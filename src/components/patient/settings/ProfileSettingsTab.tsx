@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/db";
+import { getStorageClient } from "@/lib/storage-client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/hooks/use-toast";
 import { useSecurityEvents } from "@/hooks/useSecurityEvents";
@@ -27,7 +28,6 @@ import {
   EyeOff,
   X,
   Mail,
-  Building2,
   BadgeCheck,
   CalendarIcon,
   AlertTriangle,
@@ -42,7 +42,6 @@ interface ProfileData {
   first_name: string;
   last_name: string;
   phone: string;
-  organization: string;
   license_number: string;
   license_expiration_date: string | null;
   avatar_url: string;
@@ -63,7 +62,6 @@ export function ProfileSettingsTab() {
     first_name: "",
     last_name: "",
     phone: "",
-    organization: "",
     license_number: "",
     license_expiration_date: null,
     avatar_url: "",
@@ -101,7 +99,7 @@ export function ProfileSettingsTab() {
     const loadFullProfile = async () => {
       if (!user) return;
       
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from("profiles")
         .select("*")
         .eq("user_id", user.id)
@@ -117,7 +115,6 @@ export function ProfileSettingsTab() {
           first_name: data.first_name || "",
           last_name: data.last_name || "",
           phone: data.phone || "",
-          organization: data.organization || "",
           license_number: data.license_number || "",
           license_expiration_date: data.license_expiration_date || null,
           avatar_url: data.avatar_url || "",
@@ -138,13 +135,12 @@ export function ProfileSettingsTab() {
     mutationFn: async (data: Partial<ProfileData>) => {
       if (!user) throw new Error("Not authenticated");
       
-      const { error } = await supabase
+      const { error } = await db
         .from("profiles")
         .update({
           first_name: data.first_name,
           last_name: data.last_name,
           phone: data.phone,
-          organization: data.organization,
           license_number: data.license_number,
           license_expiration_date: data.license_expiration_date,
           avatar_url: data.avatar_url,
@@ -221,24 +217,24 @@ export function ProfileSettingsTab() {
       if (profileData.avatar_url && profileData.avatar_url.includes('avatars')) {
         const oldPath = profileData.avatar_url.split('/avatars/')[1];
         if (oldPath) {
-          await supabase.storage.from('avatars').remove([oldPath]);
+          await getStorageClient().from('avatars').remove([oldPath]);
         }
       }
 
       // Upload new avatar
-      const { error: uploadError } = await supabase.storage
+      const { error: uploadError } = await getStorageClient()
         .from('avatars')
         .upload(fileName, file, { upsert: true });
 
       if (uploadError) throw uploadError;
 
       // Get public URL
-      const { data: { publicUrl } } = supabase.storage
+      const { data: { publicUrl } } = getStorageClient()
         .from('avatars')
         .getPublicUrl(fileName);
 
       // Update profile with new avatar URL
-      const { error: updateError } = await supabase
+      const { error: updateError } = await db
         .from('profiles')
         .update({ avatar_url: publicUrl })
         .eq('user_id', user.id);
@@ -278,12 +274,12 @@ export function ProfileSettingsTab() {
       if (profileData.avatar_url && profileData.avatar_url.includes('avatars')) {
         const oldPath = profileData.avatar_url.split('/avatars/')[1];
         if (oldPath) {
-          await supabase.storage.from('avatars').remove([oldPath]);
+          await getStorageClient().from('avatars').remove([oldPath]);
         }
       }
 
       // Update profile
-      const { error } = await supabase
+      const { error } = await db
         .from('profiles')
         .update({ avatar_url: null })
         .eq('user_id', user.id);
@@ -331,41 +327,11 @@ export function ProfileSettingsTab() {
     
     setSavingPassword(true);
     try {
-      const { error } = await supabase.auth.updateUser({
-        password: passwordData.newPassword,
-      });
-      
-      if (error) throw error;
-      
-      // Log password change security event - this will trigger an email notification
-      await logSecurityEvent({
-        eventType: "password_change",
-        category: "authentication",
-        severity: "warning",
-        description: "Password was changed successfully",
-        metadata: {
-          action: "password_change",
-          initiated_by: "user",
-        },
-      });
-      
       toast({
-        title: "Password updated",
-        description: "Your password has been changed successfully.",
+        title: "Password changes are managed by your identity provider",
+        description: "You will be redirected to manage your credentials.",
       });
-      
-      setPasswordData({
-        currentPassword: "",
-        newPassword: "",
-        confirmPassword: "",
-      });
-    } catch (error: any) {
-      console.error("Failed to change password:", error);
-      toast({
-        title: "Failed to change password",
-        description: error.message || "Please try again.",
-        variant: "destructive",
-      });
+      // Future: redirect to Azure AD B2C password reset
     } finally {
       setSavingPassword(false);
     }
@@ -403,24 +369,11 @@ export function ProfileSettingsTab() {
 
     setSavingEmail(true);
     try {
-      const { error } = await supabase.auth.updateUser({
-        email: newEmail,
-      });
-
-      if (error) throw error;
-
-      setEmailSent(true);
       toast({
-        title: "Verification email sent",
-        description: "Please check both your current and new email inboxes to confirm the change.",
+        title: "Email changes are managed by your identity provider",
+        description: "You will be redirected to manage your credentials.",
       });
-    } catch (error: any) {
-      console.error("Failed to change email:", error);
-      toast({
-        title: "Failed to change email",
-        description: error.message || "Please try again.",
-        variant: "destructive",
-      });
+      // Future: redirect to Azure AD B2C email change
     } finally {
       setSavingEmail(false);
     }
@@ -564,25 +517,6 @@ export function ProfileSettingsTab() {
             />
             <p className="text-xs text-muted-foreground">
               Use international format for SMS/WhatsApp (e.g., +234...)
-            </p>
-          </div>
-
-          {/* Organization / Pharmacy */}
-          <div className="space-y-2">
-            <Label htmlFor="organization" className="flex items-center gap-2">
-              <Building2 className="h-4 w-4" />
-              Organization / Pharmacy Name
-            </Label>
-            <Input
-              id="organization"
-              placeholder="ABC Pharmacy"
-              value={profileData.organization}
-              onChange={(e) =>
-                setProfileData({ ...profileData, organization: e.target.value })
-              }
-            />
-            <p className="text-xs text-muted-foreground">
-              Your affiliated healthcare organization or pharmacy
             </p>
           </div>
 

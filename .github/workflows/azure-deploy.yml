@@ -1,7 +1,6 @@
 # Azure Deployment Workflow
-# Deploys Pillaxia to Azure: Static Web App, API (App Service).
-# Azure Functions deploy is in a separate workflow (azure-deploy-functions.yml) when needed.
-# Run migrations via workflow_dispatch
+# Deploys Pillaxia to Azure: Static Web App, API (App Service with staging slot swap), Functions.
+# Migrations run automatically before deployment on main.
 
 name: Azure Deploy
 
@@ -25,9 +24,64 @@ on:
         type: boolean
 
 jobs:
+  # ── Run migrations before deployment ──
+  run-migrations:
+    name: Run Migrations
+    runs-on: ubuntu-latest
+    if: >
+      (github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.run_migrations == 'true')
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PostgreSQL client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+
+      - name: Run pending migrations
+        run: chmod +x scripts/run_migrations_azure.sh && ./scripts/run_migrations_azure.sh
+        env:
+          PGHOST: ${{ secrets.AZURE_PG_HOST }}
+          PGPORT: 5432
+          PGDATABASE: pillaxia
+          PGUSER: ${{ secrets.AZURE_PG_USER }}
+          PGPASSWORD: ${{ secrets.AZURE_PG_PASSWORD }}
+
+  # ── Run Tests (gate for deployment) ──
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run frontend tests with coverage
+        run: npm run test:coverage
+
+      - name: Run API tests
+        run: cd api && npm ci && npm test
+
+      - name: Run Functions tests
+        run: cd functions && npm ci && npm test
+
+  # ── Build and Deploy ──
   build-and-deploy:
     name: Build and Deploy
+    needs: [run-migrations, test]
+    if: ${{ !failure() }}
     runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://pillaxia-dev-api.azurewebsites.net
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -50,10 +104,8 @@ jobs:
       - name: Build frontend
         run: npm run build
         env:
-          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
-          VITE_USE_AZURE_AUTH: ${{ secrets.VITE_USE_AZURE_AUTH }}
           VITE_API_URL: ${{ secrets.VITE_API_URL }}
+          VITE_AZURE_FUNCTIONS_URL: ${{ secrets.VITE_AZURE_FUNCTIONS_URL }}
           VITE_ENTRA_CLIENT_ID: ${{ secrets.VITE_ENTRA_CLIENT_ID }}
           VITE_ENTRA_TENANT_ID: ${{ secrets.VITE_ENTRA_TENANT_ID }}
           VITE_ENTRA_EXTERNAL_ID_AUTHORITY: ${{ secrets.VITE_ENTRA_EXTERNAL_ID_AUTHORITY }}
@@ -62,32 +114,29 @@ jobs:
           VITE_AZURE_B2C_TENANT: ${{ secrets.VITE_AZURE_B2C_TENANT }}
           VITE_AZURE_B2C_POLICY: ${{ secrets.VITE_AZURE_B2C_POLICY }}
 
-      # Deploy frontend to Azure Static Web Apps (only when DEPLOY_STATIC_WEB_APP variable is 'true')
-      # Uses SWA CLI so the token is passed via env; the Azure/static-web-apps-deploy action often fails with "deployment_token was not provided"
+      # Deploy frontend to Azure Static Web Apps
       - name: Deploy to Azure Static Web Apps
         if: vars.DEPLOY_STATIC_WEB_APP == 'true'
         run: |
           if [ -z "$SWA_CLI_DEPLOYMENT_TOKEN" ]; then
-            echo "::error::Secret AZURE_STATIC_WEB_APPS_API_TOKEN is missing. Add it in Settings > Secrets (name exactly AZURE_STATIC_WEB_APPS_API_TOKEN)."
+            echo "::error::Secret AZURE_STATIC_WEB_APPS_API_TOKEN is missing."
             exit 1
           fi
           npx --yes @azure/static-web-apps-cli deploy ./dist --deployment-token "$SWA_CLI_DEPLOYMENT_TOKEN" --env production
         env:
           SWA_CLI_DEPLOYMENT_TOKEN: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
 
-      # Zip API with node_modules (zipdeploy does not run npm install; app needs deps to start)
+      # Zip API with node_modules
       - name: Create API deployment zip
         run: |
           cd api
           npm ci --omit=dev
           zip -r ../api-deploy.zip . -x '*.git*'
 
-      # Deploy API via Kudu with isAsync=true so the step returns in ~1 min (no 5–10 min polling)
-      # Uses AZURE_API_PUBLISH_PROFILE; app name from secret or parsed from publish profile
-      - name: Deploy API to Azure Web App (async)
+      # Deploy API to staging slot first (if staging slot exists), otherwise direct deploy
+      - name: Deploy API to Azure Web App
         run: |
           echo "$PUBLISH_PROFILE" > publish-profile.xml
-          # App name: use secret if set, else parse from publish profile (e.g. publishUrl="...app-name.scm.azurewebsites.net...")
           if [ -n "$APP_NAME" ]; then
             echo "Using app name from secret: $APP_NAME"
           else
@@ -95,48 +144,140 @@ jobs:
             if [ -z "$APP_NAME" ]; then
               APP_NAME=$(grep -oE '[a-zA-Z0-9-]+\.scm\.azurewebsites\.net' publish-profile.xml | head -1 | sed 's/\.scm\.azurewebsites\.net//')
             fi
-            echo "Using app name from publish profile: $APP_NAME"
           fi
           if [ -z "$APP_NAME" ]; then
-            echo "::error::Could not determine app name. Add secret AZURE_API_APP_NAME (e.g. pillaxia-dev-api) or use a publish profile that contains .scm.azurewebsites.net."
+            echo "::error::Could not determine app name."
             exit 1
           fi
-          # Extract userPWD (try sed first, then Python for different XML formats)
           DEPLOY_PWD=$(tr -d '\n\r' < publish-profile.xml | sed -n 's/.*[uU]ser[Pp][Ww][Dd]="\([^"]*\)".*/\1/p' | head -1)
           if [ -z "$DEPLOY_PWD" ]; then
             DEPLOY_PWD=$(python3 -c "import xml.etree.ElementTree as ET; root = ET.parse('publish-profile.xml').getroot(); [print(p.get('userPWD') or p.get('userPwd')) for p in root.iter() if p.get('userPWD') or p.get('userPwd')]" 2>/dev/null | head -1)
           fi
           if [ -z "$DEPLOY_PWD" ]; then
-            echo "::error::Could not read userPWD from publish profile. Re-download from Azure: App Service > Download publish profile, then paste the full file into secret AZURE_API_PUBLISH_PROFILE."
+            echo "::error::Could not read userPWD from publish profile."
             exit 1
           fi
-          # Kudu expects username as $AppName (with $) for site-level publish profile credentials
           DEPLOY_USER="\$$APP_NAME"
-          curl -f -X POST \
-            -u "$DEPLOY_USER:$DEPLOY_PWD" \
-            --data-binary @api-deploy.zip \
-            "https://$APP_NAME.scm.azurewebsites.net/api/zipdeploy?isAsync=true"
+
+          # Deploy to staging slot (mandatory for production safety)
+          if [ "$USE_STAGING_SLOT" = "true" ]; then
+            echo "Deploying to staging slot..."
+            curl -f -X POST \
+              -u "$DEPLOY_USER:$DEPLOY_PWD" \
+              --data-binary @api-deploy.zip \
+              "https://$APP_NAME-staging.scm.azurewebsites.net/api/zipdeploy?isAsync=true"
+          else
+            echo "Deploying directly (staging slot disabled via USE_STAGING_SLOT=false)..."
+            curl -f -X POST \
+              -u "$DEPLOY_USER:$DEPLOY_PWD" \
+              --data-binary @api-deploy.zip \
+              "https://$APP_NAME.scm.azurewebsites.net/api/zipdeploy?isAsync=true"
+          fi
           rm -f publish-profile.xml
         env:
           PUBLISH_PROFILE: ${{ secrets.AZURE_API_PUBLISH_PROFILE }}
           APP_NAME: ${{ secrets.AZURE_API_APP_NAME }}
+          USE_STAGING_SLOT: ${{ vars.USE_STAGING_SLOT || 'true' }}
 
-  run-migrations:
-    name: Run Migrations
+      # Health check staging slot (if using staging slot)
+      - name: Health check staging slot
+        if: vars.USE_STAGING_SLOT == 'true'
+        run: |
+          echo "Waiting 30s for staging slot to warm up..."
+          sleep 30
+          for i in 1 2 3 4 5; do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://${APP_NAME}-staging.azurewebsites.net/health/ready")
+            if [ "$STATUS" = "200" ]; then echo "Staging healthy"; exit 0; fi
+            echo "Attempt $i: got status $STATUS, retrying in 10s..."
+            sleep 10
+          done
+          echo "::error::Staging health check failed — aborting swap"
+          exit 1
+        env:
+          APP_NAME: ${{ secrets.AZURE_API_APP_NAME }}
+
+      # Swap staging to production (if using staging slot)
+      - name: Swap staging to production
+        if: vars.USE_STAGING_SLOT == 'true'
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Execute slot swap
+        if: vars.USE_STAGING_SLOT == 'true'
+        run: |
+          az webapp deployment slot swap \
+            -g "$RESOURCE_GROUP" \
+            -n "$APP_NAME" \
+            --slot staging \
+            --target-slot production
+        env:
+          APP_NAME: ${{ secrets.AZURE_API_APP_NAME }}
+          RESOURCE_GROUP: ${{ secrets.AZURE_RESOURCE_GROUP }}
+
+  # Deploy Azure Functions
+  deploy-functions:
+    name: Deploy Azure Functions
+    needs: build-and-deploy
     runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch' && github.event.inputs.run_migrations == 'true'
+    if: github.ref == 'refs/heads/main'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup PostgreSQL client
-        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
 
-      - name: Run migrations
-        run: chmod +x scripts/run_migrations_azure.sh && ./scripts/run_migrations_azure.sh
+      - name: Install Functions dependencies
+        run: cd functions && npm ci
+
+      - name: Deploy to Azure Functions
+        uses: Azure/functions-action@v1
+        with:
+          app-name: pillaxia-dev-functions
+          package: functions
+          publish-profile: ${{ secrets.AZURE_FUNCTIONS_PUBLISH_PROFILE }}
+
+  # Post-deployment health check
+  health-check:
+    name: Post-Deploy Health Check
+    needs: build-and-deploy
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Check API health
+        run: |
+          sleep 15
+          for i in 1 2 3 4 5; do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://pillaxia-dev-api.azurewebsites.net/health/ready)
+            if [ "$STATUS" = "200" ]; then echo "Health check passed"; exit 0; fi
+            echo "Attempt $i: got status $STATUS, retrying in 10s..."
+            sleep 10
+          done
+          echo "::error::Health check failed after 5 attempts"
+          exit 1
+
+  # ── Deployment Notification ──
+  notify:
+    name: Deployment Notification
+    needs: [build-and-deploy, health-check]
+    runs-on: ubuntu-latest
+    if: always() && secrets.DEPLOY_NOTIFICATION_WEBHOOK != ''
+    steps:
+      - name: Notify on success
+        if: needs.health-check.result == 'success'
+        run: |
+          curl -s -X POST "$WEBHOOK_URL" -H 'Content-Type: application/json' \
+            -d "{\"text\":\"Pillaxia deployed successfully to production (commit: ${GITHUB_SHA:0:7})\"}" || true
         env:
-          PGHOST: ${{ secrets.AZURE_PG_HOST }}
-          PGPORT: 5432
-          PGDATABASE: pillaxia
-          PGUSER: ${{ secrets.AZURE_PG_USER }}
-          PGPASSWORD: ${{ secrets.AZURE_PG_PASSWORD }}
+          WEBHOOK_URL: ${{ secrets.DEPLOY_NOTIFICATION_WEBHOOK }}
+
+      - name: Notify on failure
+        if: needs.health-check.result != 'success'
+        run: |
+          curl -s -X POST "$WEBHOOK_URL" -H 'Content-Type: application/json' \
+            -d "{\"text\":\"Pillaxia deployment FAILED (commit: ${GITHUB_SHA:0:7}). Check: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\"}" || true
+        env:
+          WEBHOOK_URL: ${{ secrets.DEPLOY_NOTIFICATION_WEBHOOK }}

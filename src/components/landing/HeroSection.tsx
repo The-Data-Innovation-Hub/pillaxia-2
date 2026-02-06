@@ -1,6 +1,5 @@
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
-import { useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { Loader2 } from "lucide-react";
 import heroImage from "@/assets/hero-angela.png";
@@ -8,28 +7,21 @@ import { useLanguage } from "@/i18n/LanguageContext";
 import { VersionBadge } from "@/components/VersionBadge";
 import { useAuth } from "@/contexts/AuthContext";
 
-const useAzureAuth = import.meta.env.VITE_USE_AZURE_AUTH === "true";
-
 interface HeroSectionProps {
   onGetStarted?: () => void;
 }
 
 const HeroSection = ({ onGetStarted }: HeroSectionProps) => {
-  const navigate = useNavigate();
   const { t } = useLanguage();
   const { signIn } = useAuth();
   const [azureRedirecting, setAzureRedirecting] = useState(false);
 
   const handleLoginClick = async () => {
-    if (useAzureAuth) {
-      setAzureRedirecting(true);
-      try {
-        await signIn("", "");
-      } finally {
-        setAzureRedirecting(false);
-      }
-    } else {
-      navigate("/auth");
+    setAzureRedirecting(true);
+    try {
+      await signIn("", "");
+    } finally {
+      setAzureRedirecting(false);
     }
   };
   
@@ -114,16 +106,14 @@ const HeroSection = ({ onGetStarted }: HeroSectionProps) => {
                 onClick={handleLoginClick}
                 disabled={azureRedirecting}
               >
-                {useAzureAuth
-                  ? (azureRedirecting ? (
-                      <>
-                        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                        Redirecting…
-                      </>
-                    ) : (
-                      "Sign in with Microsoft"
-                    ))
-                  : t.nav.login}
+                {azureRedirecting ? (
+                  <>
+                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                    Redirecting…
+                  </>
+                ) : (
+                  "Sign in with Microsoft"
+                )}
               </Button>
             </motion.div>
           </div>

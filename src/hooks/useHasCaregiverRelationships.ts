@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/db";
 import { useAuth } from "@/contexts/AuthContext";
 
 export function useHasCaregiverRelationships() {
@@ -10,7 +10,7 @@ export function useHasCaregiverRelationships() {
     queryFn: async () => {
       if (!user) return false;
 
-      const { count, error } = await supabase
+      const { count, error } = await db
         .from("caregiver_invitations")
         .select("*", { count: "exact", head: true })
         .eq("caregiver_user_id", user.id)

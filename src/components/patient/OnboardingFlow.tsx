@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { apiClient } from "@/integrations/api/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Card,
@@ -26,12 +27,9 @@ import {
   ArrowLeft,
   Sparkles,
   Mail,
-  Phone,
-  MessageSquare,
   Smartphone,
   Moon,
   Shield,
-  Heart,
   Calendar,
   Clock,
 } from "lucide-react";
@@ -46,8 +44,6 @@ interface OnboardingState {
   lastName: string;
   phone: string;
   emailEnabled: boolean;
-  smsEnabled: boolean;
-  whatsappEnabled: boolean;
   pushEnabled: boolean;
   quietHoursEnabled: boolean;
   quietHoursStart: string;
@@ -65,7 +61,7 @@ const STEPS = [
 ];
 
 export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
-  const { user, profile } = useAuth();
+  const { user, profile, refreshProfile } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [currentStep, setCurrentStep] = useState(0);
@@ -74,8 +70,6 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
     lastName: profile?.last_name || "",
     phone: profile?.phone || "",
     emailEnabled: true,
-    smsEnabled: true,
-    whatsappEnabled: true,
     pushEnabled: true,
     quietHoursEnabled: false,
     quietHoursStart: "22:00",
@@ -88,14 +82,23 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
     queryKey: ["onboarding-status", user?.id],
     queryFn: async () => {
       if (!user) return true;
-      
-      const { data } = await supabase
-        .from("patient_notification_preferences")
-        .select("id")
-        .eq("user_id", user.id)
-        .maybeSingle();
-      
-      return !!data;
+
+      // Consider onboarding complete if profile has a first_name set.
+      // This avoids depending on patient_notification_preferences which may not be
+      // fully migrated yet.
+      if (profile?.first_name) return true;
+
+      // Fallback: check notification preferences via API
+      try {
+        const { data } = await apiClient
+          .from("patient_notification_preferences")
+          .select("id")
+          .eq("user_id", user.id)
+          .maybeSingle();
+        return !!data;
+      } catch {
+        return false;
+      }
     },
     enabled: !!user,
   });
@@ -115,41 +118,45 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
     mutationFn: async () => {
       if (!user) throw new Error("Not authenticated");
 
-      const { error: profileError } = await supabase
+      // Update profile via API client
+      const { error: profileError } = await apiClient
         .from("profiles")
         .update({
           first_name: state.firstName,
           last_name: state.lastName,
           phone: state.phone,
         })
-        .eq("user_id", user.id);
+        .eq("user_id", user.id)
+        .select("id");
 
       if (profileError) throw profileError;
 
-      const { error: prefsError } = await supabase
-        .from("patient_notification_preferences")
-        .upsert({
-          user_id: user.id,
-          email_reminders: state.emailEnabled,
-          email_missed_alerts: state.emailEnabled,
-          email_encouragements: state.emailEnabled,
-          email_clinician_messages: state.emailEnabled,
-          sms_reminders: state.smsEnabled,
-          sms_clinician_messages: state.smsEnabled,
-          whatsapp_reminders: state.whatsappEnabled,
-          whatsapp_clinician_messages: state.whatsappEnabled,
-          in_app_reminders: state.pushEnabled,
-          in_app_missed_alerts: state.pushEnabled,
-          in_app_encouragements: state.pushEnabled,
-          push_clinician_messages: state.pushEnabled,
-          quiet_hours_enabled: state.quietHoursEnabled,
-          quiet_hours_start: state.quietHoursStart,
-          quiet_hours_end: state.quietHoursEnd,
-        }, { onConflict: "user_id" });
-
-      if (prefsError) throw prefsError;
+      // Notification preferences: insert via API client (skip upsert complexity for now)
+      try {
+        await apiClient
+          .from("patient_notification_preferences")
+          .insert({
+            user_id: user.id,
+            email_reminders: state.emailEnabled,
+            email_missed_alerts: state.emailEnabled,
+            email_encouragements: state.emailEnabled,
+            in_app_reminders: state.pushEnabled,
+            in_app_missed_alerts: state.pushEnabled,
+            in_app_encouragements: state.pushEnabled,
+            quiet_hours_enabled: state.quietHoursEnabled,
+            quiet_hours_start: state.quietHoursStart,
+            quiet_hours_end: state.quietHoursEnd,
+          })
+          .select("id")
+          .single();
+      } catch (e) {
+        // Non-fatal: notification preferences can be configured later
+        console.warn("[Onboarding] Could not save notification preferences:", e);
+      }
     },
-    onSuccess: () => {
+    onSuccess: async () => {
+      // Refresh auth profile so the onboarding-status check sees updated first_name
+      await refreshProfile();
       queryClient.invalidateQueries({ queryKey: ["profile"] });
       queryClient.invalidateQueries({ queryKey: ["patient-notification-preferences"] });
       queryClient.invalidateQueries({ queryKey: ["onboarding-status"] });
@@ -382,20 +389,6 @@ function NotificationsStep({ state, setState }: StepProps) {
       description: "Daily digests and important alerts",
     },
     {
-      key: "smsEnabled" as const,
-      icon: Phone,
-      title: "SMS",
-      description: "Text message reminders",
-      requiresPhone: true,
-    },
-    {
-      key: "whatsappEnabled" as const,
-      icon: MessageSquare,
-      title: "WhatsApp",
-      description: "Reminders via WhatsApp",
-      requiresPhone: true,
-    },
-    {
       key: "pushEnabled" as const,
       icon: Smartphone,
       title: "Push Notifications",
@@ -411,15 +404,11 @@ function NotificationsStep({ state, setState }: StepProps) {
       <div className="space-y-3">
         {channels.map((channel) => {
           const Icon = channel.icon;
-          const disabled = channel.requiresPhone && !state.phone;
           
           return (
             <div
               key={channel.key}
-              className={cn(
-                "flex items-center justify-between p-3 rounded-lg border",
-                disabled ? "opacity-50" : ""
-              )}
+              className="flex items-center justify-between p-3 rounded-lg border"
             >
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
@@ -437,7 +426,6 @@ function NotificationsStep({ state, setState }: StepProps) {
                 onCheckedChange={(checked) =>
                   setState({ ...state, [channel.key]: checked })
                 }
-                disabled={disabled}
               />
             </div>
           );
@@ -540,8 +528,6 @@ function HealthStep({ navigate }: { navigate: (path: string) => void }) {
 function CompleteStep({ state }: { state: OnboardingState }) {
   const enabledChannels = [
     state.emailEnabled && "Email",
-    state.smsEnabled && "SMS",
-    state.whatsappEnabled && "WhatsApp",
     state.pushEnabled && "Push",
   ].filter(Boolean);
 

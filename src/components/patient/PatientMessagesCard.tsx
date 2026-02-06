@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { db } from "@/integrations/db";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   Card,
@@ -26,7 +26,6 @@ interface Conversation {
 
 export function PatientMessagesCard() {
   const { user } = useAuth();
-  const queryClient = useQueryClient();
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
 
   const { data: conversations, isLoading } = useQuery({
@@ -35,7 +34,7 @@ export function PatientMessagesCard() {
       if (!user) return [];
 
       // Get all messages for this patient
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from("caregiver_messages")
         .select("id, message, is_read, created_at, caregiver_user_id, sender_type")
         .eq("patient_user_id", user.id)
@@ -48,20 +47,20 @@ export function PatientMessagesCard() {
       const caregiverIds = [...new Set(data.map((m) => m.caregiver_user_id))];
       
       // Fetch caregiver profiles
-      const { data: profiles } = await supabase
+      const { data: profiles } = await db
         .from("profiles")
         .select("user_id, first_name, last_name")
         .in("user_id", caregiverIds);
 
       const profileMap = new Map(
-        profiles?.map((p) => [p.user_id, p]) || []
+        profiles?.map((p: any) => [p.user_id, p]) || []
       );
 
       // Build conversation summaries
       const convMap = new Map<string, Conversation>();
       for (const msg of data) {
         if (!convMap.has(msg.caregiver_user_id)) {
-          const profile = profileMap.get(msg.caregiver_user_id);
+          const profile = profileMap.get(msg.caregiver_user_id) as any;
           convMap.set(msg.caregiver_user_id, {
             caregiver_user_id: msg.caregiver_user_id,
             caregiver_name: profile?.first_name 
@@ -82,32 +81,8 @@ export function PatientMessagesCard() {
       return Array.from(convMap.values());
     },
     enabled: !!user,
+    refetchInterval: 10000,
   });
-
-  // Subscribe to realtime updates
-  useEffect(() => {
-    if (!user) return;
-
-    const channel = supabase
-      .channel("patient-messages-realtime")
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "caregiver_messages",
-          filter: `patient_user_id=eq.${user.id}`,
-        },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ["patient-messages"] });
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [user, queryClient]);
 
   const totalUnread = conversations?.reduce((acc, c) => acc + c.unread_count, 0) || 0;
 

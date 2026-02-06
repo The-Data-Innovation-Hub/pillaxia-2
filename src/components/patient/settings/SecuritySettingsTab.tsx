@@ -19,12 +19,13 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { Trash2, Loader2, AlertTriangle } from "lucide-react";
 
 export function SecuritySettingsTab() {
   const navigate = useNavigate();
+  const { signOut } = useAuth();
   const [confirmText, setConfirmText] = useState("");
   const [isDeleting, setIsDeleting] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -39,10 +40,7 @@ export function SecuritySettingsTab() {
     try {
       // Sign out and let user know account deletion is requested
       // Note: Full account deletion typically requires admin/backend handling
-      const { error } = await supabase.auth.signOut();
-      
-      if (error) throw error;
-      
+      await signOut();
       toast.success("Account deletion requested. You have been signed out.");
       navigate("/");
     } catch (error: any) {

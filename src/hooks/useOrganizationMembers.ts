@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/db";
 import { toast } from "sonner";
 import { useOrganization } from "@/contexts/OrganizationContext";
 
@@ -31,7 +31,7 @@ export function useOrganizationMembers() {
 
       // Fetch members - RLS now restricts to managers/admins/org admins or own membership
       // Regular members will only see their own membership record
-      const { data: membersData, error: membersError } = await supabase
+      const { data: membersData, error: membersError } = await db
         .from("organization_members")
         .select("*")
         .eq("organization_id", organization.id)
@@ -49,7 +49,7 @@ export function useOrganizationMembers() {
 
       // Fetch profiles for all member user_ids
       const userIds = membersData.map(m => m.user_id);
-      const { data: profilesData } = await supabase
+      const { data: profilesData } = await db
         .from("profiles")
         .select("user_id, first_name, last_name, email, avatar_url")
         .in("user_id", userIds);
@@ -69,7 +69,7 @@ export function useOrganizationMembers() {
 
   const updateMemberRole = useMutation({
     mutationFn: async ({ memberId, newRole }: { memberId: string; newRole: "owner" | "admin" | "member" }) => {
-      const { error } = await supabase
+      const { error } = await db
         .from("organization_members")
         .update({ org_role: newRole })
         .eq("id", memberId);
@@ -87,7 +87,7 @@ export function useOrganizationMembers() {
 
   const removeMember = useMutation({
     mutationFn: async (memberId: string) => {
-      const { error } = await supabase
+      const { error } = await db
         .from("organization_members")
         .update({ is_active: false })
         .eq("id", memberId);
@@ -107,7 +107,7 @@ export function useOrganizationMembers() {
     mutationFn: async ({ userId, role }: { userId: string; role: "admin" | "member" }) => {
       if (!organization?.id) throw new Error("No organization");
 
-      const { error } = await supabase
+      const { error } = await db
         .from("organization_members")
         .insert({
           organization_id: organization.id,

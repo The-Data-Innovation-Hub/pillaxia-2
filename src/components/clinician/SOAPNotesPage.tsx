@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/db";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -72,7 +72,7 @@ export function SOAPNotesPage() {
   const { data: patients } = useQuery({
     queryKey: ["clinician-patients", user?.id],
     queryFn: async () => {
-      const { data: assignments } = await supabase
+      const { data: assignments } = await db
         .from("clinician_patient_assignments")
         .select("patient_user_id")
         .eq("clinician_user_id", user!.id);
@@ -81,7 +81,7 @@ export function SOAPNotesPage() {
 
       const patientIds = assignments.map((a) => a.patient_user_id);
 
-      const { data: profiles } = await supabase
+      const { data: profiles } = await db
         .from("profiles")
         .select("user_id, first_name, last_name")
         .in("user_id", patientIds);
@@ -95,7 +95,7 @@ export function SOAPNotesPage() {
   const { data: notes, isLoading } = useQuery({
     queryKey: ["soap-notes", user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from("soap_notes")
         .select("*")
         .eq("clinician_user_id", user!.id)
@@ -119,7 +119,7 @@ export function SOAPNotesPage() {
       id?: string;
     }) => {
       if (data.id) {
-        const { error } = await supabase
+        const { error } = await db
           .from("soap_notes")
           .update({
             subjective: data.subjective || null,
@@ -131,7 +131,7 @@ export function SOAPNotesPage() {
           .eq("id", data.id);
         if (error) throw error;
       } else {
-        const { error } = await supabase
+        const { error } = await db
           .from("soap_notes")
           .insert({
             clinician_user_id: user!.id,
@@ -160,7 +160,7 @@ export function SOAPNotesPage() {
   // Delete mutation
   const deleteMutation = useMutation({
     mutationFn: async (noteId: string) => {
-      const { error } = await supabase.from("soap_notes").delete().eq("id", noteId);
+      const { error } = await db.from("soap_notes").delete().eq("id", noteId);
       if (error) throw error;
     },
     onSuccess: () => {

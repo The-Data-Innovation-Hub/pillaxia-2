@@ -1,5 +1,5 @@
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/db";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -14,7 +14,8 @@ interface Medication {
   dosage: string;
   dosage_unit: string;
   prescription_status: string;
-  pharmacy: string | null;
+  pharmacy_id: string | null;
+  pharmacy_locations: { name: string } | null;
   updated_at: string;
 }
 
@@ -34,9 +35,9 @@ export function PrescriptionStatusCard() {
     queryKey: ["patient-prescriptions", user?.id],
     queryFn: async () => {
       if (!user) return [];
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from("medications")
-        .select("id, name, dosage, dosage_unit, prescription_status, pharmacy, updated_at")
+        .select("id, name, dosage, dosage_unit, prescription_status, pharmacy_id, pharmacy_locations (name), updated_at")
         .eq("user_id", user.id)
         .eq("is_active", true)
         .order("updated_at", { ascending: false });
@@ -115,7 +116,7 @@ export function PrescriptionStatusCard() {
                   <p className="font-medium">{prescription.name}</p>
                   <p className="text-sm text-muted-foreground">
                     {prescription.dosage} {prescription.dosage_unit}
-                    {prescription.pharmacy && ` • ${prescription.pharmacy}`}
+                    {prescription.pharmacy_locations?.name && ` • ${prescription.pharmacy_locations.name}`}
                   </p>
                 </div>
               </div>

@@ -1,5 +1,8 @@
-import { useEffect, useState, useCallback } from "react";
-import { supabase } from "@/integrations/supabase/client";
+/**
+ * Hook to get server-verified roles.
+ * Roles are loaded from the API via AuthContext and are already server-verified.
+ */
+import { useAuth } from "@/contexts/AuthContext";
 
 type AppRole = "patient" | "clinician" | "pharmacist" | "admin" | "manager";
 
@@ -16,100 +19,22 @@ interface ServerVerifiedRoles {
   verifyRoles: () => Promise<void>;
 }
 
-/**
- * Hook to get server-verified roles from the validate-session edge function.
- * This provides authoritative role information that cannot be manipulated client-side.
- */
 export function useServerVerifiedRoles(): ServerVerifiedRoles {
-  const [roles, setRoles] = useState<AppRole[]>([]);
-  const [verified, setVerified] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [roleFlags, setRoleFlags] = useState({
-    isAdmin: false,
-    isManager: false,
-    isClinician: false,
-    isPharmacist: false,
-    isPatient: false,
-  });
-
-  const verifyRoles = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      const { data: sessionData } = await supabase.auth.getSession();
-      if (!sessionData?.session?.access_token) {
-        setVerified(false);
-        setRoles([]);
-        setRoleFlags({
-          isAdmin: false,
-          isManager: false,
-          isClinician: false,
-          isPharmacist: false,
-          isPatient: false,
-        });
-        setLoading(false);
-        return;
-      }
-
-      const { data, error: invokeError } = await supabase.functions.invoke(
-        "validate-session",
-        {
-          headers: {
-            Authorization: `Bearer ${sessionData.session.access_token}`,
-          },
-        }
-      );
-
-      if (invokeError) {
-        console.error("[SERVER_ROLES] Error validating session:", invokeError);
-        setError(invokeError.message);
-        setVerified(false);
-        setLoading(false);
-        return;
-      }
-
-      if (data?.valid && data?.roles) {
-        setRoles(data.roles);
-        setRoleFlags({
-          isAdmin: data.isAdmin ?? false,
-          isManager: data.isManager ?? false,
-          isClinician: data.isClinician ?? false,
-          isPharmacist: data.isPharmacist ?? false,
-          isPatient: data.isPatient ?? false,
-        });
-        setVerified(true);
-      } else {
-        setVerified(false);
-        setRoles([]);
-        setRoleFlags({
-          isAdmin: false,
-          isManager: false,
-          isClinician: false,
-          isPharmacist: false,
-          isPatient: false,
-        });
-      }
-    } catch (err) {
-      console.error("[SERVER_ROLES] Exception:", err);
-      setError(err instanceof Error ? err.message : "Unknown error");
-      setVerified(false);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    verifyRoles();
-  }, [verifyRoles]);
+  const auth = useAuth();
+  const roles = (auth.roles ?? []) as AppRole[];
 
   return {
     roles,
-    ...roleFlags,
-    verified,
-    loading,
-    error,
-    verifyRoles,
+    isAdmin: auth.isAdmin ?? false,
+    isManager: auth.isManager ?? false,
+    isClinician: auth.isClinician ?? false,
+    isPharmacist: auth.isPharmacist ?? false,
+    isPatient: auth.isPatient || roles.includes("patient"),
+    verified: !auth.loading && !!auth.user,
+    loading: auth.loading,
+    error: null,
+    verifyRoles: async () => {
+      await auth.refreshProfile();
+    },
   };
 }

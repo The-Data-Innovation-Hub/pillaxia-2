@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/db";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -43,12 +43,18 @@ interface PharmacyLocation {
   state: string;
 }
 
-interface DrugTransfer {
+interface MedicationCatalogEntry {
   id: string;
-  drug_name: string;
+  name: string;
   generic_name: string | null;
   dosage: string | null;
   form: string | null;
+}
+
+interface DrugTransfer {
+  id: string;
+  medication_catalog_id: string;
+  medication_catalog: MedicationCatalogEntry | null;
   quantity: number;
   lot_number: string | null;
   expiry_date: string | null;
@@ -69,21 +75,31 @@ export function DrugTransfersPage() {
   const [selectedTab, setSelectedTab] = useState("incoming");
   const [formData, setFormData] = useState({
     destination_pharmacy_id: "",
-    drug_name: "",
-    generic_name: "",
-    dosage: "",
-    form: "tablet",
+    medication_catalog_id: "",
     quantity: "",
     lot_number: "",
     expiry_date: "",
     reason: "",
   });
 
+  // Fetch medication catalog for the selector
+  const { data: catalogItems } = useQuery({
+    queryKey: ["medication-catalog-for-transfers"],
+    queryFn: async () => {
+      const { data, error } = await db
+        .from("medication_catalog")
+        .select("id, name, generic_name, dosage, form")
+        .order("name");
+      if (error) throw error;
+      return data as MedicationCatalogEntry[];
+    },
+  });
+
   // Fetch user's pharmacy
   const { data: myPharmacy } = useQuery({
     queryKey: ["my-pharmacy", user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from("pharmacy_locations")
         .select("id, name, city, state")
         .eq("pharmacist_user_id", user?.id)
@@ -99,7 +115,7 @@ export function DrugTransfersPage() {
   const { data: allPharmacies } = useQuery({
     queryKey: ["all-pharmacies-for-transfer"],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from("pharmacy_locations")
         .select("id, name, city, state")
         .eq("is_active", true)
@@ -111,14 +127,15 @@ export function DrugTransfersPage() {
     enabled: !!user?.id,
   });
 
-  // Fetch transfers
+  // Fetch transfers with medication_catalog join
   const { data: transfers, isLoading } = useQuery({
     queryKey: ["drug-transfers", myPharmacy?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from("drug_transfers")
         .select(`
           *,
+          medication_catalog (id, name, generic_name, dosage, form),
           source_pharmacy:pharmacy_locations!drug_transfers_source_pharmacy_id_fkey (id, name, city, state),
           destination_pharmacy:pharmacy_locations!drug_transfers_destination_pharmacy_id_fkey (id, name, city, state)
         `)
@@ -139,13 +156,10 @@ export function DrugTransfersPage() {
 
   const createTransferMutation = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase.from("drug_transfers").insert({
+      const { error } = await db.from("drug_transfers").insert({
         source_pharmacy_id: myPharmacy?.id,
         destination_pharmacy_id: formData.destination_pharmacy_id,
-        drug_name: formData.drug_name,
-        generic_name: formData.generic_name || null,
-        dosage: formData.dosage || null,
-        form: formData.form,
+        medication_catalog_id: formData.medication_catalog_id,
         quantity: parseInt(formData.quantity),
         lot_number: formData.lot_number || null,
         expiry_date: formData.expiry_date || null,
@@ -159,10 +173,7 @@ export function DrugTransfersPage() {
       setShowCreateDialog(false);
       setFormData({
         destination_pharmacy_id: "",
-        drug_name: "",
-        generic_name: "",
-        dosage: "",
-        form: "tablet",
+        medication_catalog_id: "",
         quantity: "",
         lot_number: "",
         expiry_date: "",
@@ -189,7 +200,7 @@ export function DrugTransfersPage() {
       
       if (notes) updateData.notes = notes;
 
-      const { error } = await supabase
+      const { error } = await db
         .from("drug_transfers")
         .update(updateData)
         .eq("id", id);
@@ -221,6 +232,14 @@ export function DrugTransfersPage() {
       default:
         return "bg-muted";
     }
+  };
+
+  const formatCatalogItem = (item: MedicationCatalogEntry | null) => {
+    if (!item) return "Unknown medication";
+    const parts = [item.name];
+    if (item.dosage) parts.push(item.dosage);
+    if (item.form) parts.push(`(${item.form})`);
+    return parts.join(" ");
   };
 
   const renderTransferTable = (transferList: DrugTransfer[] | undefined, isIncoming: boolean) => {
@@ -259,9 +278,12 @@ export function DrugTransfersPage() {
             <TableRow key={transfer.id}>
               <TableCell>
                 <div>
-                  <p className="font-medium">{transfer.drug_name}</p>
+                  <p className="font-medium">{transfer.medication_catalog?.name ?? "Unknown"}</p>
                   <p className="text-sm text-muted-foreground">
-                    {transfer.dosage} {transfer.form}
+                    {transfer.medication_catalog?.dosage} {transfer.medication_catalog?.form}
+                    {transfer.medication_catalog?.generic_name && (
+                      <> &middot; {transfer.medication_catalog.generic_name}</>
+                    )}
                   </p>
                 </div>
               </TableCell>
@@ -400,50 +422,26 @@ export function DrugTransfersPage() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Drug Name *</Label>
-                  <Input
-                    value={formData.drug_name}
-                    onChange={(e) => setFormData({ ...formData, drug_name: e.target.value })}
-                    placeholder="e.g., Metformin"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Generic Name</Label>
-                  <Input
-                    value={formData.generic_name}
-                    onChange={(e) => setFormData({ ...formData, generic_name: e.target.value })}
-                  />
-                </div>
+              <div className="space-y-2">
+                <Label>Medication *</Label>
+                <Select
+                  value={formData.medication_catalog_id}
+                  onValueChange={(v) => setFormData({ ...formData, medication_catalog_id: v })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select medication from catalog" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-background border shadow-lg max-h-60">
+                    {catalogItems?.map((item) => (
+                      <SelectItem key={item.id} value={item.id}>
+                        {formatCatalogItem(item)}
+                        {item.generic_name && ` (${item.generic_name})`}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="grid grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <Label>Dosage</Label>
-                  <Input
-                    value={formData.dosage}
-                    onChange={(e) => setFormData({ ...formData, dosage: e.target.value })}
-                    placeholder="e.g., 500mg"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Form</Label>
-                  <Select
-                    value={formData.form}
-                    onValueChange={(v) => setFormData({ ...formData, form: v })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="bg-background border shadow-lg">
-                      <SelectItem value="tablet">Tablet</SelectItem>
-                      <SelectItem value="capsule">Capsule</SelectItem>
-                      <SelectItem value="syrup">Syrup</SelectItem>
-                      <SelectItem value="injection">Injection</SelectItem>
-                      <SelectItem value="cream">Cream</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
                 <div className="space-y-2">
                   <Label>Quantity *</Label>
                   <Input
@@ -453,8 +451,6 @@ export function DrugTransfersPage() {
                     onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
                   />
                 </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Lot Number</Label>
                   <Input
@@ -484,7 +480,7 @@ export function DrugTransfersPage() {
                 onClick={() => createTransferMutation.mutate()}
                 disabled={
                   !formData.destination_pharmacy_id ||
-                  !formData.drug_name ||
+                  !formData.medication_catalog_id ||
                   !formData.quantity ||
                   createTransferMutation.isPending
                 }

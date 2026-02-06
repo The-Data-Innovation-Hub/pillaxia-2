@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/db";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { toast } from "@/hooks/use-toast";
@@ -70,7 +70,7 @@ export function PreferencesSettingsTab() {
 
     try {
       // Sync medications
-      const { data: medications, error: medError } = await supabase
+      const { data: medications, error: medError } = await db
         .from("medications")
         .select(`
           *,
@@ -92,7 +92,7 @@ export function PreferencesSettingsTab() {
       const startOfDay = new Date(today.setHours(0, 0, 0, 0)).toISOString();
       const endOfDay = new Date(today.setHours(23, 59, 59, 999)).toISOString();
 
-      const { data: logs, error: logError } = await supabase
+      const { data: logs, error: logError } = await db
         .from("medication_logs")
         .select(`
           id,
@@ -115,7 +115,7 @@ export function PreferencesSettingsTab() {
       }
 
       // Sync symptoms
-      const { data: symptoms, error: symptomError } = await supabase
+      const { data: symptoms, error: symptomError } = await db
         .from("symptom_entries")
         .select(`
           *,

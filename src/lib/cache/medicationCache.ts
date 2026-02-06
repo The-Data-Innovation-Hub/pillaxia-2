@@ -1,5 +1,5 @@
 // IndexedDB cache for medications - uses centralized cache manager
-import type { Tables } from "@/integrations/supabase/types";
+import type { Tables } from "@/types/database";
 import { cacheManager, STORES } from "./cacheManager";
 
 type Medication = Tables<"medications"> & {

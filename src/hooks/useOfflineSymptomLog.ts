@@ -1,5 +1,6 @@
 import { useCallback } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/db";
+import { acquireTokenSilent } from "@/lib/azure-auth";
 import { useOfflineStatus } from "./useOfflineStatus";
 import { offlineQueue } from "@/lib/offlineQueue";
 import { symptomCache } from "@/lib/cache";
@@ -31,7 +32,7 @@ export function useOfflineSymptomLog() {
       if (isOnline) {
         // Online: Direct insert
         try {
-          const { data, error } = await supabase
+          const { data, error } = await db
             .from("symptom_entries")
             .insert(insertData)
             .select("id")
@@ -47,24 +48,23 @@ export function useOfflineSymptomLog() {
       } else {
         // Offline: Queue the action AND add to local cache
         try {
-          const session = await supabase.auth.getSession();
-          const accessToken = session.data.session?.access_token;
+          const accessToken = await acquireTokenSilent();
 
           if (!accessToken) {
             toast.error(t.offline.notAuthenticated);
             return null;
           }
 
+          const apiUrl = import.meta.env.VITE_API_URL;
           const localId = `pending-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
           // Add to offline queue for sync later
           await offlineQueue.addAction({
             type: "symptom_entry",
-            url: `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/symptom_entries`,
+            url: `${apiUrl}/rest/symptom_entries`,
             method: "POST",
             headers: {
               "Content-Type": "application/json",
-              apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
               Authorization: `Bearer ${accessToken}`,
               Prefer: "return=minimal",
             },
@@ -81,7 +81,7 @@ export function useOfflineSymptomLog() {
           });
 
           toast.info(t.offline.symptomQueuedForSync || t.offline.queuedForSync);
-          return { id: localId }; // Return local ID for offline entries
+          return { id: localId };
         } catch (error) {
           console.error("[useOfflineSymptomLog] Queue failed:", error);
           toast.error(t.offline.queueFailed);

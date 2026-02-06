@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/db";
 import { useAuth } from "@/contexts/AuthContext";
 import { format } from "date-fns";
 import { z } from "zod";
@@ -84,7 +84,7 @@ export function CreateAppointmentDialog({
   const { data: patients } = useQuery({
     queryKey: ["assigned-patients", user?.id],
     queryFn: async () => {
-      const { data: assignments, error } = await supabase
+      const { data: assignments, error } = await db
         .from("clinician_patient_assignments")
         .select("patient_user_id")
         .eq("clinician_user_id", user!.id);
@@ -94,7 +94,7 @@ export function CreateAppointmentDialog({
       const patientIds = assignments.map((a) => a.patient_user_id);
       if (patientIds.length === 0) return [];
 
-      const { data: profiles, error: profileError } = await supabase
+      const { data: profiles, error: profileError } = await db
         .from("profiles")
         .select("user_id, first_name, last_name, email")
         .in("user_id", patientIds);
@@ -107,7 +107,7 @@ export function CreateAppointmentDialog({
 
   const createMutation = useMutation({
     mutationFn: async (data: AppointmentFormData) => {
-      const { error } = await supabase.from("appointments").insert({
+      const { error } = await db.from("appointments").insert({
         clinician_user_id: user!.id,
         patient_user_id: data.patient_user_id,
         title: data.title,

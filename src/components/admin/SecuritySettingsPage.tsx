@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/db";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,7 +23,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
-import type { Json } from "@/integrations/supabase/types";
+import type { Json } from "@/types/database";
 
 interface SecuritySetting {
   id: string;
@@ -40,7 +40,7 @@ export function SecuritySettingsPage() {
   const { data: settings, isLoading } = useQuery({
     queryKey: ["security-settings"],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from("security_settings")
         .select("*")
         .order("setting_key");
@@ -53,7 +53,7 @@ export function SecuritySettingsPage() {
   const updateMutation = useMutation({
     mutationFn: async (updates: { key: string; value: number | boolean }[]) => {
       for (const update of updates) {
-        const { error } = await supabase
+        const { error } = await db
           .from("security_settings")
           .update({
             setting_value: { value: update.value },

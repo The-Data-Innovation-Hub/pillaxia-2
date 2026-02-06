@@ -2,6 +2,7 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import { componentTagger } from "lovable-tagger";
+import { sentryVitePlugin } from "@sentry/vite-plugin";
 
 // Generate build timestamp for automatic versioning
 const buildTimestamp = new Date().toISOString();
@@ -21,7 +22,18 @@ export default defineConfig(({ mode }) => ({
     __BUILD_DATE__: JSON.stringify(buildDate),
     __BUILD_NUMBER__: JSON.stringify(buildNumber),
   },
-  plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
+  plugins: [
+    react(),
+    mode === "development" && componentTagger(),
+    // Upload source maps to Sentry in CI (requires SENTRY_AUTH_TOKEN env var)
+    mode === "production" && process.env.SENTRY_AUTH_TOKEN && sentryVitePlugin({
+      org: process.env.SENTRY_ORG,
+      project: process.env.SENTRY_PROJECT,
+      authToken: process.env.SENTRY_AUTH_TOKEN,
+      sourcemaps: { assets: './dist/**' },
+      release: { name: buildNumber },
+    }),
+  ].filter(Boolean),
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
@@ -38,8 +50,8 @@ export default defineConfig(({ mode }) => ({
   build: {
     // Enable minification and tree-shaking
     minify: "esbuild",
-    // Generate source maps for production debugging
-    sourcemap: true,
+    // Generate hidden source maps (not referenced in JS bundles — upload to Sentry only)
+    sourcemap: 'hidden',
     // Optimize chunk splitting for better caching
     rollupOptions: {
       output: {
@@ -58,12 +70,11 @@ export default defineConfig(({ mode }) => ({
           "vendor-charts": ["recharts"],
           "vendor-forms": ["react-hook-form", "@hookform/resolvers", "zod"],
           "vendor-motion": ["framer-motion"],
-          "vendor-supabase": ["@supabase/supabase-js"],
           "vendor-date": ["date-fns"],
         },
       },
     },
-    // Increase chunk size warning limit (default is 500kb)
-    chunkSizeWarningLimit: 600,
+    // Lower chunk size warning to catch bundle bloat early
+    chunkSizeWarningLimit: 400,
   },
 }));

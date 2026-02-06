@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/db";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -53,7 +53,7 @@ export function MedicationReviewPage() {
     queryKey: ["clinician-medications", user?.id],
     queryFn: async () => {
       // Get assignments
-      const { data: assignments } = await supabase
+      const { data: assignments } = await db
         .from("clinician_patient_assignments")
         .select("patient_user_id")
         .eq("clinician_user_id", user!.id);
@@ -63,13 +63,13 @@ export function MedicationReviewPage() {
       const patientIds = assignments.map((a) => a.patient_user_id);
 
       // Get profiles
-      const { data: profiles } = await supabase
+      const { data: profiles } = await db
         .from("profiles")
         .select("user_id, first_name, last_name")
         .in("user_id", patientIds);
 
       // Get medications with schedules
-      const { data: medications } = await supabase
+      const { data: medications } = await db
         .from("medications")
         .select(`
           *,

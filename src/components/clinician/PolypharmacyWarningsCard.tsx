@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/db";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -34,7 +34,7 @@ export function PolypharmacyWarningsCard() {
     queryKey: ["polypharmacy-warnings", user?.id],
     queryFn: async () => {
       // First get assigned patient IDs
-      const { data: assignments } = await supabase
+      const { data: assignments } = await db
         .from("clinician_patient_assignments")
         .select("patient_user_id")
         .eq("clinician_user_id", user!.id);
@@ -44,7 +44,7 @@ export function PolypharmacyWarningsCard() {
       const patientIds = assignments.map((a) => a.patient_user_id);
 
       // Then get warnings for those patients
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from("polypharmacy_warnings")
         .select("*")
         .in("patient_user_id", patientIds)
@@ -61,7 +61,7 @@ export function PolypharmacyWarningsCard() {
     if (warnings?.length) {
       const patientIds = [...new Set(warnings.map((w) => w.patient_user_id))];
 
-      supabase
+      db
         .from("profiles")
         .select("user_id, first_name, last_name")
         .in("user_id", patientIds)
@@ -76,7 +76,7 @@ export function PolypharmacyWarningsCard() {
   // Acknowledge mutation
   const acknowledgeMutation = useMutation({
     mutationFn: async (warningId: string) => {
-      const { error } = await supabase
+      const { error } = await db
         .from("polypharmacy_warnings")
         .update({
           is_acknowledged: true,

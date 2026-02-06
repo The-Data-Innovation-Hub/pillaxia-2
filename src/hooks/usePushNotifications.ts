@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { Capacitor } from "@capacitor/core";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/db";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/hooks/use-toast";
 import { getVapidPublicKey } from "@/lib/push/getVapidPublicKey";
@@ -150,7 +150,7 @@ export function usePushNotifications() {
       }
 
       // Save subscription to database
-      const { error } = await supabase.from("push_subscriptions").upsert(
+      const { error } = await db.from("push_subscriptions").upsert(
         {
           user_id: user.id,
           endpoint: subscription.endpoint,
@@ -201,7 +201,7 @@ export function usePushNotifications() {
         await subscription.unsubscribe();
 
         // Remove from database
-        await supabase
+        await db
           .from("push_subscriptions")
           .delete()
           .eq("user_id", user.id)

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/db";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import {
@@ -172,7 +172,7 @@ export function ABTestingPage() {
   const { data: tests, isLoading } = useQuery({
     queryKey: ["ab-tests"],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from("email_ab_tests" as any)
         .select("*")
         .order("created_at", { ascending: false });
@@ -186,7 +186,7 @@ export function ABTestingPage() {
   const { data: testResults } = useQuery({
     queryKey: ["ab-test-results"],
     queryFn: async () => {
-      const { data: assignments, error } = await supabase
+      const { data: assignments, error } = await db
         .from("email_ab_assignments" as any)
         .select(`
           test_id,
@@ -234,7 +234,7 @@ export function ABTestingPage() {
   // Create new test
   const createTestMutation = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase
+      const { error } = await db
         .from("email_ab_tests" as any)
         .insert({
           test_name: newTest.test_name,
@@ -272,7 +272,7 @@ export function ABTestingPage() {
   // Update test
   const updateTestMutation = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase
+      const { error } = await db
         .from("email_ab_tests" as any)
         .update({
           test_name: editTest.test_name,
@@ -302,13 +302,13 @@ export function ABTestingPage() {
   const deleteTestMutation = useMutation({
     mutationFn: async (testId: string) => {
       // First delete assignments
-      await supabase
+      await db
         .from("email_ab_assignments" as any)
         .delete()
         .eq("test_id", testId);
 
       // Then delete the test
-      const { error } = await supabase
+      const { error } = await db
         .from("email_ab_tests" as any)
         .delete()
         .eq("id", testId);
@@ -331,7 +331,7 @@ export function ABTestingPage() {
   // Duplicate test
   const duplicateTestMutation = useMutation({
     mutationFn: async (test: ABTest) => {
-      const { error } = await supabase
+      const { error } = await db
         .from("email_ab_tests" as any)
         .insert({
           test_name: `${test.test_name} (Copy)`,
@@ -358,7 +358,7 @@ export function ABTestingPage() {
   // Toggle test active status
   const toggleTestMutation = useMutation({
     mutationFn: async ({ id, is_active }: { id: string; is_active: boolean }) => {
-      const { error } = await supabase
+      const { error } = await db
         .from("email_ab_tests" as any)
         .update({ is_active } as any)
         .eq("id", id);

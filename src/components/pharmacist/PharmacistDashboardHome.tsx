@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/db";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { FileText, Package, RefreshCw, AlertTriangle } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -15,20 +15,20 @@ export function PharmacistDashboardHome() {
     queryKey: ["pharmacist-stats"],
     queryFn: async () => {
       // Get total active medications (prescriptions) in the system
-      const { count: totalPrescriptions } = await supabase
+      const { count: totalPrescriptions } = await db
         .from("medications")
         .select("*", { count: "exact", head: true })
         .eq("is_active", true);
 
       // Get medications with low refills (simulating inventory alerts)
-      const { data: lowRefillMeds } = await supabase
+      const { data: lowRefillMeds } = await db
         .from("medications")
         .select("id, refills_remaining")
         .eq("is_active", true)
         .lte("refills_remaining", 2);
 
       // Get pending refill requests (medications where refills are 0)
-      const { count: pendingRefills } = await supabase
+      const { count: pendingRefills } = await db
         .from("medications")
         .select("*", { count: "exact", head: true })
         .eq("is_active", true)

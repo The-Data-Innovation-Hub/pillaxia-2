@@ -5,7 +5,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Send, Bot, Sparkles } from "lucide-react";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import angelaImage from "@/assets/hero-angela.png";
 
 interface Message {
@@ -22,9 +22,10 @@ const SUGGESTED_QUESTIONS = [
   "Tips for remembering my medications?",
 ];
 
-const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/angela-chat`;
+const CHAT_URL = `${import.meta.env.VITE_AZURE_FUNCTIONS_URL || import.meta.env.VITE_API_URL}/api/angela-chat`;
 
 export function AngelaPage() {
+  const { getToken } = useAuth();
   const [messages, setMessages] = useState<Message[]>([
     {
       id: "1",
@@ -69,9 +70,9 @@ export function AngelaPage() {
     let assistantContent = "";
 
     try {
-      // Get the user's session token for authenticated requests
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) {
+      // Get the user's auth token for authenticated requests
+      const token = await getToken();
+      if (!token) {
         throw new Error("Please log in to chat with Angela");
       }
 
@@ -79,7 +80,7 @@ export function AngelaPage() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${session.access_token}`,
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ messages: conversationHistory }),
       });

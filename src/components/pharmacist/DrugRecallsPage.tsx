@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/db";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -68,7 +68,7 @@ export function DrugRecallsPage() {
   const { data: recalls, isLoading } = useQuery({
     queryKey: ["drug-recalls"],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from("drug_recalls")
         .select("*")
         .order("created_at", { ascending: false });
@@ -79,7 +79,7 @@ export function DrugRecallsPage() {
 
   const createRecallMutation = useMutation({
     mutationFn: async () => {
-      const { data, error } = await supabase.from("drug_recalls").insert({
+      const { data, error } = await db.from("drug_recalls").insert({
         drug_name: formData.drug_name,
         generic_name: formData.generic_name || null,
         lot_numbers: formData.lot_numbers.split(",").map((l) => l.trim()).filter(Boolean),
@@ -121,7 +121,7 @@ export function DrugRecallsPage() {
 
   const sendAlertsMutation = useMutation({
     mutationFn: async (recallId: string) => {
-      const { data, error } = await supabase.functions.invoke("send-drug-recall-alert", {
+      const { data, error } = await db.functions.invoke("send-drug-recall-alert", {
         body: { recall_id: recallId, notify_pharmacies: true, notify_patients: true },
       });
       if (error) throw error;
@@ -139,7 +139,7 @@ export function DrugRecallsPage() {
 
   const toggleRecallMutation = useMutation({
     mutationFn: async ({ id, isActive }: { id: string; isActive: boolean }) => {
-      const { error } = await supabase
+      const { error } = await db
         .from("drug_recalls")
         .update({ is_active: isActive })
         .eq("id", id);

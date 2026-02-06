@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/db";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -23,7 +23,7 @@ export function useNotificationSettings() {
   const { data: settings, isLoading, error } = useQuery({
     queryKey: ["notification-settings"],
     queryFn: async (): Promise<NotificationSetting[]> => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from("notification_settings")
         .select("*")
         .order("setting_key");
@@ -42,7 +42,7 @@ export function useNotificationSettings() {
       settingKey: NotificationSettingKey; 
       isEnabled: boolean;
     }) => {
-      const { error } = await supabase
+      const { error } = await db
         .from("notification_settings")
         .update({ is_enabled: isEnabled, updated_by: user?.id })
         .eq("setting_key", settingKey);

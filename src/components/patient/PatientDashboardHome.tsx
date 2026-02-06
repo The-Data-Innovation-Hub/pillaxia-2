@@ -4,7 +4,7 @@
  */
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/db";
 import { useQuery } from "@tanstack/react-query";
 
 // Dashboard sub-components
@@ -54,7 +54,7 @@ export function PatientDashboardHome() {
     queryKey: ["check-notification-preferences", user?.id],
     queryFn: async () => {
       if (!user) return true;
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from("patient_notification_preferences")
         .select("id")
         .eq("user_id", user.id)
@@ -93,7 +93,7 @@ export function PatientDashboardHome() {
 
     try {
       // Get total active medications
-      const { count: medCount } = await supabase
+      const { count: medCount } = await db
         .from("medications")
         .select("*", { count: "exact", head: true })
         .eq("user_id", user.id)
@@ -104,7 +104,7 @@ export function PatientDashboardHome() {
       const startOfDay = new Date(today.setHours(0, 0, 0, 0)).toISOString();
       const endOfDay = new Date(today.setHours(23, 59, 59, 999)).toISOString();
 
-      const { data: todaysLogs } = await supabase
+      const { data: todaysLogs } = await db
         .from("medication_logs")
         .select("status")
         .eq("user_id", user.id)
@@ -118,7 +118,7 @@ export function PatientDashboardHome() {
       const weekAgo = new Date();
       weekAgo.setDate(weekAgo.getDate() - 7);
 
-      const { count: symptomCount } = await supabase
+      const { count: symptomCount } = await db
         .from("symptom_entries")
         .select("*", { count: "exact", head: true })
         .eq("user_id", user.id)

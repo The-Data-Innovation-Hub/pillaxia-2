@@ -14,7 +14,8 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useOrganizationMembers, type OrganizationMemberWithProfile } from "@/hooks/useOrganizationMembers";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/db";
+import { getStorageClient } from "@/lib/storage-client";
 import { toast } from "sonner";
 import { OrganizationBillingTab } from "./OrganizationBillingTab";
 import { useSearchParams } from "react-router-dom";
@@ -147,7 +148,7 @@ export function OrganizationManagementPage() {
   const handleSaveOrganization = async () => {
     setIsSaving(true);
     try {
-      const { error } = await supabase
+      const { error } = await db
         .from("organizations")
         .update(orgForm)
         .eq("id", organization.id);
@@ -184,19 +185,19 @@ export function OrganizationManagementPage() {
       const fileName = `${organization.id}/logo-${Date.now()}.${fileExt}`;
 
       // Upload to avatars bucket (reusing existing bucket)
-      const { error: uploadError } = await supabase.storage
+      const { error: uploadError } = await getStorageClient()
         .from('avatars')
         .upload(fileName, file, { upsert: true });
 
       if (uploadError) throw uploadError;
 
       // Get public URL
-      const { data: { publicUrl } } = supabase.storage
+      const { data: { publicUrl } } = getStorageClient()
         .from('avatars')
         .getPublicUrl(fileName);
 
       // Update organization branding with new logo URL
-      const { error: updateError } = await supabase
+      const { error: updateError } = await db
         .from('organization_branding')
         .update({ logo_url: publicUrl })
         .eq('organization_id', organization.id);
@@ -794,7 +795,7 @@ export function OrganizationManagementPage() {
                     editLastName !== (selectedMember.profile?.last_name || "");
                   
                   if (nameChanged) {
-                    const { error: profileError } = await supabase
+                    const { error: profileError } = await db
                       .from("profiles")
                       .update({ 
                         first_name: editFirstName, 

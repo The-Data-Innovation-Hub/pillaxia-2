@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/db";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePatientCDSData } from "@/hooks/usePatientCDSData";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -97,7 +97,7 @@ export function PatientRosterPage() {
     queryKey: ["clinician-profile", user?.id],
     queryFn: async () => {
       if (!user) return null;
-      const { data } = await supabase
+      const { data } = await db
         .from("profiles")
         .select("first_name, last_name")
         .eq("user_id", user.id)
@@ -116,7 +116,7 @@ export function PatientRosterPage() {
     queryKey: ["clinician-patients-roster", user?.id],
     queryFn: async () => {
       // Get assignments first
-      const { data: assignments, error: assignError } = await supabase
+      const { data: assignments, error: assignError } = await db
         .from("clinician_patient_assignments")
         .select("patient_user_id, assigned_at, notes")
         .eq("clinician_user_id", user!.id);
@@ -124,11 +124,11 @@ export function PatientRosterPage() {
       if (assignError) throw assignError;
       
       const assignmentMap = new Map(
-        (assignments || []).map(a => [a.patient_user_id, a])
+        (assignments || []).map((a: any) => [a.patient_user_id, a])
       );
 
       // Get all users with patient role
-      const { data: patientRoles, error: rolesError } = await supabase
+      const { data: patientRoles, error: rolesError } = await db
         .from("user_roles")
         .select("user_id")
         .eq("role", "patient");
@@ -139,13 +139,13 @@ export function PatientRosterPage() {
       const patientIds = patientRoles.map((r) => r.user_id);
 
       // Get profiles
-      const { data: profiles } = await supabase
+      const { data: profiles } = await db
         .from("profiles")
         .select("user_id, first_name, last_name, email, phone")
         .in("user_id", patientIds);
 
       // Get medication counts
-      const { data: medications } = await supabase
+      const { data: medications } = await db
         .from("medications")
         .select("user_id, id")
         .in("user_id", patientIds)
@@ -155,7 +155,7 @@ export function PatientRosterPage() {
       const sevenDaysAgo = new Date();
       sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
-      const { data: logs } = await supabase
+      const { data: logs } = await db
         .from("medication_logs")
         .select("user_id, status")
         .in("user_id", patientIds)
@@ -178,12 +178,12 @@ export function PatientRosterPage() {
         return {
           userId: patientId,
           profile: {
-            first_name: profile?.first_name || null,
-            last_name: profile?.last_name || null,
-            email: profile?.email || null,
-            phone: profile?.phone || null,
+            first_name: (profile as any)?.first_name || null,
+            last_name: (profile as any)?.last_name || null,
+            email: (profile as any)?.email || null,
+            phone: (profile as any)?.phone || null,
           },
-          assignedAt: assignment?.assigned_at,
+          assignedAt: (assignment as any)?.assigned_at,
           medicationCount: patientMeds.length,
           recentAdherence: adherence,
           isAssigned: !!assignment,
@@ -200,7 +200,7 @@ export function PatientRosterPage() {
 
   const assignMutation = useMutation({
     mutationFn: async (patientUserId: string) => {
-      const { error } = await supabase
+      const { error } = await db
         .from("clinician_patient_assignments")
         .insert({
           clinician_user_id: user!.id,
@@ -220,7 +220,7 @@ export function PatientRosterPage() {
 
   const unassignMutation = useMutation({
     mutationFn: async (patientUserId: string) => {
-      const { error } = await supabase
+      const { error } = await db
         .from("clinician_patient_assignments")
         .delete()
         .eq("clinician_user_id", user!.id)

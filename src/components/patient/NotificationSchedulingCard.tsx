@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/db";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -69,7 +69,7 @@ export function NotificationSchedulingCard() {
   const { data: medications, isLoading: medsLoading } = useQuery({
     queryKey: ["medications-list", user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from("medications")
         .select("id, name, dosage, dosage_unit")
         .eq("user_id", user!.id)
@@ -85,7 +85,7 @@ export function NotificationSchedulingCard() {
   const { data: schedules, isLoading } = useQuery({
     queryKey: ["medication-schedules", user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from("medication_schedules")
         .select(`
           id,
@@ -95,9 +95,9 @@ export function NotificationSchedulingCard() {
           days_of_week,
           is_active,
           with_food,
-          medications(id, name, dosage, dosage_unit)
+          medications!inner(id, name, dosage, dosage_unit, user_id)
         `)
-        .eq("user_id", user!.id)
+        .eq("medications.user_id", user!.id)
         .order("time_of_day");
       if (error) throw error;
       return data.map(s => ({
@@ -111,8 +111,7 @@ export function NotificationSchedulingCard() {
   // Add schedule mutation
   const addMutation = useMutation({
     mutationFn: async (schedule: typeof newSchedule) => {
-      const { error } = await supabase.from("medication_schedules").insert({
-        user_id: user!.id,
+      const { error } = await db.from("medication_schedules").insert({
         medication_id: schedule.medication_id,
         time_of_day: schedule.time_of_day,
         quantity: schedule.quantity,
@@ -141,7 +140,7 @@ export function NotificationSchedulingCard() {
   // Update schedule mutation
   const updateMutation = useMutation({
     mutationFn: async (schedule: MedicationSchedule) => {
-      const { error } = await supabase
+      const { error } = await db
         .from("medication_schedules")
         .update({
           time_of_day: schedule.time_of_day,
@@ -166,7 +165,7 @@ export function NotificationSchedulingCard() {
   // Delete schedule mutation
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
+      const { error } = await db
         .from("medication_schedules")
         .delete()
         .eq("id", id);

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/db";
 import {
   Dialog,
   DialogContent,
@@ -47,7 +47,7 @@ export function RequestRefillDialog({
 
     setIsSubmitting(true);
     try {
-      const { error } = await supabase.from("refill_requests").insert({
+      const { error } = await db.from("refill_requests").insert({
         patient_user_id: user.id,
         medication_id: medication.id,
         patient_notes: notes.trim() || null,

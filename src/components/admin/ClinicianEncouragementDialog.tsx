@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/db";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/hooks/use-toast";
 import {
@@ -45,7 +45,7 @@ export function ClinicianEncouragementDialog({
     queryKey: ["clinician-profile", user?.id],
     queryFn: async () => {
       if (!user?.id) return null;
-      const { data } = await supabase
+      const { data } = await db
         .from("profiles")
         .select("first_name, last_name")
         .eq("user_id", user.id)
@@ -64,7 +64,7 @@ export function ClinicianEncouragementDialog({
       if (!user) throw new Error("Not authenticated");
 
       // Insert the message into clinician_messages
-      const { error } = await supabase.from("clinician_messages").insert({
+      const { error } = await db.from("clinician_messages").insert({
         clinician_user_id: user.id,
         patient_user_id: patientUserId,
         message: messageText.trim(),
@@ -75,7 +75,7 @@ export function ClinicianEncouragementDialog({
 
       // Send notification via edge function (fire and forget)
       try {
-        await supabase.functions.invoke("send-clinician-message-notification", {
+        await db.functions.invoke("send-clinician-message-notification", {
           body: {
             patient_user_id: patientUserId,
             clinician_name: clinicianName,

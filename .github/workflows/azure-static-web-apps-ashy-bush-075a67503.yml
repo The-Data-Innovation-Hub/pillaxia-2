@@ -29,14 +29,12 @@ jobs:
       - name: Build
         run: npm run build
         env:
-          VITE_USE_AZURE_AUTH: ${{ secrets.VITE_USE_AZURE_AUTH }}
           VITE_API_URL: ${{ secrets.VITE_API_URL }}
+          VITE_AZURE_FUNCTIONS_URL: ${{ secrets.VITE_AZURE_FUNCTIONS_URL }}
           VITE_ENTRA_CLIENT_ID: ${{ secrets.VITE_ENTRA_CLIENT_ID }}
           VITE_ENTRA_TENANT_ID: ${{ secrets.VITE_ENTRA_TENANT_ID }}
           VITE_ENTRA_EXTERNAL_ID_AUTHORITY: ${{ secrets.VITE_ENTRA_EXTERNAL_ID_AUTHORITY }}
           VITE_ENTRA_REDIRECT_URI: ${{ secrets.VITE_ENTRA_REDIRECT_URI }}
-          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
 
       - name: Deploy to Azure Static Web Apps
         run: |

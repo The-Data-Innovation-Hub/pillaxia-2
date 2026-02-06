@@ -48,7 +48,7 @@ import {
 import { usePrescriptions, Prescription, PrescriptionStatus } from "@/hooks/usePrescriptions";
 import { format } from "date-fns";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/db";
 import { useAuth } from "@/contexts/AuthContext";
 
 const STATUS_CONFIG: Record<PrescriptionStatus, { label: string; variant: "default" | "secondary" | "destructive" | "outline"; icon: React.ReactNode }> = {
@@ -83,7 +83,7 @@ export function PharmacyPrescriptionsPage() {
   const { data: pharmacies } = useQuery({
     queryKey: ["my-pharmacies", user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from("pharmacy_locations")
         .select("id, name")
         .eq("pharmacist_user_id", user?.id);

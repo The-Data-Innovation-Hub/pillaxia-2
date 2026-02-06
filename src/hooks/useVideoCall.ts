@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/integrations/db';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 
@@ -68,7 +68,7 @@ export function useVideoCall(roomId?: string) {
     queryKey: ['video-room', roomId],
     queryFn: async () => {
       if (!roomId) return null;
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('video_rooms')
         .select('*')
         .eq('id', roomId)
@@ -86,7 +86,7 @@ export function useVideoCall(roomId?: string) {
       if (!roomId) return [];
       
       // Get participants
-      const { data: participantData, error: participantError } = await supabase
+      const { data: participantData, error: participantError } = await db
         .from('video_room_participants')
         .select('*')
         .eq('room_id', roomId);
@@ -95,7 +95,7 @@ export function useVideoCall(roomId?: string) {
       
       // Get profiles separately
       const userIds = participantData?.map(p => p.user_id) || [];
-      const { data: profileData } = await supabase
+      const { data: profileData } = await db
         .from('profiles')
         .select('user_id, first_name, last_name, email')
         .in('user_id', userIds);
@@ -109,41 +109,14 @@ export function useVideoCall(roomId?: string) {
     enabled: !!roomId,
   });
 
-  // Subscribe to realtime updates for waiting room
+  // Poll for updates (replaces Supabase realtime)
   useEffect(() => {
     if (!roomId) return;
-
-    const channel = supabase
-      .channel(`video-room-${roomId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'video_room_participants',
-          filter: `room_id=eq.${roomId}`,
-        },
-        () => {
-          refetchParticipants();
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'video_rooms',
-          filter: `id=eq.${roomId}`,
-        },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ['video-room', roomId] });
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    const interval = setInterval(() => {
+      refetchParticipants();
+      queryClient.invalidateQueries({ queryKey: ['video-room', roomId] });
+    }, 5000);
+    return () => clearInterval(interval);
   }, [roomId, refetchParticipants, queryClient]);
 
   // Create room mutation
@@ -155,11 +128,10 @@ export function useVideoCall(roomId?: string) {
       isGroupCall?: boolean;
       recordingEnabled?: boolean;
     }) => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error('Not authenticated');
+      if (!user) throw new Error('Not authenticated');
 
-      const response = await supabase.functions.invoke('twilio-video-token/create-room', {
-        body: params,
+      const response = await db.functions.invoke('twilio-video-token', {
+        body: { action: 'create-room', ...params },
       });
 
       if (response.error) throw new Error(response.error.message);
@@ -178,11 +150,10 @@ export function useVideoCall(roomId?: string) {
   // Get access token
   const getToken = useCallback(async (roomNameParam: string) => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error('Not authenticated');
+      if (!user) throw new Error('Not authenticated');
 
-      const response = await supabase.functions.invoke('twilio-video-token/token', {
-        body: { roomName: roomNameParam, roomId },
+      const response = await db.functions.invoke('twilio-video-token', {
+        body: { action: 'token', roomName: roomNameParam, roomId },
       });
 
       if (response.error) throw new Error(response.error.message);
@@ -202,11 +173,10 @@ export function useVideoCall(roomId?: string) {
   // Admit patient from waiting room
   const admitPatient = useMutation({
     mutationFn: async (participantId: string) => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error('Not authenticated');
+      if (!user) throw new Error('Not authenticated');
 
-      const response = await supabase.functions.invoke('twilio-video-token/admit-patient', {
-        body: { participantId, roomId },
+      const response = await db.functions.invoke('twilio-video-token', {
+        body: { action: 'admit-patient', participantId, roomId },
       });
 
       if (response.error) throw new Error(response.error.message);
@@ -226,11 +196,10 @@ export function useVideoCall(roomId?: string) {
     mutationFn: async () => {
       if (!roomId) throw new Error('No room ID');
       
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error('Not authenticated');
+      if (!user) throw new Error('Not authenticated');
 
-      const response = await supabase.functions.invoke('twilio-video-token/end-call', {
-        body: { roomId },
+      const response = await db.functions.invoke('twilio-video-token', {
+        body: { action: 'end-call', roomId },
       });
 
       if (response.error) throw new Error(response.error.message);
@@ -275,7 +244,7 @@ export function useVideoRooms() {
     queryFn: async () => {
       if (!user?.id) return [];
       
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('video_rooms')
         .select('*')
         .or(`clinician_user_id.eq.${user.id},patient_user_id.eq.${user.id}`)
@@ -296,7 +265,7 @@ export function useVideoCallNotes(roomId: string) {
   const { data: notes, isLoading } = useQuery({
     queryKey: ['video-call-notes', roomId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('video_call_notes')
         .select('*')
         .eq('room_id', roomId)
@@ -316,7 +285,7 @@ export function useVideoCallNotes(roomId: string) {
       plan?: string;
       isDraft?: boolean;
     }) => {
-      const { data: room } = await supabase
+      const { data: room } = await db
         .from('video_rooms')
         .select('patient_user_id')
         .eq('id', roomId)
@@ -336,7 +305,7 @@ export function useVideoCallNotes(roomId: string) {
       };
 
       if (notes?.id) {
-        const { data, error } = await supabase
+        const { data, error } = await db
           .from('video_call_notes')
           .update(noteData)
           .eq('id', notes.id)
@@ -345,7 +314,7 @@ export function useVideoCallNotes(roomId: string) {
         if (error) throw error;
         return data;
       } else {
-        const { data, error } = await supabase
+        const { data, error } = await db
           .from('video_call_notes')
           .insert(noteData)
           .select()

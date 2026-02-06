@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/db";
 import { useAuth } from "@/contexts/AuthContext";
 
 interface TrustedDevice {
@@ -80,7 +80,7 @@ export function useTrustedDevices() {
       const token = getDeviceToken();
       const tokenHash = await hashToken(token);
       
-      const { data, error } = await supabase.rpc("is_device_trusted", {
+      const { data, error } = await db.rpc("is_device_trusted", {
         p_user_id: userId,
         p_device_token_hash: tokenHash,
       });
@@ -106,7 +106,7 @@ export function useTrustedDevices() {
       const tokenHash = await hashToken(token);
       const { browser, os, deviceName } = getDeviceInfo();
       
-      const { data, error } = await supabase.rpc("trust_device", {
+      const { data, error } = await db.rpc("trust_device", {
         p_user_id: user.id,
         p_device_token_hash: tokenHash,
         p_device_name: deviceName,
@@ -132,7 +132,7 @@ export function useTrustedDevices() {
   // Revoke a specific trusted device
   const revokeDevice = useCallback(async (deviceId: string): Promise<boolean> => {
     try {
-      const { data, error } = await supabase.rpc("revoke_trusted_device", {
+      const { data, error } = await db.rpc("revoke_trusted_device", {
         p_device_id: deviceId,
       });
       
@@ -155,7 +155,7 @@ export function useTrustedDevices() {
     if (!user) return 0;
     
     try {
-      const { data, error } = await supabase.rpc("revoke_all_trusted_devices", {
+      const { data, error } = await db.rpc("revoke_all_trusted_devices", {
         p_user_id: user.id,
       });
       
@@ -182,7 +182,7 @@ export function useTrustedDevices() {
     
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from("trusted_devices")
         .select("*")
         .eq("user_id", user.id)

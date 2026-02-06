@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/db";
 import { useAuth } from "./AuthContext";
 
 export interface Organization {
@@ -106,14 +106,14 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
 
     try {
       // First, get the user's profile to check for a preferred organization
-      const { data: profileData } = await supabase
+      const { data: profileData } = await db
         .from("profiles")
         .select("organization_id")
         .eq("user_id", user.id)
         .maybeSingle();
 
       // Get the user's organization memberships
-      const { data: memberDataList, error: memberError } = await supabase
+      const { data: memberDataList, error: memberError } = await db
         .from("organization_members")
         .select("*")
         .eq("user_id", user.id)
@@ -145,7 +145,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
       setMembership(memberData as OrganizationMember);
 
       // Fetch organization details
-      const { data: orgData, error: orgError } = await supabase
+      const { data: orgData, error: orgError } = await db
         .from("organizations")
         .select("*")
         .eq("id", memberData.organization_id)
@@ -155,7 +155,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
       setOrganization(orgData as Organization);
 
       // Fetch branding
-      const { data: brandingData, error: brandingError } = await supabase
+      const { data: brandingData, error: brandingError } = await db
         .from("organization_branding")
         .select("*")
         .eq("organization_id", memberData.organization_id)
@@ -214,7 +214,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
   const updateBranding = useCallback(async (updates: Partial<OrganizationBranding>) => {
     if (!organization?.id) throw new Error("No organization to update");
 
-    const { error } = await supabase
+    const { error } = await db
       .from("organization_branding")
       .upsert({
         organization_id: organization.id,

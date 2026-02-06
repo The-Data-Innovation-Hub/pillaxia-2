@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/db";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -55,7 +55,7 @@ export function AuditLogPage() {
   const { data: logs, isLoading } = useQuery({
     queryKey: ["audit-logs"],
     queryFn: async () => {
-      const { data: auditLogs, error } = await supabase
+      const { data: auditLogs, error } = await db
         .from("audit_log")
         .select("*")
         .order("created_at", { ascending: false })
@@ -67,7 +67,7 @@ export function AuditLogPage() {
       const userIds = [...new Set(auditLogs?.map((l) => l.user_id).filter(Boolean))] as string[];
 
       // Fetch profiles for users
-      const { data: profiles } = await supabase
+      const { data: profiles } = await db
         .from("profiles")
         .select("user_id, first_name, last_name, email")
         .in("user_id", userIds);

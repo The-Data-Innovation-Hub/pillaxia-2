@@ -38,8 +38,14 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run unit tests
-        run: npm test -- --run
+      - name: Run frontend unit tests with coverage
+        run: npm run test:coverage
+
+      - name: Install and run API tests
+        run: cd api && npm ci && npm test
+
+      - name: Install and run Functions tests
+        run: cd functions && npm ci && npm test
 
   # E2E tests run against staging after unit tests pass
   e2e-tests:
@@ -89,9 +95,6 @@ jobs:
       - name: Build application (local only)
         if: steps.env.outputs.is_local == 'true'
         run: npm run build
-        env:
-          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
 
       - name: Run E2E tests against staging
         if: steps.env.outputs.is_local == 'false'
@@ -113,8 +116,6 @@ jobs:
           npx playwright test --config=e2e/playwright.config.ts --project=${{ matrix.project }}
         env:
           PLAYWRIGHT_BASE_URL: http://localhost:4173
-          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
           E2E_TEST_USER_EMAIL: ${{ secrets.E2E_TEST_USER_EMAIL }}
           E2E_TEST_USER_PASSWORD: ${{ secrets.E2E_TEST_USER_PASSWORD }}
           E2E_CLINICIAN_EMAIL: ${{ secrets.E2E_CLINICIAN_EMAIL }}

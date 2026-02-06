@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/db";
 import { Button } from "@/components/ui/button";
 import { Plus, Loader2, CloudOff, RefreshCw, Camera } from "lucide-react";
 import { MedicationCard } from "./MedicationCard";
@@ -45,7 +45,7 @@ export function MedicationsPage() {
     if (!deleteId) return;
 
     try {
-      const { error } = await supabase
+      const { error } = await db
         .from("medications")
         .delete()
         .eq("id", deleteId);

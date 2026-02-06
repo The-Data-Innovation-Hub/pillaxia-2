@@ -106,16 +106,13 @@ async function resolveSentryDsn(): Promise<string | null> {
 
 async function fetchSentryDsnFromBackend(): Promise<string | null> {
   try {
-    const baseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
-    const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined;
-    if (!baseUrl || !anonKey) return null;
+    const apiUrl = import.meta.env.VITE_API_URL as string | undefined;
+    const functionsUrl = import.meta.env.VITE_FUNCTIONS_URL as string | undefined;
+    const baseUrl = functionsUrl || apiUrl;
+    if (!baseUrl) return null;
 
-    const res = await fetch(`${baseUrl}/functions/v1/get-sentry-dsn`, {
+    const res = await fetch(`${baseUrl}/api/get-sentry-dsn`, {
       method: "GET",
-      headers: {
-        apikey: anonKey,
-        authorization: `Bearer ${anonKey}`,
-      },
     });
 
     if (!res.ok) return null;

@@ -1,6 +1,6 @@
 import { useEffect, useCallback, useRef, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/db";
 import { toast } from "sonner";
 
 interface SessionSettings {
@@ -26,7 +26,7 @@ export function useSessionManager() {
   useEffect(() => {
     const fetchSettings = async () => {
       try {
-        const { data } = await supabase
+        const { data } = await db
           .from("security_settings")
           .select("setting_key, setting_value")
           .in("setting_key", ["session_timeout_minutes", "max_concurrent_sessions"]);
@@ -93,7 +93,7 @@ export function useSessionManager() {
     timeoutRef.current = setTimeout(async () => {
       // Log the timeout event
       try {
-        await supabase.rpc("log_security_event", {
+        await db.rpc("log_security_event", {
           p_user_id: user.id,
           p_event_type: "session_timeout",
           p_event_category: "authentication",

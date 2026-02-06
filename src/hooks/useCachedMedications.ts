@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/db";
 import { medicationCache } from "@/lib/cache";
 import { useOfflineStatus } from "@/hooks/useOfflineStatus";
-import type { Tables } from "@/integrations/supabase/types";
+import type { Tables } from "@/types/database";
 
 type Medication = Tables<"medications"> & {
   medication_schedules: Array<{
@@ -58,7 +58,7 @@ export function useCachedMedications(): UseCachedMedicationsResult {
     if (!user) return;
 
     try {
-      const { data, error: fetchError } = await supabase
+      const { data, error: fetchError } = await db
         .from("medications")
         .select(`
           *,

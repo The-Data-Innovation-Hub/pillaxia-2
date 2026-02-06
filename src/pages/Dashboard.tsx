@@ -10,7 +10,7 @@ const Dashboard = () => {
   const navigate = useNavigate();
   const { user, profile, roles, loading, signOut, isAdmin, isManager, isClinician, isPharmacist, isPatient, isAdminOrManager } = useAuth();
 
-  const loginPath = import.meta.env.VITE_USE_AZURE_AUTH === "true" ? "/" : "/auth";
+  const loginPath = "/";
   useEffect(() => {
     if (!loading && !user) {
       navigate(loginPath);
@@ -251,7 +251,7 @@ const Dashboard = () => {
               </div>
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Organization</p>
-                <p className="text-foreground">{profile?.organization || "Not set"}</p>
+                <p className="text-foreground">{profile?.organization_id || "Not set"}</p>
               </div>
             </div>
           </CardContent>

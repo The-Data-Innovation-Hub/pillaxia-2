@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/db";
+import { getStorageClient } from "@/lib/storage-client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import {
@@ -22,14 +23,12 @@ import {
   Eye,
   EyeOff,
   X,
-  Building2,
   Briefcase,
 } from "lucide-react";
 
 interface ProfileData {
   first_name: string;
   last_name: string;
-  organization: string;
   job_title: string;
   avatar_url: string;
 }
@@ -41,7 +40,6 @@ export function AdminProfileTab() {
   const [profileData, setProfileData] = useState<ProfileData>({
     first_name: "",
     last_name: "",
-    organization: "",
     job_title: "",
     avatar_url: "",
   });
@@ -66,9 +64,9 @@ export function AdminProfileTab() {
     const loadFullProfile = async () => {
       if (!user) return;
       
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from("profiles")
-        .select("first_name, last_name, organization, job_title, avatar_url")
+        .select("first_name, last_name, job_title, avatar_url")
         .eq("user_id", user.id)
         .maybeSingle();
       
@@ -81,7 +79,6 @@ export function AdminProfileTab() {
         setProfileData({
           first_name: data.first_name || "",
           last_name: data.last_name || "",
-          organization: data.organization || "",
           job_title: data.job_title || "",
           avatar_url: data.avatar_url || "",
         });
@@ -95,12 +92,11 @@ export function AdminProfileTab() {
     mutationFn: async (data: Partial<ProfileData>) => {
       if (!user) throw new Error("Not authenticated");
       
-      const { error } = await supabase
+      const { error } = await db
         .from("profiles")
         .update({
           first_name: data.first_name,
           last_name: data.last_name,
-          organization: data.organization,
           job_title: data.job_title,
           avatar_url: data.avatar_url,
         })
@@ -151,21 +147,21 @@ export function AdminProfileTab() {
       if (profileData.avatar_url && profileData.avatar_url.includes('avatars')) {
         const oldPath = profileData.avatar_url.split('/avatars/')[1];
         if (oldPath) {
-          await supabase.storage.from('avatars').remove([oldPath]);
+          await getStorageClient().from('avatars').remove([oldPath]);
         }
       }
 
-      const { error: uploadError } = await supabase.storage
+      const { error: uploadError } = await getStorageClient()
         .from('avatars')
         .upload(fileName, file, { upsert: true });
 
       if (uploadError) throw uploadError;
 
-      const { data: { publicUrl } } = supabase.storage
+      const { data: { publicUrl } } = getStorageClient()
         .from('avatars')
         .getPublicUrl(fileName);
 
-      const { error: updateError } = await supabase
+      const { error: updateError } = await db
         .from('profiles')
         .update({ avatar_url: publicUrl })
         .eq('user_id', user.id);
@@ -196,11 +192,11 @@ export function AdminProfileTab() {
       if (profileData.avatar_url && profileData.avatar_url.includes('avatars')) {
         const oldPath = profileData.avatar_url.split('/avatars/')[1];
         if (oldPath) {
-          await supabase.storage.from('avatars').remove([oldPath]);
+          await getStorageClient().from('avatars').remove([oldPath]);
         }
       }
 
-      const { error } = await supabase
+      const { error } = await db
         .from('profiles')
         .update({ avatar_url: null })
         .eq('user_id', user.id);
@@ -233,21 +229,8 @@ export function AdminProfileTab() {
     
     setSavingPassword(true);
     try {
-      const { error } = await supabase.auth.updateUser({
-        password: passwordData.newPassword,
-      });
-      
-      if (error) throw error;
-      
-      toast.success("Password updated successfully");
-      
-      setPasswordData({
-        newPassword: "",
-        confirmPassword: "",
-      });
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : "Please try again.";
-      toast.error("Failed to change password: " + message);
+      toast.success("Password changes are managed by your identity provider. You will be redirected to manage your credentials.");
+      // Future: redirect to Azure AD B2C password reset
     } finally {
       setSavingPassword(false);
     }
@@ -355,22 +338,6 @@ export function AdminProfileTab() {
                 placeholder="Enter your last name"
               />
             </div>
-          </div>
-
-          {/* Organization */}
-          <div className="space-y-2">
-            <Label htmlFor="organization" className="flex items-center gap-2">
-              <Building2 className="h-4 w-4" />
-              Organization
-            </Label>
-            <Input
-              id="organization"
-              value={profileData.organization}
-              onChange={(e) =>
-                setProfileData({ ...profileData, organization: e.target.value })
-              }
-              placeholder="Enter your organization name"
-            />
           </div>
 
           {/* Job Title */}

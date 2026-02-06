@@ -3,7 +3,7 @@
  * Extracted from OrganizationContext for better separation of concerns.
  */
 import { useEffect, useCallback } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/db";
 import type { OrganizationBranding } from "./useOrgData";
 
 /**
@@ -95,7 +95,7 @@ export function useOrgBranding(
     async (updates: Partial<OrganizationBranding>) => {
       if (!organizationId) throw new Error("No organization to update");
 
-      const { error } = await supabase
+      const { error } = await db
         .from("organization_branding")
         .upsert(
           {

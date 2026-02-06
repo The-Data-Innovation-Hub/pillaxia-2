@@ -1,5 +1,5 @@
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/db";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -33,14 +33,14 @@ export function CaregiverInvitationsReceived() {
 
   // Fetch invitations where the current user's email matches
   const { data: invitations, isLoading } = useQuery({
-    queryKey: ["received-invitations", user?.id, profile?.email],
+    queryKey: ["received-invitations", user?.id, user?.email],
     queryFn: async () => {
-      if (!profile?.email) return [];
+      if (!user?.email) return [];
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from("caregiver_invitations")
         .select("*")
-        .eq("caregiver_email", profile.email.toLowerCase())
+        .eq("caregiver_email", user.email.toLowerCase())
         .in("status", ["pending", "accepted"])
         .order("created_at", { ascending: false });
 
@@ -49,7 +49,7 @@ export function CaregiverInvitationsReceived() {
       // Fetch patient profiles
       const invitationsWithProfiles = await Promise.all(
         (data || []).map(async (inv) => {
-          const { data: patientProfile } = await supabase
+          const { data: patientProfile } = await db
             .from("profiles")
             .select("first_name, last_name, email")
             .eq("user_id", inv.patient_user_id)
@@ -60,13 +60,13 @@ export function CaregiverInvitationsReceived() {
 
       return invitationsWithProfiles as unknown as ReceivedInvitation[];
     },
-    enabled: !!user && !!profile?.email,
+    enabled: !!user && !!user?.email,
   });
 
   // Accept invitation mutation
   const acceptMutation = useMutation({
     mutationFn: async (invitationId: string) => {
-      const { error } = await supabase
+      const { error } = await db
         .from("caregiver_invitations")
         .update({
           status: "accepted",
@@ -88,7 +88,7 @@ export function CaregiverInvitationsReceived() {
   // Decline invitation mutation
   const declineMutation = useMutation({
     mutationFn: async (invitationId: string) => {
-      const { error } = await supabase
+      const { error } = await db
         .from("caregiver_invitations")
         .update({ status: "declined" })
         .eq("id", invitationId);

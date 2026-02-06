@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/db";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -68,7 +68,7 @@ export function RefillRequestsPage() {
     queryKey: ["pharmacist-refill-requests"],
     queryFn: async () => {
       // Get all pending refill requests
-      const { data: refillRequests, error } = await supabase
+      const { data: refillRequests, error } = await db
         .from("refill_requests")
         .select(`
           id,
@@ -91,7 +91,7 @@ export function RefillRequestsPage() {
       const patientIds = [...new Set(refillRequests?.map((r) => r.patient_user_id) || [])];
 
       // Fetch patient profiles
-      const { data: profiles } = await supabase
+      const { data: profiles } = await db
         .from("profiles")
         .select("user_id, first_name, last_name, email, phone")
         .in("user_id", patientIds);
@@ -135,7 +135,7 @@ export function RefillRequestsPage() {
       notes?: string;
     }) => {
       // Update the refill request
-      const { error: requestError } = await supabase
+      const { error: requestError } = await db
         .from("refill_requests")
         .update({
           status,
@@ -150,7 +150,7 @@ export function RefillRequestsPage() {
 
       // If approved, update medication refills_remaining
       if (status === "approved" && refillsGranted) {
-        const { error: medError } = await supabase
+        const { error: medError } = await db
           .from("medications")
           .update({ refills_remaining: refillsGranted })
           .eq("id", medicationId);
@@ -160,7 +160,7 @@ export function RefillRequestsPage() {
 
       // Send notification to patient
       try {
-        await supabase.functions.invoke("send-refill-request-notification", {
+        await db.functions.invoke("send-refill-request-notification", {
           body: {
             patient_user_id: patientUserId,
             medication_name: medicationName,

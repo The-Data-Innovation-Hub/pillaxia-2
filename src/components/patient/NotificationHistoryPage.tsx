@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/db";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -69,7 +69,7 @@ export function NotificationHistoryPage() {
     if (!user) return;
     setIsLoading(true);
 
-    let query = supabase
+    let query = db
       .from("notification_history")
       .select("*")
       .eq("user_id", user.id)
@@ -94,7 +94,7 @@ export function NotificationHistoryPage() {
     setRetryingIds(prev => new Set(prev).add(notificationId));
 
     try {
-      const { data, error } = await supabase.functions.invoke("retry-notification", {
+      const { data, error } = await db.functions.invoke("retry-notification", {
         body: { notification_id: notificationId },
       });
 

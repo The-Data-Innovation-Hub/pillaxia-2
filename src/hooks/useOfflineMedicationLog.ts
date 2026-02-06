@@ -1,5 +1,6 @@
 import { useCallback } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/db";
+import { acquireTokenSilent } from "@/lib/azure-auth";
 import { useOfflineStatus } from "./useOfflineStatus";
 import { offlineQueue } from "@/lib/offlineQueue";
 import { toast } from "sonner";
@@ -25,7 +26,7 @@ export function useOfflineMedicationLog() {
       if (isOnline) {
         // Online: Direct update
         try {
-          const { error } = await supabase
+          const { error } = await db
             .from("medication_logs")
             .update(updateData)
             .eq("id", logId);
@@ -40,21 +41,21 @@ export function useOfflineMedicationLog() {
       } else {
         // Offline: Queue the action
         try {
-          const session = await supabase.auth.getSession();
-          const accessToken = session.data.session?.access_token;
+          const accessToken = await acquireTokenSilent();
 
           if (!accessToken) {
             toast.error(t.offline.notAuthenticated);
             return false;
           }
 
+          const apiUrl = import.meta.env.VITE_API_URL;
+
           await offlineQueue.addAction({
             type: "medication_log",
-            url: `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/medication_logs?id=eq.${logId}`,
+            url: `${apiUrl}/rest/medication_logs?id=eq.${logId}`,
             method: "PATCH",
             headers: {
               "Content-Type": "application/json",
-              apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
               Authorization: `Bearer ${accessToken}`,
               Prefer: "return=minimal",
             },

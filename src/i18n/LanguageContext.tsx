@@ -1,9 +1,9 @@
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from "react";
 import { en, yo, ig, ha, fr, type Translations } from "./translations";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/db";
 import { format } from "date-fns";
 
-// Force fresh module - v4
+// Force fresh module - v5
 
 export type LanguageCode = "en" | "yo" | "ig" | "ha" | "fr";
 
@@ -37,85 +37,76 @@ const LanguageContext = createContext<LanguageContextType | undefined>(undefined
 const STORAGE_KEY = "pillaxia_language";
 
 function getInitialLanguage(): LanguageCode {
-  // Check localStorage first
   if (typeof window !== "undefined") {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored && stored in translations) {
       return stored as LanguageCode;
     }
-    
-    // Check browser language
     const browserLang = navigator.language.split("-")[0];
     if (browserLang in translations) {
       return browserLang as LanguageCode;
     }
   }
-  
   return "en";
 }
 
+/**
+ * LanguageProvider — fetches user language preference from the profile table.
+ * Uses a lightweight approach: reads user id from the AuthContext by importing
+ * useAuth lazily (to avoid circular dependency at import time).
+ */
 export function LanguageProvider({ children }: { children: ReactNode }) {
   const [language, setLanguageState] = useState<LanguageCode>(getInitialLanguage);
   const [isLoading, setIsLoading] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
 
-  // Get user session independently to avoid circular dependency with AuthContext
+  // Listen for auth state by polling AuthContext via a global event
+  // (We avoid importing useAuth directly here because LanguageProvider
+  //  sits *inside* AuthProvider and this avoids a context dependency issue.)
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUserId(session?.user?.id ?? null);
-      
-      // Fetch language preference from profile if user is logged in
-      if (session?.user?.id) {
-        supabase
-          .from("profiles")
-          .select("language_preference")
-          .eq("user_id", session.user.id)
-          .maybeSingle()
-          .then(({ data }) => {
-            if (data?.language_preference && data.language_preference in translations) {
-              const profileLang = data.language_preference as LanguageCode;
-              if (profileLang !== language) {
-                setLanguageState(profileLang);
-                localStorage.setItem(STORAGE_KEY, profileLang);
-              }
-            }
-          });
-      }
-    });
+    // Attempt to read user id from a custom event dispatched by AuthProvider
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      setUserId(detail?.userId ?? null);
+    };
+    window.addEventListener("pillaxia:auth-change", handler);
 
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      setUserId(session?.user?.id ?? null);
-      
-      if (session?.user?.id) {
-        supabase
-          .from("profiles")
-          .select("language_preference")
-          .eq("user_id", session.user.id)
-          .maybeSingle()
-          .then(({ data }) => {
-            if (data?.language_preference && data.language_preference in translations) {
-              const profileLang = data.language_preference as LanguageCode;
-              setLanguageState(profileLang);
-              localStorage.setItem(STORAGE_KEY, profileLang);
-            }
-          });
-      }
-    });
+    // Also check for an already-set user id
+    const existingUserId = (window as any).__pillaxia_userId;
+    if (existingUserId) {
+      setUserId(existingUserId);
+    }
 
-    return () => subscription.unsubscribe();
+    return () => window.removeEventListener("pillaxia:auth-change", handler);
   }, []);
+
+  // When we know the user, fetch their language preference
+  useEffect(() => {
+    if (!userId) return;
+    db
+      .from("profiles")
+      .select("language_preference")
+      .eq("user_id", userId)
+      .maybeSingle()
+      .then(({ data }: { data: { language_preference?: string } | null }) => {
+        if (data?.language_preference && data.language_preference in translations) {
+          const profileLang = data.language_preference as LanguageCode;
+          if (profileLang !== language) {
+            setLanguageState(profileLang);
+            localStorage.setItem(STORAGE_KEY, profileLang);
+          }
+        }
+      });
+  }, [userId]);
 
   const setLanguage = useCallback(async (lang: LanguageCode) => {
     setIsLoading(true);
     try {
-      // Update local state immediately
       setLanguageState(lang);
       localStorage.setItem(STORAGE_KEY, lang);
 
-      // If user is logged in, persist to database
       if (userId) {
-        const { error } = await supabase
+        const { error } = await db
           .from("profiles")
           .update({ language_preference: lang })
           .eq("user_id", userId);
@@ -153,8 +144,6 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
 export function useLanguage() {
   const context = useContext(LanguageContext);
   if (context === undefined) {
-    // Return a safe fallback instead of throwing during initialization edge cases
-    // This prevents crashes when components render before the provider is ready
     console.warn("useLanguage called outside LanguageProvider - using fallback");
     return {
       language: "en" as LanguageCode,

@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/db";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   Card,
@@ -53,7 +53,7 @@ export function CaregiverNotificationHistoryPage() {
     queryFn: async () => {
       if (!user) return [];
 
-      const { data: invitations, error: invError } = await supabase
+      const { data: invitations, error: invError } = await db
         .from("caregiver_invitations")
         .select("patient_user_id, permissions")
         .eq("caregiver_user_id", user.id)
@@ -71,7 +71,7 @@ export function CaregiverNotificationHistoryPage() {
 
       if (patientIds.length === 0) return [];
 
-      const { data: profiles } = await supabase
+      const { data: profiles } = await db
         .from("profiles")
         .select("user_id, first_name, last_name")
         .in("user_id", patientIds);
@@ -84,7 +84,7 @@ export function CaregiverNotificationHistoryPage() {
       );
 
       const thirtyDaysAgo = subDays(new Date(), 30);
-      const { data: logs, error: logsError } = await supabase
+      const { data: logs, error: logsError } = await db
         .from("medication_logs")
         .select(`
           id,
@@ -120,7 +120,7 @@ export function CaregiverNotificationHistoryPage() {
     queryFn: async () => {
       if (!user) return [];
 
-      const { data: messages, error } = await supabase
+      const { data: messages, error } = await db
         .from("caregiver_messages")
         .select("id, patient_user_id, message, created_at, is_read, sender_type")
         .eq("caregiver_user_id", user.id)
@@ -135,7 +135,7 @@ export function CaregiverNotificationHistoryPage() {
       
       if (patientIds.length === 0) return [];
 
-      const { data: profiles } = await supabase
+      const { data: profiles } = await db
         .from("profiles")
         .select("user_id, first_name, last_name")
         .in("user_id", patientIds);

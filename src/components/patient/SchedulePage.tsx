@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/db";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Loader2, RefreshCw, Calendar } from "lucide-react";
@@ -45,7 +45,7 @@ export function SchedulePage() {
       const start = startOfDay(today).toISOString();
       const end = endOfDay(today).toISOString();
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from("medication_logs")
         .select(`
           *,
@@ -76,17 +76,17 @@ export function SchedulePage() {
   }, [user, fetchTodaysLogs]);
 
   const generateTodaysLogs = async () => {
-
+    if (!user) return;
     setGenerating(true);
     try {
       // Get all active schedules
-      const { data: schedules, error: schedError } = await supabase
+      const { data: schedules, error: schedError } = await db
         .from("medication_schedules")
         .select(`
           *,
-          medications!inner (id, name, is_active)
+          medications!inner (id, name, is_active, user_id)
         `)
-        .eq("user_id", user.id)
+        .eq("medications.user_id", user.id)
         .eq("is_active", true);
 
       if (schedError) throw schedError;
@@ -116,7 +116,7 @@ export function SchedulePage() {
 
       if (logsToCreate.length > 0) {
         // Check for existing logs to avoid duplicates
-        const { data: existingLogs } = await supabase
+        const { data: existingLogs } = await db
           .from("medication_logs")
           .select("schedule_id, scheduled_time")
           .eq("user_id", user.id)
@@ -132,7 +132,7 @@ export function SchedulePage() {
         );
 
         if (newLogs.length > 0) {
-          const { error } = await supabase.from("medication_logs").insert(newLogs);
+          const { error } = await db.from("medication_logs").insert(newLogs);
           if (error) throw error;
           toast.success(`Generated ${newLogs.length} dose reminders for today`);
         } else {

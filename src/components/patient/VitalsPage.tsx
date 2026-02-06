@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/db";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -60,7 +60,7 @@ export default function VitalsPage() {
   const { data: vitals, isLoading } = useQuery({
     queryKey: ["patient-vitals", user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from("patient_vitals")
         .select("*")
         .eq("user_id", user?.id)
@@ -79,7 +79,7 @@ export default function VitalsPage() {
       const weight = data.weight ? parseFloat(data.weight) : null;
       const bmi = height && weight ? parseFloat((weight / ((height / 100) ** 2)).toFixed(1)) : null;
 
-      const { error } = await supabase.from("patient_vitals").insert({
+      const { error } = await db.from("patient_vitals").insert({
         user_id: user?.id,
         blood_pressure_systolic: data.blood_pressure_systolic ? parseInt(data.blood_pressure_systolic) : null,
         blood_pressure_diastolic: data.blood_pressure_diastolic ? parseInt(data.blood_pressure_diastolic) : null,
@@ -89,7 +89,6 @@ export default function VitalsPage() {
         oxygen_saturation: data.oxygen_saturation ? parseInt(data.oxygen_saturation) : null,
         weight,
         height,
-        bmi,
         blood_glucose: data.blood_glucose ? parseFloat(data.blood_glucose) : null,
         notes: data.notes || null,
         is_fasting: data.is_fasting,

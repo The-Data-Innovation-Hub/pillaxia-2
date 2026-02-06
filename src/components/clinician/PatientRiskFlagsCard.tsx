@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/db";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -30,7 +30,7 @@ export function PatientRiskFlagsCard() {
   const { data: riskFlags, isLoading } = useQuery({
     queryKey: ["patient-risk-flags", user?.id],
     queryFn: async () => {
-      const { data: flags, error } = await supabase
+      const { data: flags, error } = await db
         .from("patient_risk_flags")
         .select("*")
         .eq("is_resolved", false)
@@ -41,7 +41,7 @@ export function PatientRiskFlagsCard() {
 
       // Get patient profiles
       const patientIds = [...new Set(flags?.map(f => f.patient_user_id) || [])];
-      const { data: profiles } = await supabase
+      const { data: profiles } = await db
         .from("profiles")
         .select("user_id, first_name, last_name")
         .in("user_id", patientIds);
@@ -56,7 +56,7 @@ export function PatientRiskFlagsCard() {
 
   const resolveMutation = useMutation({
     mutationFn: async (flagId: string) => {
-      const { error } = await supabase
+      const { error } = await db
         .from("patient_risk_flags")
         .update({ 
           is_resolved: true, 

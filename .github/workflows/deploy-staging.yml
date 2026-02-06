@@ -1,0 +1,84 @@
+# Staging Deployment Workflow
+# Deploys to the staging slot for non-main branches or manual trigger.
+# Useful for pre-production testing and validation.
+
+name: Deploy to Staging
+
+on:
+  push:
+    branches-ignore: [main]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to deploy to staging'
+        required: false
+        type: string
+
+jobs:
+  deploy-staging:
+    name: Deploy to Staging Slot
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.branch || github.ref }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build frontend (staging)
+        run: npm run build
+        env:
+          VITE_API_URL: ${{ secrets.VITE_STAGING_API_URL || secrets.VITE_API_URL }}
+          VITE_AZURE_FUNCTIONS_URL: ${{ secrets.VITE_AZURE_FUNCTIONS_URL }}
+          VITE_ENTRA_CLIENT_ID: ${{ secrets.VITE_ENTRA_CLIENT_ID }}
+          VITE_ENTRA_TENANT_ID: ${{ secrets.VITE_ENTRA_TENANT_ID }}
+          VITE_ENTRA_EXTERNAL_ID_AUTHORITY: ${{ secrets.VITE_ENTRA_EXTERNAL_ID_AUTHORITY }}
+          VITE_ENTRA_REDIRECT_URI: ${{ secrets.VITE_ENTRA_REDIRECT_URI }}
+
+      - name: Create API deployment zip
+        run: |
+          cd api
+          npm ci --omit=dev
+          zip -r ../api-deploy.zip . -x '*.git*'
+
+      - name: Deploy API to staging slot
+        run: |
+          echo "$PUBLISH_PROFILE" > publish-profile.xml
+          APP_NAME="${APP_NAME_SECRET}"
+          if [ -z "$APP_NAME" ]; then
+            APP_NAME=$(sed -n 's/.*[pP]ublish[Uu]rl="[^"]*\/\/\([^.:/]*\)\.scm\.azurewebsites\.net[^"]*".*/\1/p' publish-profile.xml | head -1)
+          fi
+          DEPLOY_PWD=$(tr -d '\n\r' < publish-profile.xml | sed -n 's/.*[uU]ser[Pp][Ww][Dd]="\([^"]*\)".*/\1/p' | head -1)
+          DEPLOY_USER="\$$APP_NAME"
+          curl -f -X POST \
+            -u "$DEPLOY_USER:$DEPLOY_PWD" \
+            --data-binary @api-deploy.zip \
+            "https://$APP_NAME-staging.scm.azurewebsites.net/api/zipdeploy?isAsync=true"
+          rm -f publish-profile.xml
+        env:
+          PUBLISH_PROFILE: ${{ secrets.AZURE_API_PUBLISH_PROFILE }}
+          APP_NAME_SECRET: ${{ secrets.AZURE_API_APP_NAME }}
+
+      - name: Health check staging
+        run: |
+          sleep 30
+          for i in 1 2 3 4 5; do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://${APP_NAME}-staging.azurewebsites.net/health/ready")
+            if [ "$STATUS" = "200" ]; then echo "Staging healthy"; exit 0; fi
+            echo "Attempt $i: got status $STATUS, retrying in 10s..."
+            sleep 10
+          done
+          echo "::warning::Staging health check did not succeed after 5 attempts"
+        env:
+          APP_NAME: ${{ secrets.AZURE_API_APP_NAME }}

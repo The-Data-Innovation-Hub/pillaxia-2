@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/db";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -70,7 +70,7 @@ export function PatientEngagementPage() {
     queryKey: ["patient-engagement-scores", riskFilter],
     queryFn: async () => {
       // First get engagement scores
-      let scoresQuery = supabase
+      let scoresQuery = db
         .from("patient_engagement_scores")
         .select("*")
         .order("overall_score", { ascending: true });
@@ -84,7 +84,7 @@ export function PatientEngagementPage() {
 
       // Then get profiles for all user_ids
       const userIds = [...new Set(scoresData?.map((s) => s.user_id) || [])];
-      const { data: profilesData } = await supabase
+      const { data: profilesData } = await db
         .from("profiles")
         .select("user_id, first_name, last_name, email")
         .in("user_id", userIds);
@@ -111,7 +111,7 @@ export function PatientEngagementPage() {
   const calculateScores = async () => {
     setIsCalculating(true);
     try {
-      const { data, error } = await supabase.functions.invoke("calculate-engagement-scores", {
+      const { data, error } = await db.functions.invoke("calculate-engagement-scores", {
         body: { days: 7 },
       });
       if (error) throw error;

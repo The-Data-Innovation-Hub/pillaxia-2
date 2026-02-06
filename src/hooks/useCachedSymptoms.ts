@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/db";
 import { symptomCache, type CachedSymptomEntry } from "@/lib/cache";
 import { useOfflineStatus } from "./useOfflineStatus";
 
@@ -47,7 +47,7 @@ export function useCachedSymptoms(): UseCachedSymptomsResult {
     if (!user) return;
 
     try {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from("symptom_entries")
         .select(`
           *,

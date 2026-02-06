@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/db";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -102,7 +102,7 @@ export function AddMedicationDialog({ open, onOpenChange, onSuccess, existingMed
     setLoading(true);
     try {
       // Insert medication
-      const { data: medication, error: medError } = await supabase
+      const { data: medication, error: medError } = await db
         .from("medications")
         .insert({
           user_id: user.id,
@@ -121,12 +121,11 @@ export function AddMedicationDialog({ open, onOpenChange, onSuccess, existingMed
       if (schedules.length > 0) {
         const schedulesData = schedules.map((s) => ({
           medication_id: medication.id,
-          user_id: user.id,
           time_of_day: s.time,
           quantity: s.quantity,
         }));
 
-        const { error: schedError } = await supabase
+        const { error: schedError } = await db
           .from("medication_schedules")
           .insert(schedulesData);
 

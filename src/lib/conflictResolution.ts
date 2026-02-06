@@ -1,7 +1,8 @@
 // Conflict Resolution for Offline Sync
 // Detects and manages conflicts between local offline changes and server data
 
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/db";
+import { getAccount, acquireTokenSilent } from "@/lib/azure-auth";
 import { getAutoResolutionPreferences, type AutoResolutionPreferences } from "@/hooks/useAutoResolutionPreferences";
 import { cacheManager, STORES } from "@/lib/cache";
 
@@ -278,11 +279,12 @@ class ConflictResolutionManager {
   private async sendConflictPushNotification(conflict: ConflictEntry): Promise<void> {
     try {
       // Get current user
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
+      const account = await getAccount();
+      if (!account) {
         console.log("[ConflictManager] No user session, skipping push notification");
         return;
       }
+      const user = { id: account.localAccountId, email: account.username ?? null };
 
       const typeLabel = this.getTypeLabel(conflict.type);
       const conflictLabel = conflict.conflictType === "update_conflict" 
@@ -291,7 +293,7 @@ class ConflictResolutionManager {
           ? "was deleted on the server"
           : "has outdated data";
 
-      const { error } = await supabase.functions.invoke("send-push-notification", {
+      const { error } = await db.functions.invoke("send-push-notification", {
         body: {
           user_ids: [user.id],
           payload: {

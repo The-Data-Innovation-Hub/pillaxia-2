@@ -14,7 +14,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Send, Loader2, MapPin, Phone, Mail, AlertTriangle } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/db";
 import { toast } from "sonner";
 import type { Prescription } from "@/hooks/usePrescriptions";
 
@@ -37,7 +37,7 @@ export function SendPrescriptionDialog({
   const { data: pharmacies, isLoading } = useQuery({
     queryKey: ["pharmacies-for-send"],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from("pharmacy_locations")
         .select("*")
         .eq("is_active", true)
@@ -50,7 +50,7 @@ export function SendPrescriptionDialog({
 
   const sendPrescription = useMutation({
     mutationFn: async () => {
-      const { data, error } = await supabase.functions.invoke("send-prescription", {
+      const { data, error } = await db.functions.invoke("send-prescription", {
         body: {
           prescriptionId: prescription.id,
           pharmacyId: selectedPharmacyId,

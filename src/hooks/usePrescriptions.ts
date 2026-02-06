@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/db";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -101,7 +101,7 @@ export interface UpdatePrescriptionData {
 }
 
 async function generatePrescriptionNumber(): Promise<string> {
-  const { data, error } = await supabase.rpc('generate_prescription_number');
+  const { data, error } = await db.rpc('generate_prescription_number');
   if (error) throw error;
   return data as string;
 }
@@ -119,7 +119,7 @@ export function usePrescriptions(options?: {
     queryKey: ["prescriptions", user?.id, options?.patientId, options?.pharmacyId, options?.pharmacyIds, options?.status],
     queryFn: async (): Promise<Prescription[]> => {
       // First, fetch prescriptions with pharmacy data
-      let query = supabase
+      let query = db
         .from("prescriptions")
         .select(`
           *,
@@ -157,29 +157,33 @@ export function usePrescriptions(options?: {
       const allUserIds = [...new Set([...patientIds, ...clinicianIds])];
 
       // Fetch profiles for all users in one query
-      const { data: profilesData } = await supabase
+      const { data: profilesData } = await db
         .from("profiles")
         .select("user_id, first_name, last_name, email, phone, license_number")
         .in("user_id", allUserIds);
 
       // Create a map for quick lookup
-      const profilesMap = new Map(profilesData?.map(p => [p.user_id, p]) || []);
+      const profilesMap = new Map(profilesData?.map((p: any) => [p.user_id, p]) || []);
 
       // Merge profiles into prescriptions
-      const prescriptionsWithProfiles = prescriptionsData.map(rx => ({
-        ...rx,
-        patient_profile: profilesMap.get(rx.patient_user_id) ? {
-          first_name: profilesMap.get(rx.patient_user_id)?.first_name || null,
-          last_name: profilesMap.get(rx.patient_user_id)?.last_name || null,
-          email: profilesMap.get(rx.patient_user_id)?.email || null,
-          phone: profilesMap.get(rx.patient_user_id)?.phone || null,
-        } : undefined,
-        clinician_profile: profilesMap.get(rx.clinician_user_id) ? {
-          first_name: profilesMap.get(rx.clinician_user_id)?.first_name || null,
-          last_name: profilesMap.get(rx.clinician_user_id)?.last_name || null,
-          license_number: profilesMap.get(rx.clinician_user_id)?.license_number || null,
-        } : undefined,
-      }));
+      const prescriptionsWithProfiles = prescriptionsData.map(rx => {
+        const patientProf = profilesMap.get(rx.patient_user_id) as any;
+        const clinicianProf = profilesMap.get(rx.clinician_user_id) as any;
+        return {
+          ...rx,
+          patient_profile: patientProf ? {
+            first_name: patientProf.first_name || null,
+            last_name: patientProf.last_name || null,
+            email: patientProf.email || null,
+            phone: patientProf.phone || null,
+          } : undefined,
+          clinician_profile: clinicianProf ? {
+            first_name: clinicianProf.first_name || null,
+            last_name: clinicianProf.last_name || null,
+            license_number: clinicianProf.license_number || null,
+          } : undefined,
+        };
+      });
 
       return prescriptionsWithProfiles as Prescription[];
     },
@@ -192,7 +196,7 @@ export function usePrescriptions(options?: {
 
       const prescriptionNumber = await generatePrescriptionNumber();
 
-      const { data: prescription, error } = await supabase
+      const { data: prescription, error } = await db
         .from("prescriptions")
         .insert({
           ...data,
@@ -220,7 +224,7 @@ export function usePrescriptions(options?: {
 
   const sendPrescription = useMutation({
     mutationFn: async ({ prescriptionId, pharmacyId }: { prescriptionId: string; pharmacyId: string }) => {
-      const { error } = await supabase
+      const { error } = await db
         .from("prescriptions")
         .update({ 
           pharmacy_id: pharmacyId, 
@@ -232,7 +236,7 @@ export function usePrescriptions(options?: {
       if (error) throw error;
 
       // Log status change
-      await supabase.from("prescription_status_history").insert({
+      await db.from("prescription_status_history").insert({
         prescription_id: prescriptionId,
         previous_status: 'pending',
         new_status: 'sent',
@@ -260,7 +264,7 @@ export function usePrescriptions(options?: {
       notes?: string;
     }) => {
       // Get current status
-      const { data: current } = await supabase
+      const { data: current } = await db
         .from("prescriptions")
         .select("status")
         .eq("id", prescriptionId)
@@ -270,7 +274,7 @@ export function usePrescriptions(options?: {
       if (status === 'received') updates.received_at = new Date().toISOString();
       if (status === 'dispensed') updates.dispensed_at = new Date().toISOString();
 
-      const { error } = await supabase
+      const { error } = await db
         .from("prescriptions")
         .update(updates)
         .eq("id", prescriptionId);
@@ -278,7 +282,7 @@ export function usePrescriptions(options?: {
       if (error) throw error;
 
       // Log status change
-      await supabase.from("prescription_status_history").insert({
+      await db.from("prescription_status_history").insert({
         prescription_id: prescriptionId,
         previous_status: current?.status,
         new_status: status,
@@ -297,20 +301,20 @@ export function usePrescriptions(options?: {
 
   const cancelPrescription = useMutation({
     mutationFn: async ({ prescriptionId, reason }: { prescriptionId: string; reason: string }) => {
-      const { data: current } = await supabase
+      const { data: current } = await db
         .from("prescriptions")
         .select("status")
         .eq("id", prescriptionId)
         .single();
 
-      const { error } = await supabase
+      const { error } = await db
         .from("prescriptions")
         .update({ status: 'cancelled' })
         .eq("id", prescriptionId);
 
       if (error) throw error;
 
-      await supabase.from("prescription_status_history").insert({
+      await db.from("prescription_status_history").insert({
         prescription_id: prescriptionId,
         previous_status: current?.status,
         new_status: 'cancelled',
@@ -329,7 +333,7 @@ export function usePrescriptions(options?: {
 
   const updatePrescription = useMutation({
     mutationFn: async ({ prescriptionId, data }: { prescriptionId: string; data: UpdatePrescriptionData }) => {
-      const { error } = await supabase
+      const { error } = await db
         .from("prescriptions")
         .update(data)
         .eq("id", prescriptionId);
@@ -348,12 +352,12 @@ export function usePrescriptions(options?: {
   const deletePrescription = useMutation({
     mutationFn: async (prescriptionId: string) => {
       // First delete related history records
-      await supabase
+      await db
         .from("prescription_status_history")
         .delete()
         .eq("prescription_id", prescriptionId);
 
-      const { error } = await supabase
+      const { error } = await db
         .from("prescriptions")
         .delete()
         .eq("id", prescriptionId);

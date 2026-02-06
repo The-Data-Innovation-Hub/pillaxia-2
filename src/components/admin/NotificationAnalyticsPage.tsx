@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/db";
+import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
@@ -85,6 +86,7 @@ export function NotificationAnalyticsPage() {
   const [isSendingTest, setIsSendingTest] = useState(false);
   const [retryingIds, setRetryingIds] = useState<Set<string>>(new Set());
   const { toast } = useToast();
+  const { user } = useAuth();
   const queryClient = useQueryClient();
   const days = timeRange === "7d" ? 7 : timeRange === "14d" ? 14 : 30;
   const startDate = startOfDay(subDays(new Date(), days - 1));
@@ -92,12 +94,11 @@ export function NotificationAnalyticsPage() {
 
   // Fetch current admin's email from their profile
   const { data: currentUserProfile } = useQuery({
-    queryKey: ["current-user-profile"],
+    queryKey: ["current-user-profile", user?.id],
     queryFn: async () => {
-      const { data: { user } } = await supabase.auth.getUser();
       if (!user) return null;
       
-      const { data: profile } = await supabase
+      const { data: profile } = await db
         .from("profiles")
         .select("email")
         .eq("user_id", user.id)
@@ -105,12 +106,13 @@ export function NotificationAnalyticsPage() {
       
       return profile;
     },
+    enabled: !!user,
   });
 
   const { data: analytics, isLoading } = useQuery({
     queryKey: ["notification-analytics", timeRange],
     queryFn: async () => {
-      const { data: notifications, error } = await supabase
+      const { data: notifications, error } = await db
         .from("notification_history")
         .select("channel, status, notification_type, created_at, delivered_at, opened_at, clicked_at")
         .gte("created_at", startDate.toISOString())
@@ -241,7 +243,7 @@ export function NotificationAnalyticsPage() {
       });
 
       // Fill in missing days
-      const trendData = [];
+      const trendData: { date: string; sent: number; delivered: number; opened: number; clicked: number; failed: number }[] = [];
       for (let i = 0; i < days; i++) {
         const date = format(subDays(new Date(), days - 1 - i), "yyyy-MM-dd");
         trendData.push(byDay[date] || { date, sent: 0, delivered: 0, opened: 0, clicked: 0, failed: 0 });
@@ -304,7 +306,7 @@ export function NotificationAnalyticsPage() {
   const { data: failedNotifications, isLoading: isLoadingFailed } = useQuery({
     queryKey: ["failed-notifications"],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from("notification_history")
         .select("id, channel, notification_type, title, body, error_message, created_at, retry_count, max_retries, next_retry_at, last_retry_at, user_id")
         .eq("status", "failed")
@@ -320,7 +322,7 @@ export function NotificationAnalyticsPage() {
     setRetryingIds(prev => new Set(prev).add(notificationId));
 
     try {
-      const { data, error } = await supabase.functions.invoke("retry-notification", {
+      const { data, error } = await db.functions.invoke("retry-notification", {
         body: { notification_id: notificationId },
       });
 
@@ -368,7 +370,7 @@ export function NotificationAnalyticsPage() {
 
     setIsSendingTest(true);
     try {
-      const { data, error } = await supabase.functions.invoke("test-email-webhook", {
+      const { data, error } = await db.functions.invoke("test-email-webhook", {
         body: { to: testEmail.trim() },
       });
 

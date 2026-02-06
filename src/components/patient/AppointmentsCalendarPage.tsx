@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/db";
 import { useAuth } from "@/contexts/AuthContext";
 import { format, parseISO, isSameDay, startOfMonth, endOfMonth } from "date-fns";
 import { Calendar } from "@/components/ui/calendar";
@@ -72,7 +72,7 @@ export function AppointmentsCalendarPage() {
       const monthStart = startOfMonth(currentMonth);
       const monthEnd = endOfMonth(currentMonth);
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from("appointments")
         .select("*")
         .eq("patient_user_id", user!.id)
@@ -85,7 +85,7 @@ export function AppointmentsCalendarPage() {
 
       // Fetch clinician profiles
       const clinicianIds = [...new Set(data.map((a) => a.clinician_user_id))];
-      const { data: profiles } = await supabase
+      const { data: profiles } = await db
         .from("profiles")
         .select("user_id, first_name, last_name")
         .in("user_id", clinicianIds);
@@ -102,7 +102,7 @@ export function AppointmentsCalendarPage() {
 
   const updateStatusMutation = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
-      const { error } = await supabase
+      const { error } = await db
         .from("appointments")
         .update({ status })
         .eq("id", id);

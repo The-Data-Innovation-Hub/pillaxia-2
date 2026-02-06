@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/db";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -18,7 +18,8 @@ interface ProfileWithLicense {
   license_number: string | null;
   license_expiration_date: string | null;
   avatar_url: string | null;
-  organization: string | null;
+  organization_id: string | null;
+  organization_name: string | null;
   role: string;
 }
 
@@ -37,7 +38,7 @@ export function LicenseCompliancePage() {
   const fetchProfiles = async () => {
     try {
       // Fetch profiles for clinicians and pharmacists
-      const { data: rolesData, error: rolesError } = await supabase
+      const { data: rolesData, error: rolesError } = await db
         .from("user_roles")
         .select("user_id, role")
         .in("role", ["clinician", "pharmacist"]);
@@ -52,18 +53,26 @@ export function LicenseCompliancePage() {
 
       const userIds = rolesData.map((r) => r.user_id);
 
-      const { data: profilesData, error: profilesError } = await supabase
+      const { data: profilesData, error: profilesError } = await db
         .from("profiles")
-        .select("user_id, first_name, last_name, email, license_number, license_expiration_date, avatar_url, organization")
+        .select("user_id, first_name, last_name, email, license_number, license_expiration_date, avatar_url, organization_id, organizations (name)")
         .in("user_id", userIds);
 
       if (profilesError) throw profilesError;
 
       // Merge profiles with roles
-      const mergedProfiles: ProfileWithLicense[] = (profilesData || []).map((profile) => {
+      const mergedProfiles: ProfileWithLicense[] = (profilesData || []).map((profile: any) => {
         const roleEntry = rolesData.find((r) => r.user_id === profile.user_id);
         return {
-          ...profile,
+          user_id: profile.user_id,
+          first_name: profile.first_name,
+          last_name: profile.last_name,
+          email: profile.email,
+          license_number: profile.license_number,
+          license_expiration_date: profile.license_expiration_date,
+          avatar_url: profile.avatar_url,
+          organization_id: profile.organization_id,
+          organization_name: profile.organizations?.name || null,
           role: roleEntry?.role || "unknown",
         };
       });

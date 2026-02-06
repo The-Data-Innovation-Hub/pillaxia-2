@@ -3,7 +3,7 @@
  * Extracted from OrganizationContext for better separation of concerns.
  */
 import { useState, useCallback } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/db";
 
 export interface Organization {
   id: string;
@@ -71,14 +71,14 @@ export async function fetchOrganizationData(
 ): Promise<Omit<OrgDataState, "isLoading">> {
   try {
     // First, get the user's profile to check for a preferred organization
-    const { data: profileData } = await supabase
+    const { data: profileData } = await db
       .from("profiles")
       .select("organization_id")
       .eq("user_id", userId)
       .maybeSingle();
 
     // Get the user's organization memberships
-    const { data: memberDataList, error: memberError } = await supabase
+    const { data: memberDataList, error: memberError } = await db
       .from("organization_members")
       .select("*")
       .eq("user_id", userId)
@@ -103,7 +103,7 @@ export async function fetchOrganizationData(
     }
 
     // Fetch organization details
-    const { data: orgData, error: orgError } = await supabase
+    const { data: orgData, error: orgError } = await db
       .from("organizations")
       .select("*")
       .eq("id", memberData.organization_id)
@@ -112,7 +112,7 @@ export async function fetchOrganizationData(
     if (orgError) throw orgError;
 
     // Fetch branding
-    const { data: brandingData, error: brandingError } = await supabase
+    const { data: brandingData, error: brandingError } = await db
       .from("organization_branding")
       .select("*")
       .eq("organization_id", memberData.organization_id)

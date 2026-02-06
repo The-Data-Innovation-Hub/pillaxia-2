@@ -19,7 +19,7 @@ import {
   User
 } from "lucide-react";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import angelaImage from "@/assets/hero-angela.png";
 import ReactMarkdown from "react-markdown";
 
@@ -71,9 +71,10 @@ interface ClinicalDecisionSupportProps {
   onClose?: () => void;
 }
 
-const CDS_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/clinical-decision-support`;
+const CDS_URL = `${import.meta.env.VITE_AZURE_FUNCTIONS_URL || import.meta.env.VITE_API_URL}/api/clinical-decision-support`;
 
 export function ClinicalDecisionSupport({ patient, onClose }: ClinicalDecisionSupportProps) {
+  const { getToken } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -116,9 +117,9 @@ export function ClinicalDecisionSupport({ patient, onClose }: ClinicalDecisionSu
       const conversationHistory = messages
         .map((m) => ({ role: m.role, content: m.content }));
 
-      // Get the user's session token for authenticated requests
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) {
+      // Get the user's auth token for authenticated requests
+      const token = await getToken();
+      if (!token) {
         throw new Error("Please log in to use Clinical Decision Support");
       }
 
@@ -126,7 +127,7 @@ export function ClinicalDecisionSupport({ patient, onClose }: ClinicalDecisionSu
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${session.access_token}`,
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ 
           patientContext, 

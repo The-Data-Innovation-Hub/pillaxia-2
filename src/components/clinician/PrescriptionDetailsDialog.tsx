@@ -22,7 +22,7 @@ import {
   Send,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/db";
 import type { Prescription, PrescriptionStatus } from "@/hooks/usePrescriptions";
 
 interface PrescriptionDetailsDialogProps {
@@ -51,7 +51,7 @@ export function PrescriptionDetailsDialog({
   const { data: statusHistory, isLoading: historyLoading } = useQuery({
     queryKey: ["prescription-history", prescription.id],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from("prescription_status_history")
         .select(`
           *,

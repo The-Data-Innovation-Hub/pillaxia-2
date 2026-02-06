@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/db";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -46,7 +46,7 @@ export function ComplianceReportPage() {
   const { data: existingReports, isLoading: reportsLoading, refetch } = useQuery({
     queryKey: ["compliance-reports"],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from("compliance_reports")
         .select("*")
         .order("created_at", { ascending: false })
@@ -74,7 +74,7 @@ export function ComplianceReportPage() {
       };
 
       if (reportType === "security_summary" || reportType === "hipaa_audit") {
-        const { data: securityEvents, error: secError } = await supabase
+        const { data: securityEvents, error: secError } = await db
           .from("security_events")
           .select("*")
           .gte("created_at", startStr)
@@ -89,7 +89,7 @@ export function ComplianceReportPage() {
         summary.unique_users = new Set(securityEvents?.map(e => e.user_id)).size;
 
         // Get account lockouts
-        const { data: lockouts } = await supabase
+        const { data: lockouts } = await db
           .from("account_lockouts")
           .select("*")
           .gte("created_at", startStr)
@@ -99,7 +99,7 @@ export function ComplianceReportPage() {
       }
 
       if (reportType === "data_access" || reportType === "hipaa_audit") {
-        const { data: accessLogs, error: accessError } = await supabase
+        const { data: accessLogs, error: accessError } = await db
           .from("data_access_log")
           .select("*")
           .gte("created_at", startStr)
@@ -115,7 +115,7 @@ export function ComplianceReportPage() {
       }
 
       if (reportType === "user_activity") {
-        const { data: auditLogs, error: auditError } = await supabase
+        const { data: auditLogs, error: auditError } = await db
           .from("audit_log")
           .select("*")
           .gte("created_at", startStr)
@@ -129,7 +129,7 @@ export function ComplianceReportPage() {
       }
 
       // Save report to database
-      const { data: savedReport, error: saveError } = await supabase
+      const { data: savedReport, error: saveError } = await db
         .from("compliance_reports")
         .insert({
           report_type: reportType,

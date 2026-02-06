@@ -1,6 +1,6 @@
 /**
  * Azure customer identity (B2C or Entra External ID) auth wrapper
- * Replaces Supabase Auth when VITE_USE_AZURE_AUTH=true
+ * Azure AD B2C authentication via MSAL.
  * Supports: Azure AD B2C (existing tenants) or Microsoft Entra External ID (new tenants)
  */
 
@@ -149,6 +149,14 @@ export async function getMsalInstance(): Promise<PublicClientApplication> {
   return initPromise;
 }
 
+export function getLoginScopes(): string[] {
+  const envScopes =
+    import.meta.env.VITE_ENTRA_SCOPES ||
+    import.meta.env.VITE_AZURE_B2C_SCOPES;
+  if (envScopes) return envScopes.split(',').map((s: string) => s.trim()).filter(Boolean);
+  return ['openid', 'profile', 'email'];
+}
+
 export async function signInWithRedirect(): Promise<void> {
   const authority = getAuthority();
   const clientId =
@@ -164,11 +172,7 @@ export async function signInWithRedirect(): Promise<void> {
   const discoveryUrl = authority.replace(/\/$/, '') + '/.well-known/openid-configuration';
   try {
     const msal = await getMsalInstance();
-    const scopes = import.meta.env.VITE_AZURE_B2C_SCOPES?.split(',') || [
-      'openid',
-      'profile',
-      'email',
-    ];
+    const scopes = getLoginScopes();
     await msal.loginRedirect({
       scopes: scopes as string[],
     });
@@ -191,11 +195,7 @@ export async function signInPopup(
 ): Promise<{ account: AccountInfo; result: AuthenticationResult } | { error: Error }> {
   try {
     const msal = await getMsalInstance();
-    const scopes = import.meta.env.VITE_AZURE_B2C_SCOPES?.split(',') || [
-      'openid',
-      'profile',
-      'email',
-    ];
+    const scopes = getLoginScopes();
     const result = await msal.loginPopup({
       scopes: scopes as string[],
       loginHint: email,
@@ -220,32 +220,43 @@ export async function getAccount(): Promise<AccountInfo | null> {
   return accounts[0] ?? null;
 }
 
+/**
+ * Detect whether the configured scopes are purely OIDC/identity scopes.
+ * When only OIDC scopes are present (openid, profile, email, offline_access),
+ * the MSAL accessToken targets Microsoft Graph, NOT the app itself.
+ * In that case we return the idToken instead, whose `aud` = the client ID,
+ * which matches what the API's passport-azure-ad BearerStrategy expects.
+ *
+ * For production, expose an API scope in the App Registration and set
+ * VITE_ENTRA_SCOPES=api://<client-id>/access_as_user to get a proper
+ * access token with the correct audience.
+ */
+const OIDC_ONLY_SCOPES = new Set(['openid', 'profile', 'email', 'offline_access']);
+
+function isOidcOnlyScopes(scopes: string[]): boolean {
+  return scopes.every((s) => OIDC_ONLY_SCOPES.has(s.trim().toLowerCase()));
+}
+
 export async function acquireTokenSilent(): Promise<string | null> {
   const msal = await getMsalInstance();
   const account = await getAccount();
   if (!account) return null;
 
-  const scopes =
-    import.meta.env.VITE_AZURE_B2C_SCOPES?.split(',') ||
-    import.meta.env.VITE_ENTRA_SCOPES?.split(',') || [
-      import.meta.env.VITE_ENTRA_CLIENT_ID ||
-        import.meta.env.VITE_AZURE_CLIENT_ID ||
-        import.meta.env.VITE_AZURE_B2C_CLIENT_ID ||
-        'openid',
-    ];
+  const scopes = getLoginScopes();
+  const useIdToken = isOidcOnlyScopes(scopes);
 
   try {
     const result = await msal.acquireTokenSilent({
       scopes: scopes as string[],
       account,
     });
-    return result.accessToken;
+    return useIdToken ? result.idToken : result.accessToken;
   } catch {
     try {
       const result = await msal.acquireTokenPopup({
         scopes: scopes as string[],
       });
-      return result.accessToken;
+      return useIdToken ? result.idToken : result.accessToken;
     } catch {
       return null;
     }

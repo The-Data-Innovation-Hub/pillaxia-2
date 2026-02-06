@@ -1,13 +1,10 @@
 import { Button } from "@/components/ui/button";
 import { Menu, X, Loader2 } from "lucide-react";
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
 import pillaxiaLogo from "@/assets/pillaxia-logo.png";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { useAuth } from "@/contexts/AuthContext";
-
-const useAzureAuth = import.meta.env.VITE_USE_AZURE_AUTH === "true";
 
 interface NavbarProps {
   onSignupClick?: () => void;
@@ -16,22 +13,17 @@ interface NavbarProps {
 const Navbar = ({
   onSignupClick = () => {},
 }: NavbarProps) => {
-  const navigate = useNavigate();
   const { t } = useLanguage();
   const { signIn } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [azureRedirecting, setAzureRedirecting] = useState(false);
 
   const handleLoginClick = async () => {
-    if (useAzureAuth) {
-      setAzureRedirecting(true);
-      try {
-        await signIn("", "");
-      } finally {
-        setAzureRedirecting(false);
-      }
-    } else {
-      navigate("/auth");
+    setAzureRedirecting(true);
+    try {
+      await signIn("", "");
+    } finally {
+      setAzureRedirecting(false);
     }
   };
 
@@ -71,16 +63,14 @@ const Navbar = ({
               onClick={handleLoginClick}
               disabled={azureRedirecting}
             >
-              {useAzureAuth
-                ? (azureRedirecting ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Redirecting…
-                    </>
-                  ) : (
-                    "Sign in with Microsoft"
-                  ))
-                : t.nav.login}
+              {azureRedirecting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Redirecting…
+                </>
+              ) : (
+                "Sign in with Microsoft"
+              )}
             </Button>
             <Button
               className="bg-primary hover:bg-pillaxia-navy-dark text-primary-foreground shadow-pillaxia"
@@ -125,31 +115,24 @@ const Navbar = ({
                 variant="outline"
                 className="w-full border-pillaxia-cyan text-pillaxia-cyan hover:bg-pillaxia-cyan hover:text-primary-foreground"
                 onClick={async () => {
-                  if (useAzureAuth) {
-                    setAzureRedirecting(true);
-                    try {
-                      await signIn("", "");
-                    } finally {
-                      setAzureRedirecting(false);
-                      setMobileMenuOpen(false);
-                    }
-                  } else {
-                    navigate("/auth");
+                  setAzureRedirecting(true);
+                  try {
+                    await signIn("", "");
+                  } finally {
+                    setAzureRedirecting(false);
                     setMobileMenuOpen(false);
                   }
                 }}
                 disabled={azureRedirecting}
               >
-                {useAzureAuth
-                  ? (azureRedirecting ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Redirecting…
-                      </>
-                    ) : (
-                      "Sign in with Microsoft"
-                    ))
-                  : t.nav.login}
+                {azureRedirecting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Redirecting…
+                  </>
+                ) : (
+                  "Sign in with Microsoft"
+                )}
               </Button>
               <Button
                 className="w-full bg-primary hover:bg-pillaxia-navy-dark text-primary-foreground"

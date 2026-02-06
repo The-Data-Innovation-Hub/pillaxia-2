@@ -1,6 +1,4 @@
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -20,135 +18,44 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Search, Pill, User, Clock, Send, Package, CheckCircle, XCircle } from "lucide-react";
-import { toast } from "sonner";
-
-type PrescriptionStatus = "pending" | "sent" | "ready" | "picked_up" | "completed" | "cancelled";
-
-interface Prescription {
-  id: string;
-  user_id: string;
-  name: string;
-  dosage: string;
-  dosage_unit: string;
-  form: string;
-  prescriber: string | null;
-  pharmacy: string | null;
-  start_date: string | null;
-  end_date: string | null;
-  is_active: boolean;
-  refills_remaining: number | null;
-  prescription_status: PrescriptionStatus;
-  patient: {
-    first_name: string | null;
-    last_name: string | null;
-    email: string | null;
-  } | null;
-}
+import { Search, Pill, User, Clock, Send, Package, CheckCircle, XCircle, FileText, AlertTriangle } from "lucide-react";
+import { usePrescriptions, Prescription, PrescriptionStatus } from "@/hooks/usePrescriptions";
 
 const STATUS_CONFIG: Record<PrescriptionStatus, { label: string; icon: React.ElementType; variant: "default" | "secondary" | "destructive" | "outline" }> = {
+  draft: { label: "Draft", icon: FileText, variant: "outline" },
   pending: { label: "Pending", icon: Clock, variant: "secondary" },
   sent: { label: "Sent", icon: Send, variant: "outline" },
+  received: { label: "Received", icon: CheckCircle, variant: "default" },
+  processing: { label: "Processing", icon: Package, variant: "secondary" },
   ready: { label: "Ready for Pickup", icon: Package, variant: "default" },
-  picked_up: { label: "Picked Up", icon: CheckCircle, variant: "default" },
-  completed: { label: "Completed", icon: CheckCircle, variant: "default" },
+  dispensed: { label: "Dispensed", icon: CheckCircle, variant: "default" },
   cancelled: { label: "Cancelled", icon: XCircle, variant: "destructive" },
+  expired: { label: "Expired", icon: AlertTriangle, variant: "destructive" },
 };
 
 export function PrescriptionsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
-  const queryClient = useQueryClient();
-  const { data: prescriptions, isLoading } = useQuery({
-    queryKey: ["all-prescriptions"],
-    queryFn: async () => {
-      const { data: medications, error } = await supabase
-        .from("medications")
-        .select("*")
-        .order("created_at", { ascending: false });
 
-      if (error) throw error;
-
-      const userIds = [...new Set(medications?.map((m) => m.user_id) || [])];
-
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("user_id, first_name, last_name, email")
-        .in("user_id", userIds);
-
-      const prescriptionsWithPatients: Prescription[] = (medications || []).map((med) => {
-        const profile = profiles?.find((p) => p.user_id === med.user_id);
-        return {
-          ...med,
-          prescription_status: (med.prescription_status || "pending") as PrescriptionStatus,
-          patient: profile
-            ? {
-                first_name: profile.first_name,
-                last_name: profile.last_name,
-                email: profile.email,
-              }
-            : null,
-        };
-      });
-
-      return prescriptionsWithPatients;
-    },
-  });
-
-  const updateStatusMutation = useMutation({
-    mutationFn: async ({ id, status, patientUserId, medicationName, pharmacy }: { 
-      id: string; 
-      status: PrescriptionStatus;
-      patientUserId: string;
-      medicationName: string;
-      pharmacy?: string;
-    }) => {
-      const { error } = await supabase
-        .from("medications")
-        .update({ prescription_status: status })
-        .eq("id", id);
-      if (error) throw error;
-
-      // Send notification to patient
-      try {
-        await supabase.functions.invoke("send-prescription-status-notification", {
-          body: {
-            patient_user_id: patientUserId,
-            medication_name: medicationName,
-            new_status: status,
-            pharmacy: pharmacy,
-          },
-        });
-      } catch (notifError) {
-        console.error("Failed to send notification:", notifError);
-        // Don't throw - status update succeeded, notification is secondary
-      }
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["all-prescriptions"] });
-      toast.success("Prescription status updated & patient notified");
-    },
-    onError: () => {
-      toast.error("Failed to update status");
-    },
-  });
+  const { prescriptions, isLoading, updatePrescriptionStatus } = usePrescriptions();
 
   const filteredPrescriptions = prescriptions?.filter((rx) => {
     const matchesSearch =
       searchQuery === "" ||
-      rx.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      `${rx.patient?.first_name || ""} ${rx.patient?.last_name || ""}`
+      rx.medication_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      rx.prescription_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      `${rx.patient_profile?.first_name || ""} ${rx.patient_profile?.last_name || ""}`
         .toLowerCase()
         .includes(searchQuery.toLowerCase());
 
     const matchesStatus =
-      statusFilter === "all" || rx.prescription_status === statusFilter;
+      statusFilter === "all" || rx.status === statusFilter;
 
     return matchesSearch && matchesStatus;
   });
 
   const statusCounts = prescriptions?.reduce((acc, rx) => {
-    acc[rx.prescription_status] = (acc[rx.prescription_status] || 0) + 1;
+    acc[rx.status] = (acc[rx.status] || 0) + 1;
     return acc;
   }, {} as Record<string, number>) || {};
 
@@ -228,6 +135,7 @@ export function PrescriptionsPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead>Rx #</TableHead>
                     <TableHead>Medication</TableHead>
                     <TableHead>Patient</TableHead>
                     <TableHead>Dosage</TableHead>
@@ -240,13 +148,16 @@ export function PrescriptionsPage() {
                 <TableBody>
                   {filteredPrescriptions.map((rx) => (
                     <TableRow key={rx.id}>
+                      <TableCell className="font-mono text-sm">
+                        {rx.prescription_number}
+                      </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-3">
                           <div className="h-9 w-9 rounded-lg bg-emerald-50 flex items-center justify-center">
                             <Pill className="h-4 w-4 text-emerald-600" />
                           </div>
                           <div>
-                            <p className="font-medium">{rx.name}</p>
+                            <p className="font-medium">{rx.medication_name}</p>
                             <p className="text-xs text-muted-foreground">{rx.form}</p>
                           </div>
                         </div>
@@ -255,20 +166,24 @@ export function PrescriptionsPage() {
                         <div className="flex items-center gap-2">
                           <User className="h-4 w-4 text-muted-foreground" />
                           <span>
-                            {rx.patient?.first_name} {rx.patient?.last_name}
+                            {rx.patient_profile?.first_name} {rx.patient_profile?.last_name}
                           </span>
                         </div>
                       </TableCell>
                       <TableCell>
                         {rx.dosage} {rx.dosage_unit}
                       </TableCell>
-                      <TableCell>{rx.prescriber || "—"}</TableCell>
+                      <TableCell>
+                        {rx.clinician_profile
+                          ? `Dr. ${rx.clinician_profile.first_name || ""} ${rx.clinician_profile.last_name || ""}`
+                          : "—"}
+                      </TableCell>
                       <TableCell>
                         <Badge
                           variant={
-                            (rx.refills_remaining || 0) === 0
+                            rx.refills_remaining === 0
                               ? "destructive"
-                              : (rx.refills_remaining || 0) <= 2
+                              : rx.refills_remaining <= 2
                               ? "secondary"
                               : "outline"
                           }
@@ -278,7 +193,7 @@ export function PrescriptionsPage() {
                       </TableCell>
                       <TableCell>
                         {(() => {
-                          const config = STATUS_CONFIG[rx.prescription_status];
+                          const config = STATUS_CONFIG[rx.status];
                           const Icon = config.icon;
                           return (
                             <Badge variant={config.variant} className="gap-1">
@@ -290,14 +205,11 @@ export function PrescriptionsPage() {
                       </TableCell>
                       <TableCell>
                         <Select
-                          value={rx.prescription_status}
+                          value={rx.status}
                           onValueChange={(value) =>
-                            updateStatusMutation.mutate({ 
-                              id: rx.id, 
+                            updatePrescriptionStatus.mutate({
+                              prescriptionId: rx.id,
                               status: value as PrescriptionStatus,
-                              patientUserId: rx.user_id,
-                              medicationName: rx.name,
-                              pharmacy: rx.pharmacy || undefined,
                             })
                           }
                         >

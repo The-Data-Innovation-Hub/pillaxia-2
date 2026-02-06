@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/db";
 import { scheduleCache } from "@/lib/cache";
 import { useOfflineStatus } from "./useOfflineStatus";
 import { startOfDay, endOfDay } from "date-fns";
@@ -67,7 +67,7 @@ export function useCachedTodaysSchedule(): UseCachedTodaysScheduleResult {
       const start = startOfDay(today).toISOString();
       const end = endOfDay(today).toISOString();
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from("medication_logs")
         .select(`
           id,

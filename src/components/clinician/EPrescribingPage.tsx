@@ -43,7 +43,7 @@ import { PrescriptionDetailsDialog } from "./PrescriptionDetailsDialog";
 import { EditPrescriptionDialog } from "./EditPrescriptionDialog";
 import { format } from "date-fns";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/db";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   AlertDialog,
@@ -94,7 +94,7 @@ export function EPrescribingPage() {
   const { data: patients } = useQuery({
     queryKey: ["assigned-patients", user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from("clinician_patient_assignments")
         .select(`
           patient_user_id,

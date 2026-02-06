@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/db";
 import {
   Card,
   CardContent,
@@ -90,7 +90,7 @@ export function SettingsPage() {
   const [shouldThrowError, setShouldThrowError] = useState(false);
   const [seedingUsers, setSeedingUsers] = useState(false);
   const queryClient = useQueryClient();
-  const { user, isManager, isAdmin } = useAuth();
+  const { user, isManager, isAdmin, getToken } = useAuth();
 
   // Load onboarding preference - default is OFF (disabled)
   useEffect(() => {
@@ -120,7 +120,7 @@ export function SettingsPage() {
       // Test WhatsApp configuration
       let whatsappConfigured = false;
       try {
-        const { data } = await supabase.functions.invoke("send-whatsapp-notification", {
+        const { data } = await db.functions.invoke("send-whatsapp-notification", {
           body: { recipientId: "test", senderName: "test", message: "test" },
         });
         // If it returns "not_configured", it's not set up
@@ -132,7 +132,7 @@ export function SettingsPage() {
       // Test Resend configuration
       let resendConfigured = false;
       try {
-        const { data } = await supabase.functions.invoke("send-encouragement-email", {
+        const { data } = await db.functions.invoke("send-encouragement-email", {
           body: { patientEmail: "test@test.com", patientName: "Test", caregiverName: "Test", message: "test" },
         });
         // If it doesn't error with missing API key, it's configured
@@ -149,7 +149,7 @@ export function SettingsPage() {
   const { data: notificationSettings, isLoading: loadingSettings } = useQuery({
     queryKey: ["notification-settings"],
     queryFn: async (): Promise<NotificationSetting[]> => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from("notification_settings")
         .select("*")
         .order("setting_key");
@@ -162,7 +162,7 @@ export function SettingsPage() {
   // Update notification setting mutation
   const updateSettingMutation = useMutation({
     mutationFn: async ({ settingKey, isEnabled }: { settingKey: string; isEnabled: boolean }) => {
-      const { error } = await supabase
+      const { error } = await db
         .from("notification_settings")
         .update({ is_enabled: isEnabled, updated_by: user?.id })
         .eq("setting_key", settingKey);
@@ -181,7 +181,7 @@ export function SettingsPage() {
   const handleTestWhatsApp = async () => {
     setTestingWhatsApp(true);
     try {
-      const { data, error } = await supabase.functions.invoke("send-whatsapp-notification", {
+      const { data, error } = await db.functions.invoke("send-whatsapp-notification", {
         body: { 
           recipientId: "test", 
           senderName: "Pillaxia Admin", 
@@ -227,17 +227,17 @@ export function SettingsPage() {
   const handleSeedDemoUsers = async () => {
     setSeedingUsers(true);
     try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      if (!sessionData?.session?.access_token) {
+      const token = await getToken();
+      if (!token) {
         toast.error("Authentication required", {
           description: "Please log in to seed demo users.",
         });
         return;
       }
 
-      const { data, error } = await supabase.functions.invoke("seed-demo-users", {
+      const { data, error } = await db.functions.invoke("seed-demo-users", {
         headers: {
-          Authorization: `Bearer ${sessionData.session.access_token}`,
+          Authorization: `Bearer ${token}`,
         },
       });
 
@@ -274,7 +274,7 @@ export function SettingsPage() {
 
     setTestingPush(true);
     try {
-      const { data, error } = await supabase.functions.invoke("send-push-notification", {
+      const { data, error } = await db.functions.invoke("send-push-notification", {
         body: {
           user_ids: [targetUserId],
           payload: {
@@ -884,7 +884,7 @@ function GracePeriodCard({ notificationSettings, queryClient, userId }: GracePer
 
     setIsSaving(true);
     try {
-      const { error } = await supabase
+      const { error } = await db
         .from("notification_settings")
         .update({ description: value.toString(), updated_by: userId })
         .eq("setting_key", "missed_dose_grace_period");

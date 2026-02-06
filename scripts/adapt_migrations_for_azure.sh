@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ============================================================
-# Adapt Supabase migrations for Azure PostgreSQL
+# Adapt migrations for Azure PostgreSQL
 # Replaces auth.users with public.users, auth.uid() preserved via auth.uid() wrapper
 # ============================================================
 

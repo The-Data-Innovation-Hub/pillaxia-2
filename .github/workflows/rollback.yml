@@ -1,0 +1,52 @@
+# Rollback Production
+# Emergency rollback by swapping the production slot back to staging.
+# After a successful deployment with staging slots, the previous production version
+# sits in the staging slot. This workflow swaps them back.
+
+name: Rollback Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type "rollback" to confirm'
+        required: true
+        type: string
+
+jobs:
+  rollback:
+    name: Rollback via Slot Swap
+    runs-on: ubuntu-latest
+    if: github.event.inputs.confirm == 'rollback'
+    steps:
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Swap production back to staging
+        run: |
+          echo "Rolling back production by swapping with staging slot..."
+          az webapp deployment slot swap \
+            -g "$RESOURCE_GROUP" \
+            -n "$APP_NAME" \
+            --slot staging \
+            --target-slot production
+          echo "Rollback complete. Previous production version is now live."
+        env:
+          APP_NAME: ${{ secrets.AZURE_API_APP_NAME }}
+          RESOURCE_GROUP: ${{ secrets.AZURE_RESOURCE_GROUP }}
+
+      - name: Post-rollback health check
+        run: |
+          sleep 15
+          for i in 1 2 3 4 5; do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://${APP_NAME}.azurewebsites.net/health/ready")
+            if [ "$STATUS" = "200" ]; then echo "Health check passed after rollback"; exit 0; fi
+            echo "Attempt $i: got status $STATUS, retrying in 10s..."
+            sleep 10
+          done
+          echo "::error::Health check failed after rollback"
+          exit 1
+        env:
+          APP_NAME: ${{ secrets.AZURE_API_APP_NAME }}

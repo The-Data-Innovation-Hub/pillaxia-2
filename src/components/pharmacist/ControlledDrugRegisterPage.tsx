@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/db";
 import { useAuth } from "@/contexts/AuthContext";
 import { 
   Shield, 
@@ -96,7 +96,7 @@ export function ControlledDrugRegisterPage() {
   const { data: drugs = [], refetch: refetchDrugs } = useQuery({
     queryKey: ["controlled-drugs"],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from("controlled_drugs")
         .select("*")
         .order("name");
@@ -110,7 +110,7 @@ export function ControlledDrugRegisterPage() {
   const { data: dispensingRecords = [], refetch: refetchDispensing } = useQuery({
     queryKey: ["controlled-drug-dispensing"],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from("controlled_drug_dispensing")
         .select("*, controlled_drugs(name, schedule)")
         .order("dispensed_at", { ascending: false })
@@ -125,7 +125,7 @@ export function ControlledDrugRegisterPage() {
   const { data: adjustmentRecords = [], refetch: refetchAdjustments } = useQuery({
     queryKey: ["controlled-drug-adjustments"],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from("controlled_drug_adjustments")
         .select("*, controlled_drugs(name)")
         .order("created_at", { ascending: false })

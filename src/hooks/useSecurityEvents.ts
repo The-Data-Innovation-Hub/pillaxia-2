@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/db";
 import { useAuth } from "@/contexts/AuthContext";
 
 type SecurityEventType =
@@ -70,7 +70,7 @@ export function useSecurityEvents() {
       metadata?: Record<string, unknown>
     ) => {
       try {
-        const { error } = await supabase.functions.invoke("send-security-alert", {
+        const { error } = await db.functions.invoke("send-security-alert", {
           body: {
             userId,
             eventType,
@@ -102,7 +102,7 @@ export function useSecurityEvents() {
         // Get client info
         const userAgent = navigator.userAgent;
         
-        const { error } = await supabase.rpc("log_security_event", {
+        const { error } = await db.rpc("log_security_event", {
           p_user_id: user?.id || null,
           p_event_type: eventType,
           p_event_category: category,
@@ -162,7 +162,7 @@ export function useSecurityEvents() {
       if (!user) return;
 
       try {
-        const { error } = await supabase.rpc("log_data_access", {
+        const { error } = await db.rpc("log_data_access", {
           p_user_id: user.id,
           p_accessed_table: accessedTable,
           p_accessed_record_id: accessedRecordId || null,

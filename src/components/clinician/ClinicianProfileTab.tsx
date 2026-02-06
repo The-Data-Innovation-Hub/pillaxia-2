@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/db";
+import { getStorageClient } from "@/lib/storage-client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/hooks/use-toast";
 import { useSecurityEvents } from "@/hooks/useSecurityEvents";
@@ -25,14 +26,12 @@ import {
   EyeOff,
   X,
   Mail,
-  Building2,
   Briefcase,
 } from "lucide-react";
 
 interface ProfileData {
   first_name: string;
   last_name: string;
-  organization: string;
   job_title: string;
   avatar_url: string;
 }
@@ -45,7 +44,6 @@ export function ClinicianProfileTab() {
   const [profileData, setProfileData] = useState<ProfileData>({
     first_name: "",
     last_name: "",
-    organization: "",
     job_title: "",
     avatar_url: "",
   });
@@ -73,7 +71,7 @@ export function ClinicianProfileTab() {
     const loadFullProfile = async () => {
       if (!user) return;
       
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from("profiles")
         .select("*")
         .eq("user_id", user.id)
@@ -88,7 +86,6 @@ export function ClinicianProfileTab() {
         setProfileData({
           first_name: data.first_name || "",
           last_name: data.last_name || "",
-          organization: data.organization || "",
           job_title: data.job_title || "",
           avatar_url: data.avatar_url || "",
         });
@@ -102,12 +99,11 @@ export function ClinicianProfileTab() {
     mutationFn: async (data: Partial<ProfileData>) => {
       if (!user) throw new Error("Not authenticated");
       
-      const { error } = await supabase
+      const { error } = await db
         .from("profiles")
         .update({
           first_name: data.first_name,
           last_name: data.last_name,
-          organization: data.organization,
           job_title: data.job_title,
           avatar_url: data.avatar_url,
         })
@@ -173,21 +169,21 @@ export function ClinicianProfileTab() {
       if (profileData.avatar_url && profileData.avatar_url.includes('avatars')) {
         const oldPath = profileData.avatar_url.split('/avatars/')[1];
         if (oldPath) {
-          await supabase.storage.from('avatars').remove([oldPath]);
+          await getStorageClient().from('avatars').remove([oldPath]);
         }
       }
 
-      const { error: uploadError } = await supabase.storage
+      const { error: uploadError } = await getStorageClient()
         .from('avatars')
         .upload(fileName, file, { upsert: true });
 
       if (uploadError) throw uploadError;
 
-      const { data: { publicUrl } } = supabase.storage
+      const { data: { publicUrl } } = getStorageClient()
         .from('avatars')
         .getPublicUrl(fileName);
 
-      const { error: updateError } = await supabase
+      const { error: updateError } = await db
         .from('profiles')
         .update({ avatar_url: publicUrl })
         .eq('user_id', user.id);
@@ -225,11 +221,11 @@ export function ClinicianProfileTab() {
       if (profileData.avatar_url && profileData.avatar_url.includes('avatars')) {
         const oldPath = profileData.avatar_url.split('/avatars/')[1];
         if (oldPath) {
-          await supabase.storage.from('avatars').remove([oldPath]);
+          await getStorageClient().from('avatars').remove([oldPath]);
         }
       }
 
-      const { error } = await supabase
+      const { error } = await db
         .from('profiles')
         .update({ avatar_url: null })
         .eq('user_id', user.id);
@@ -277,39 +273,11 @@ export function ClinicianProfileTab() {
     
     setSavingPassword(true);
     try {
-      const { error } = await supabase.auth.updateUser({
-        password: passwordData.newPassword,
-      });
-      
-      if (error) throw error;
-      
-      await logSecurityEvent({
-        eventType: "password_change",
-        category: "authentication",
-        severity: "warning",
-        description: "Password was changed successfully",
-        metadata: {
-          action: "password_change",
-          initiated_by: "user",
-        },
-      });
-      
       toast({
-        title: "Password updated",
-        description: "Your password has been changed successfully.",
+        title: "Password changes are managed by your identity provider",
+        description: "You will be redirected to manage your credentials.",
       });
-      
-      setPasswordData({
-        newPassword: "",
-        confirmPassword: "",
-      });
-    } catch (error: any) {
-      console.error("Failed to change password:", error);
-      toast({
-        title: "Failed to change password",
-        description: error.message || "Please try again.",
-        variant: "destructive",
-      });
+      // Future: redirect to Azure AD B2C password reset
     } finally {
       setSavingPassword(false);
     }
@@ -346,24 +314,11 @@ export function ClinicianProfileTab() {
 
     setSavingEmail(true);
     try {
-      const { error } = await supabase.auth.updateUser({
-        email: newEmail,
-      });
-
-      if (error) throw error;
-
-      setEmailSent(true);
       toast({
-        title: "Verification email sent",
-        description: "Please check both your current and new email inboxes to confirm the change.",
+        title: "Email changes are managed by your identity provider",
+        description: "You will be redirected to manage your credentials.",
       });
-    } catch (error: any) {
-      console.error("Failed to change email:", error);
-      toast({
-        title: "Failed to change email",
-        description: error.message || "Please try again.",
-        variant: "destructive",
-      });
+      // Future: redirect to Azure AD B2C email change
     } finally {
       setSavingEmail(false);
     }
@@ -471,20 +426,8 @@ export function ClinicianProfileTab() {
             </div>
           </div>
 
-          {/* Organization & Job Title */}
+          {/* Job Title */}
           <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="organization" className="flex items-center gap-2">
-                <Building2 className="h-4 w-4 text-muted-foreground" />
-                Organization
-              </Label>
-              <Input
-                id="organization"
-                value={profileData.organization}
-                onChange={(e) => setProfileData({ ...profileData, organization: e.target.value })}
-                placeholder="Enter your organization"
-              />
-            </div>
             <div className="space-y-2">
               <Label htmlFor="job_title" className="flex items-center gap-2">
                 <Briefcase className="h-4 w-4 text-muted-foreground" />

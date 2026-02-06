@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/db";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -39,7 +39,7 @@ export function AdherenceMonitorPage() {
     queryKey: ["clinician-adherence", user?.id, timeRange],
     queryFn: async () => {
       // Get assignments
-      const { data: assignments } = await supabase
+      const { data: assignments } = await db
         .from("clinician_patient_assignments")
         .select("patient_user_id")
         .eq("clinician_user_id", user!.id);
@@ -49,7 +49,7 @@ export function AdherenceMonitorPage() {
       const patientIds = assignments.map((a) => a.patient_user_id);
 
       // Get profiles
-      const { data: profiles } = await supabase
+      const { data: profiles } = await db
         .from("profiles")
         .select("user_id, first_name, last_name")
         .in("user_id", patientIds);
@@ -59,14 +59,14 @@ export function AdherenceMonitorPage() {
       const previousStart = subDays(currentStart, days);
 
       // Get current period logs
-      const { data: currentLogs } = await supabase
+      const { data: currentLogs } = await db
         .from("medication_logs")
         .select("user_id, status")
         .in("user_id", patientIds)
         .gte("scheduled_time", currentStart.toISOString());
 
       // Get previous period logs
-      const { data: previousLogs } = await supabase
+      const { data: previousLogs } = await db
         .from("medication_logs")
         .select("user_id, status")
         .in("user_id", patientIds)

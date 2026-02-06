@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/db";
 import { toast } from "sonner";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -142,10 +142,10 @@ export function HealthProfilePage() {
     setLoading(true);
     try {
       const [conditionsRes, allergiesRes, contactsRes, profileRes] = await Promise.all([
-        supabase.from("patient_chronic_conditions").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
-        supabase.from("patient_allergies").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
-        supabase.from("patient_emergency_contacts").select("*").eq("user_id", user.id).order("is_primary", { ascending: false }),
-        supabase.from("profiles").select("phone").eq("user_id", user.id).maybeSingle(),
+        db.from("patient_chronic_conditions").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
+        db.from("patient_allergies").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
+        db.from("patient_emergency_contacts").select("*").eq("user_id", user.id).order("is_primary", { ascending: false }),
+        db.from("profiles").select("phone").eq("user_id", user.id).maybeSingle(),
       ]);
 
       if (conditionsRes.data) setConditions(conditionsRes.data);
@@ -175,7 +175,7 @@ export function HealthProfilePage() {
 
     setSavingPhone(true);
     try {
-      const { error: dbError } = await supabase
+      const { error: dbError } = await db
         .from("profiles")
         .update({ phone: formatted || null })
         .eq("user_id", user.id);
@@ -204,7 +204,7 @@ export function HealthProfilePage() {
         : "patient_emergency_contacts";
 
     try {
-      const { error } = await supabase.from(table).delete().eq("id", deleteId.id);
+      const { error } = await db.from(table).delete().eq("id", deleteId.id);
       if (error) throw error;
       toast.success("Deleted successfully");
       fetchAll();
@@ -558,11 +558,11 @@ function ConditionDialog({ open, onOpenChange, editing, onSuccess }: {
       };
 
       if (editing) {
-        const { error } = await supabase.from("patient_chronic_conditions").update(data).eq("id", editing.id);
+        const { error } = await db.from("patient_chronic_conditions").update(data).eq("id", editing.id);
         if (error) throw error;
         toast.success("Condition updated");
       } else {
-        const { error } = await supabase.from("patient_chronic_conditions").insert(data);
+        const { error } = await db.from("patient_chronic_conditions").insert(data);
         if (error) throw error;
         toast.success("Condition added");
       }
@@ -655,11 +655,11 @@ function AllergyDialog({ open, onOpenChange, editing, onSuccess }: {
       };
 
       if (editing) {
-        const { error } = await supabase.from("patient_allergies").update(data).eq("id", editing.id);
+        const { error } = await db.from("patient_allergies").update(data).eq("id", editing.id);
         if (error) throw error;
         toast.success("Allergy updated");
       } else {
-        const { error } = await supabase.from("patient_allergies").insert(data);
+        const { error } = await db.from("patient_allergies").insert(data);
         if (error) throw error;
         toast.success("Allergy added");
       }
@@ -766,11 +766,11 @@ function ContactDialog({ open, onOpenChange, editing, onSuccess }: {
       };
 
       if (editing) {
-        const { error } = await supabase.from("patient_emergency_contacts").update(data).eq("id", editing.id);
+        const { error } = await db.from("patient_emergency_contacts").update(data).eq("id", editing.id);
         if (error) throw error;
         toast.success("Contact updated");
       } else {
-        const { error } = await supabase.from("patient_emergency_contacts").insert(data);
+        const { error } = await db.from("patient_emergency_contacts").insert(data);
         if (error) throw error;
         toast.success("Contact added");
       }

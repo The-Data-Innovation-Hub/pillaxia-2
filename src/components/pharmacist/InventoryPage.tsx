@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/db";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -36,7 +36,7 @@ export function InventoryPage() {
   const handleExpiryCheck = async () => {
     setIsCheckingExpiry(true);
     try {
-      const { data, error } = await supabase.functions.invoke("check-medication-expiry", {
+      const { data, error } = await db.functions.invoke("check-medication-expiry", {
         body: { manual: true },
       });
 
@@ -66,7 +66,7 @@ export function InventoryPage() {
   const { data: inventory, isLoading } = useQuery({
     queryKey: ["pharmacy-inventory"],
     queryFn: async () => {
-      const { data: medications } = await supabase
+      const { data: medications } = await db
         .from("medications")
         .select("name, form, dosage, dosage_unit, refills_remaining, is_active")
         .eq("is_active", true);

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Capacitor } from "@capacitor/core";
 import { PushNotifications, Token, PushNotificationSchema, ActionPerformed } from "@capacitor/push-notifications";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/db";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/hooks/use-toast";
 
@@ -116,7 +116,7 @@ export function useNativePushNotifications() {
     if (!user) return;
 
     try {
-      const { error } = await supabase.from("push_subscriptions").upsert(
+      const { error } = await db.from("push_subscriptions").upsert(
         {
           user_id: user.id,
           endpoint: `native://${devicePlatform}/${token.slice(0, 32)}`, // Unique identifier
@@ -203,7 +203,7 @@ export function useNativePushNotifications() {
 
     try {
       // Remove from database
-      await supabase
+      await db
         .from("push_subscriptions")
         .delete()
         .eq("user_id", user.id)

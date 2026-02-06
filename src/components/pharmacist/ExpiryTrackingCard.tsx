@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/db";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -24,7 +24,7 @@ export function ExpiryTrackingCard() {
       const thirtyDaysFromNow = new Date();
       thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from("controlled_drugs")
         .select("id, name, strength, form, expiry_date, current_stock, lot_number")
         .eq("is_active", true)

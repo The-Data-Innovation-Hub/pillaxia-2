@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/db";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "@/hooks/use-toast";
@@ -57,7 +57,7 @@ export function PushDebugPanel(props: {
         ? await registration.pushManager.getSubscription()
         : null;
 
-      const { data, error, count } = await supabase
+      const { data, error, count } = await db
         .from("push_subscriptions")
         .select("endpoint", { count: "exact" })
         .eq("user_id", userId)

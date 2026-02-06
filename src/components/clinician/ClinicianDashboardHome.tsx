@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/db";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Users, Pill, Activity, AlertTriangle, FileText, CalendarDays } from "lucide-react";
@@ -19,13 +19,13 @@ export function ClinicianDashboardHome() {
     queryKey: ["clinician-stats", user?.id],
     queryFn: async () => {
       // Get assigned patients count
-      const { count: patientCount } = await supabase
+      const { count: patientCount } = await db
         .from("clinician_patient_assignments")
         .select("*", { count: "exact", head: true })
         .eq("clinician_user_id", user!.id);
 
       // Get patients with their medication data
-      const { data: assignments } = await supabase
+      const { data: assignments } = await db
         .from("clinician_patient_assignments")
         .select("patient_user_id")
         .eq("clinician_user_id", user!.id);
@@ -37,7 +37,7 @@ export function ClinicianDashboardHome() {
 
       if (patientIds.length > 0) {
         // Get active medications for assigned patients
-        const { count: medCount } = await supabase
+        const { count: medCount } = await db
           .from("medications")
           .select("*", { count: "exact", head: true })
           .in("user_id", patientIds)
@@ -49,7 +49,7 @@ export function ClinicianDashboardHome() {
         const sevenDaysAgo = new Date();
         sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
-        const { data: logs } = await supabase
+        const { data: logs } = await db
           .from("medication_logs")
           .select("user_id, status")
           .in("user_id", patientIds)

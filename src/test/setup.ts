@@ -60,19 +60,24 @@ Object.defineProperty(window, "indexedDB", {
   writable: true,
 });
 
-// Mock Supabase client
-vi.mock("@/integrations/supabase/client", () => ({
-  supabase: {
-    auth: {
-      getSession: vi.fn().mockResolvedValue({ data: { session: null }, error: null }),
-      getUser: vi.fn().mockResolvedValue({ data: { user: null }, error: null }),
-      signInWithPassword: vi.fn(),
-      signUp: vi.fn(),
-      signOut: vi.fn().mockResolvedValue({ error: null }),
-      onAuthStateChange: vi.fn(() => ({
-        data: { subscription: { unsubscribe: vi.fn() } },
-      })),
-    },
+// Mock Azure auth (MSAL)
+vi.mock("@/lib/azure-auth", () => ({
+  getMsalInstance: vi.fn(() => Promise.resolve({
+    getAllAccounts: vi.fn(() => []),
+    handleRedirectPromise: vi.fn(() => Promise.resolve(null)),
+    acquireTokenSilent: vi.fn(() => Promise.resolve({ accessToken: "test-token" })),
+    loginRedirect: vi.fn(),
+    logoutRedirect: vi.fn(),
+  })),
+  getAccount: vi.fn(() => null),
+  acquireTokenSilent: vi.fn(() => Promise.resolve({ accessToken: "test-token" })),
+  loginRedirect: vi.fn(),
+  logoutRedirect: vi.fn(),
+}));
+
+// Mock API client (database access layer)
+vi.mock("@/integrations/api/client", () => ({
+  apiClient: {
     from: vi.fn(() => ({
       select: vi.fn().mockReturnThis(),
       insert: vi.fn().mockReturnThis(),
@@ -81,14 +86,9 @@ vi.mock("@/integrations/supabase/client", () => ({
       eq: vi.fn().mockReturnThis(),
       single: vi.fn().mockResolvedValue({ data: null, error: null }),
       maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+      limit: vi.fn().mockReturnThis(),
     })),
-    functions: {
-      invoke: vi.fn(),
-    },
-    channel: vi.fn(() => ({
-      on: vi.fn().mockReturnThis(),
-      subscribe: vi.fn(),
-    })),
+    rpc: vi.fn().mockResolvedValue({ data: null, error: null }),
   },
 }));
 

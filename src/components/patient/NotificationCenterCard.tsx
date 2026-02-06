@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/db";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -75,7 +75,7 @@ export function NotificationCenterCard() {
     queryFn: async () => {
       if (!user) return [];
       
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from("notification_history")
         .select("*")
         .eq("user_id", user.id)

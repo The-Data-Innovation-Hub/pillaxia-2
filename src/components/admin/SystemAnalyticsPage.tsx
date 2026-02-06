@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/db";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
@@ -33,7 +33,7 @@ export function SystemAnalyticsPage() {
     queryKey: ["system-analytics"],
     queryFn: async () => {
       // Get medication logs stats
-      const { data: logs } = await supabase
+      const { data: logs } = await db
         .from("medication_logs")
         .select("status, created_at");
 
@@ -54,12 +54,12 @@ export function SystemAnalyticsPage() {
       const adherenceRate = total > 0 ? (logStats.taken / total) * 100 : 0;
 
       // Get symptom entries
-      const { count: symptomCount } = await supabase
+      const { count: symptomCount } = await db
         .from("symptom_entries")
         .select("*", { count: "exact", head: true });
 
       // Get medications by form
-      const { data: medications } = await supabase
+      const { data: medications } = await db
         .from("medications")
         .select("form");
 
@@ -74,7 +74,7 @@ export function SystemAnalyticsPage() {
       }));
 
       // Get user activity by role
-      const { data: roles } = await supabase.from("user_roles").select("role");
+      const { data: roles } = await db.from("user_roles").select("role");
 
       const roleActivity = {
         patient: 0,

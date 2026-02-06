@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/db";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -64,7 +64,7 @@ export function ClinicianChatDialog({
   const { data: messages = [], isLoading } = useQuery({
     queryKey: ["clinician-chat-messages", clinicianId, patientId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from("clinician_messages")
         .select("id, message, sender_type, is_read, created_at, delivery_status")
         .eq("clinician_user_id", clinicianId)
@@ -75,13 +75,14 @@ export function ClinicianChatDialog({
       return data as Message[];
     },
     enabled: open,
+    refetchInterval: 3000,
   });
 
   // Send message mutation
   const sendMutation = useMutation({
     mutationFn: async (text: string) => {
       // First insert the message and get its ID
-      const { data: insertedMessage, error } = await supabase
+      const { data: insertedMessage, error } = await db
         .from("clinician_messages")
         .insert({
           clinician_user_id: clinicianId,
@@ -96,7 +97,7 @@ export function ClinicianChatDialog({
       if (error) throw error;
 
       // Send notification via email, push, and WhatsApp with messageId for status tracking
-      supabase.functions.invoke("send-clinician-message-notification", {
+      db.functions.invoke("send-clinician-message-notification", {
         body: {
           recipientId: viewerRole === "patient" ? clinicianId : patientId,
           senderName: viewerRole === "patient" ? patientName : `Dr. ${clinicianName}`,
@@ -127,7 +128,7 @@ export function ClinicianChatDialog({
     );
 
     if (unreadMessages.length > 0) {
-      supabase
+      db
         .from("clinician_messages")
         .update({ is_read: true })
         .in("id", unreadMessages.map((m) => m.id))
@@ -138,31 +139,6 @@ export function ClinicianChatDialog({
         });
     }
   }, [open, messages, user, viewerRole, clinicianId, patientId, queryClient]);
-
-  // Realtime subscription
-  useEffect(() => {
-    if (!open) return;
-
-    const channel = supabase
-      .channel(`clinician-chat-${clinicianId}-${patientId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "clinician_messages",
-          filter: `patient_user_id=eq.${patientId}`,
-        },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ["clinician-chat-messages", clinicianId, patientId] });
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [open, clinicianId, patientId, queryClient]);
 
   // Scroll to bottom when messages change
   useEffect(() => {

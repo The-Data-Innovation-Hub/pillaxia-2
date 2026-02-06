@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/db";
 
 export interface DrugInteraction {
   id: string;
@@ -26,7 +26,7 @@ export function useDrugInteractions() {
       const normalizedExisting = existingDrugs.map((d) => d.toLowerCase().trim());
 
       // Query for interactions where the new drug matches either drug_a or drug_b
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from("drug_interactions")
         .select("*");
 

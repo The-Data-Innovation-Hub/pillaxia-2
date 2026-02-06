@@ -2,7 +2,8 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { supabase } from "@/integrations/supabase/client";
+import { useQuery } from "@tanstack/react-query";
+import { db } from "@/integrations/db";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { AlertTriangle } from "lucide-react";
@@ -22,6 +23,13 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -39,11 +47,10 @@ interface ControlledDrug {
 }
 
 const formSchema = z.object({
-  patient_name: z.string().min(1, "Patient name is required").max(200),
-  patient_id: z.string().max(100).optional(),
-  prescriber_name: z.string().min(1, "Prescriber name is required").max(200),
+  patient_user_id: z.string().uuid("Select a patient"),
+  prescriber_user_id: z.string().uuid("Select a prescriber"),
+  prescription_id: z.string().uuid("Select a prescription").optional(),
   prescriber_dea: z.string().max(20).optional(),
-  prescription_number: z.string().min(1, "Prescription number is required").max(50),
   quantity_dispensed: z.coerce.number().min(1, "Quantity must be at least 1"),
   notes: z.string().max(500).optional(),
 });
@@ -69,14 +76,78 @@ export function DispenseControlledDrugDialog({
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      patient_name: "",
-      patient_id: "",
-      prescriber_name: "",
+      patient_user_id: "",
+      prescriber_user_id: "",
+      prescription_id: undefined,
       prescriber_dea: "",
-      prescription_number: "",
       quantity_dispensed: 1,
       notes: "",
     },
+  });
+
+  // Load patients (users with patient role)
+  const { data: patients } = useQuery({
+    queryKey: ["dispensing-patients"],
+    queryFn: async () => {
+      const { data: roles, error: rolesError } = await db
+        .from("user_roles")
+        .select("user_id")
+        .eq("role", "patient");
+      if (rolesError) throw rolesError;
+
+      const userIds = roles?.map((r) => r.user_id) || [];
+      if (userIds.length === 0) return [];
+
+      const { data: profiles, error } = await db
+        .from("profiles")
+        .select("user_id, first_name, last_name")
+        .in("user_id", userIds)
+        .order("last_name");
+      if (error) throw error;
+      return profiles || [];
+    },
+    enabled: open,
+  });
+
+  // Load clinicians (users with clinician role)
+  const { data: clinicians } = useQuery({
+    queryKey: ["dispensing-clinicians"],
+    queryFn: async () => {
+      const { data: roles, error: rolesError } = await db
+        .from("user_roles")
+        .select("user_id")
+        .eq("role", "clinician");
+      if (rolesError) throw rolesError;
+
+      const userIds = roles?.map((r) => r.user_id) || [];
+      if (userIds.length === 0) return [];
+
+      const { data: profiles, error } = await db
+        .from("profiles")
+        .select("user_id, first_name, last_name")
+        .in("user_id", userIds)
+        .order("last_name");
+      if (error) throw error;
+      return profiles || [];
+    },
+    enabled: open,
+  });
+
+  // Load prescriptions for the selected patient
+  const selectedPatient = form.watch("patient_user_id");
+  const { data: prescriptions } = useQuery({
+    queryKey: ["dispensing-prescriptions", selectedPatient],
+    queryFn: async () => {
+      const { data, error } = await db
+        .from("prescriptions")
+        .select("id, prescription_number, medication_name, dosage, status")
+        .eq("patient_user_id", selectedPatient)
+        .in("status", ["sent", "received", "processing", "ready"])
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!selectedPatient,
   });
 
   const watchedQuantity = form.watch("quantity_dispensed") || 0;
@@ -92,13 +163,12 @@ export function DispenseControlledDrugDialog({
 
     setIsSubmitting(true);
     try {
-      const { error } = await supabase.from("controlled_drug_dispensing").insert({
+      const { error } = await db.from("controlled_drug_dispensing").insert({
         controlled_drug_id: drug.id,
-        patient_name: values.patient_name,
-        patient_id: values.patient_id || null,
-        prescriber_name: values.prescriber_name,
+        patient_user_id: values.patient_user_id,
+        prescriber_user_id: values.prescriber_user_id,
+        prescription_id: values.prescription_id || null,
         prescriber_dea: values.prescriber_dea || null,
-        prescription_number: values.prescription_number,
         quantity_dispensed: values.quantity_dispensed,
         quantity_remaining: remainingStock,
         dispensing_pharmacist_id: user.id,
@@ -164,13 +234,24 @@ export function DispenseControlledDrugDialog({
             <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}
-                name="patient_name"
+                name="patient_user_id"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Patient Name *</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Full name" {...field} />
-                    </FormControl>
+                    <FormLabel>Patient *</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select patient" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent className="bg-background border shadow-lg max-h-60">
+                        {patients?.map((p) => (
+                          <SelectItem key={p.user_id} value={p.user_id}>
+                            {p.first_name} {p.last_name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -178,13 +259,24 @@ export function DispenseControlledDrugDialog({
 
               <FormField
                 control={form.control}
-                name="patient_id"
+                name="prescriber_user_id"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Patient ID</FormLabel>
-                    <FormControl>
-                      <Input placeholder="ID or DOB" {...field} />
-                    </FormControl>
+                    <FormLabel>Prescriber *</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select prescriber" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent className="bg-background border shadow-lg max-h-60">
+                        {clinicians?.map((c) => (
+                          <SelectItem key={c.user_id} value={c.user_id}>
+                            Dr. {c.first_name} {c.last_name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -192,13 +284,24 @@ export function DispenseControlledDrugDialog({
 
               <FormField
                 control={form.control}
-                name="prescriber_name"
+                name="prescription_id"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Prescriber Name *</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Dr. Full Name" {...field} />
-                    </FormControl>
+                    <FormLabel>Prescription</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value || ""}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder={selectedPatient ? "Select Rx" : "Select patient first"} />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent className="bg-background border shadow-lg max-h-60">
+                        {prescriptions?.map((rx) => (
+                          <SelectItem key={rx.id} value={rx.id}>
+                            {rx.prescription_number} - {rx.medication_name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -212,20 +315,6 @@ export function DispenseControlledDrugDialog({
                     <FormLabel>Prescriber DEA #</FormLabel>
                     <FormControl>
                       <Input placeholder="AB1234567" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="prescription_number"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Rx Number *</FormLabel>
-                    <FormControl>
-                      <Input placeholder="RX-123456" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/db";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -75,7 +75,7 @@ export function PharmacyPreferencesCard() {
   const { data: preferredPharmacies, isLoading: loadingPreferred } = useQuery({
     queryKey: ["patient-preferred-pharmacies", user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from("patient_preferred_pharmacies")
         .select(`
           id,
@@ -96,7 +96,7 @@ export function PharmacyPreferencesCard() {
   const { data: allPharmacies, isLoading: loadingPharmacies } = useQuery({
     queryKey: ["all-pharmacies"],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from("pharmacy_locations")
         .select("id, name, address_line1, city, state, phone")
         .eq("is_active", true)
@@ -117,7 +117,7 @@ export function PharmacyPreferencesCard() {
   const { data: medicationAlerts, isLoading: loadingAlerts } = useQuery({
     queryKey: ["medication-alerts", user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from("medication_availability_alerts")
         .select("*")
         .eq("patient_user_id", user?.id)
@@ -131,7 +131,7 @@ export function PharmacyPreferencesCard() {
   // Add preferred pharmacy
   const addPreferredMutation = useMutation({
     mutationFn: async (pharmacyId: string) => {
-      const { error } = await supabase.from("patient_preferred_pharmacies").insert({
+      const { error } = await db.from("patient_preferred_pharmacies").insert({
         patient_user_id: user?.id,
         pharmacy_id: pharmacyId,
         is_primary: !preferredPharmacies?.length, // First one is primary
@@ -154,7 +154,7 @@ export function PharmacyPreferencesCard() {
   // Remove preferred pharmacy
   const removePreferredMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
+      const { error } = await db
         .from("patient_preferred_pharmacies")
         .delete()
         .eq("id", id);
@@ -173,13 +173,13 @@ export function PharmacyPreferencesCard() {
   const setPrimaryMutation = useMutation({
     mutationFn: async (id: string) => {
       // First, unset all primaries
-      await supabase
+      await db
         .from("patient_preferred_pharmacies")
         .update({ is_primary: false })
         .eq("patient_user_id", user?.id);
       
       // Then set the new primary
-      const { error } = await supabase
+      const { error } = await db
         .from("patient_preferred_pharmacies")
         .update({ is_primary: true })
         .eq("id", id);
@@ -197,7 +197,7 @@ export function PharmacyPreferencesCard() {
   // Add medication alert
   const addAlertMutation = useMutation({
     mutationFn: async (medicationName: string) => {
-      const { error } = await supabase.from("medication_availability_alerts").insert({
+      const { error } = await db.from("medication_availability_alerts").insert({
         patient_user_id: user?.id,
         medication_name: medicationName,
       });
@@ -216,7 +216,7 @@ export function PharmacyPreferencesCard() {
   // Toggle alert
   const toggleAlertMutation = useMutation({
     mutationFn: async ({ id, isActive }: { id: string; isActive: boolean }) => {
-      const { error } = await supabase
+      const { error } = await db
         .from("medication_availability_alerts")
         .update({ is_active: isActive })
         .eq("id", id);
@@ -233,7 +233,7 @@ export function PharmacyPreferencesCard() {
   // Delete alert
   const deleteAlertMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
+      const { error } = await db
         .from("medication_availability_alerts")
         .delete()
         .eq("id", id);

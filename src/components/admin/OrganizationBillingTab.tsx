@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useOrganization } from "@/contexts/OrganizationContext";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/db";
 import { toast } from "sonner";
 import { format } from "date-fns";
 
@@ -76,7 +76,7 @@ export function OrganizationBillingTab() {
     if (!organization?.id) return;
     
     try {
-      const { data, error } = await supabase.functions.invoke("check-org-subscription", {
+      const { data, error } = await db.functions.invoke("check-org-subscription", {
         body: { organizationId: organization.id },
       });
 
@@ -92,7 +92,7 @@ export function OrganizationBillingTab() {
   const fetchInvoices = async () => {
     if (!organization?.id) return;
 
-    const { data, error } = await supabase
+    const { data, error } = await db
       .from("organization_invoices")
       .select("*")
       .eq("organization_id", organization.id)
@@ -110,7 +110,7 @@ export function OrganizationBillingTab() {
     setIsCheckoutLoading(tier);
     try {
       const tierConfig = PRICING_TIERS[tier as keyof typeof PRICING_TIERS];
-      const { data, error } = await supabase.functions.invoke("create-org-checkout", {
+      const { data, error } = await db.functions.invoke("create-org-checkout", {
         body: { 
           organizationId: organization.id, 
           tier,
@@ -136,7 +136,7 @@ export function OrganizationBillingTab() {
 
     setIsPortalLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke("org-customer-portal", {
+      const { data, error } = await db.functions.invoke("org-customer-portal", {
         body: { organizationId: organization.id },
       });
 

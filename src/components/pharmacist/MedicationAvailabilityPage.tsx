@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/db";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -52,13 +52,19 @@ interface PharmacyLocation {
   is_active: boolean;
 }
 
-interface MedicationAvailability {
+interface MedicationCatalogEntry {
   id: string;
-  pharmacy_id: string;
-  medication_name: string;
+  name: string;
   generic_name: string | null;
   dosage: string | null;
   form: string | null;
+}
+
+interface MedicationAvailability {
+  id: string;
+  pharmacy_id: string;
+  medication_catalog_id: string;
+  medication_catalog: MedicationCatalogEntry | null;
   is_available: boolean;
   quantity_available: number | null;
   price_naira: number | null;
@@ -84,22 +90,32 @@ export function MedicationAvailabilityPage() {
     phone: "",
   });
 
-  // Form states for new medication
+  // Form states for new medication availability
   const [medicationForm, setMedicationForm] = useState({
-    medication_name: "",
-    generic_name: "",
-    dosage: "",
-    form: "tablet",
+    medication_catalog_id: "",
     quantity_available: "",
     price_naira: "",
     notes: "",
+  });
+
+  // Fetch medication catalog for the selector
+  const { data: catalogItems } = useQuery({
+    queryKey: ["medication-catalog-for-availability"],
+    queryFn: async () => {
+      const { data, error } = await db
+        .from("medication_catalog")
+        .select("id, name, generic_name, dosage, form")
+        .order("name");
+      if (error) throw error;
+      return data as MedicationCatalogEntry[];
+    },
   });
 
   // Fetch pharmacies owned by this pharmacist
   const { data: pharmacies, isLoading: loadingPharmacies } = useQuery({
     queryKey: ["pharmacist-pharmacies", user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from("pharmacy_locations")
         .select("*")
         .eq("pharmacist_user_id", user?.id)
@@ -110,17 +126,20 @@ export function MedicationAvailabilityPage() {
     enabled: !!user?.id,
   });
 
-  // Fetch medication availability for selected pharmacy
+  // Fetch medication availability for selected pharmacy (with catalog join)
   const { data: medications, isLoading: loadingMedications } = useQuery({
     queryKey: ["pharmacy-medications", selectedPharmacy],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from("medication_availability")
-        .select("*")
+        .select(`
+          *,
+          medication_catalog (id, name, generic_name, dosage, form)
+        `)
         .eq("pharmacy_id", selectedPharmacy)
-        .order("medication_name");
+        .order("created_at", { ascending: false });
       if (error) throw error;
-      return data as MedicationAvailability[];
+      return data as unknown as MedicationAvailability[];
     },
     enabled: !!selectedPharmacy,
   });
@@ -128,7 +147,7 @@ export function MedicationAvailabilityPage() {
   // Create pharmacy mutation
   const createPharmacyMutation = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase.from("pharmacy_locations").insert({
+      const { error } = await db.from("pharmacy_locations").insert({
         pharmacist_user_id: user?.id,
         name: pharmacyForm.name,
         address_line1: pharmacyForm.address_line1,
@@ -149,32 +168,29 @@ export function MedicationAvailabilityPage() {
     },
   });
 
-  // Create medication mutation
+  // Create medication availability mutation
   const createMedicationMutation = useMutation({
     mutationFn: async () => {
-      const { data, error } = await supabase.from("medication_availability").insert({
+      const { data, error } = await db.from("medication_availability").insert({
         pharmacy_id: selectedPharmacy,
-        medication_name: medicationForm.medication_name,
-        generic_name: medicationForm.generic_name || null,
-        dosage: medicationForm.dosage || null,
-        form: medicationForm.form,
+        medication_catalog_id: medicationForm.medication_catalog_id,
         quantity_available: medicationForm.quantity_available ? parseInt(medicationForm.quantity_available) : null,
         price_naira: medicationForm.price_naira ? parseFloat(medicationForm.price_naira) : null,
         notes: medicationForm.notes || null,
         is_available: true,
         last_updated_by: user?.id,
-      }).select().single();
+      }).select(`
+        *,
+        medication_catalog (id, name, generic_name, dosage, form)
+      `).single();
       if (error) throw error;
-      return data;
+      return data as unknown as MedicationAvailability;
     },
     onSuccess: async (newMedication) => {
       queryClient.invalidateQueries({ queryKey: ["pharmacy-medications"] });
       setShowMedicationDialog(false);
       setMedicationForm({
-        medication_name: "",
-        generic_name: "",
-        dosage: "",
-        form: "tablet",
+        medication_catalog_id: "",
         quantity_available: "",
         price_naira: "",
         notes: "",
@@ -182,7 +198,8 @@ export function MedicationAvailabilityPage() {
       toast.success("Medication availability updated");
       
       // Trigger availability alerts
-      await triggerAvailabilityAlerts(newMedication.id, newMedication.medication_name);
+      const medName = newMedication.medication_catalog?.name || "Unknown";
+      await triggerAvailabilityAlerts(newMedication.id, medName);
     },
     onError: (error: Error) => {
       toast.error("Failed to add medication", { description: error.message });
@@ -192,14 +209,17 @@ export function MedicationAvailabilityPage() {
   // Toggle availability mutation
   const toggleAvailabilityMutation = useMutation({
     mutationFn: async ({ id, isAvailable }: { id: string; isAvailable: boolean }) => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from("medication_availability")
         .update({ is_available: isAvailable, last_updated_by: user?.id })
         .eq("id", id)
-        .select()
+        .select(`
+          *,
+          medication_catalog (id, name, generic_name, dosage, form)
+        `)
         .single();
       if (error) throw error;
-      return { data, isAvailable };
+      return { data: data as unknown as MedicationAvailability, isAvailable };
     },
     onSuccess: async ({ data, isAvailable }) => {
       queryClient.invalidateQueries({ queryKey: ["pharmacy-medications"] });
@@ -207,7 +227,8 @@ export function MedicationAvailabilityPage() {
       
       // Only trigger alerts when medication becomes available
       if (isAvailable) {
-        await triggerAvailabilityAlerts(data.id, data.medication_name);
+        const medName = data.medication_catalog?.name || "Unknown";
+        await triggerAvailabilityAlerts(data.id, medName);
       }
     },
     onError: (error: Error) => {
@@ -218,7 +239,7 @@ export function MedicationAvailabilityPage() {
   const triggerAvailabilityAlerts = async (availabilityId: string, medicationName: string) => {
     setIsSendingAlerts(true);
     try {
-      const { error } = await supabase.functions.invoke("send-availability-alert", {
+      const { error } = await db.functions.invoke("send-availability-alert", {
         body: {
           availability_id: availabilityId,
           medication_name: medicationName,
@@ -233,13 +254,23 @@ export function MedicationAvailabilityPage() {
     }
   };
 
-  const filteredMedications = medications?.filter(
-    (med) =>
-      med.medication_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      med.generic_name?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredMedications = medications?.filter((med) => {
+    if (!searchQuery) return true;
+    const q = searchQuery.toLowerCase();
+    const name = med.medication_catalog?.name?.toLowerCase() || "";
+    const generic = med.medication_catalog?.generic_name?.toLowerCase() || "";
+    return name.includes(q) || generic.includes(q);
+  });
 
   const selectedPharmacyData = pharmacies?.find((p) => p.id === selectedPharmacy);
+
+  const formatCatalogLabel = (item: MedicationCatalogEntry) => {
+    const parts = [item.name];
+    if (item.dosage) parts.push(item.dosage);
+    if (item.form) parts.push(`(${item.form})`);
+    if (item.generic_name) parts.push(`- ${item.generic_name}`);
+    return parts.join(" ");
+  };
 
   return (
     <div className="space-y-6">
@@ -411,50 +442,22 @@ export function MedicationAvailabilityPage() {
                     </DialogHeader>
                     <div className="space-y-4 pt-4">
                       <div className="space-y-2">
-                        <Label>Medication Name *</Label>
-                        <Input
-                          value={medicationForm.medication_name}
-                          onChange={(e) => setMedicationForm({ ...medicationForm, medication_name: e.target.value })}
-                          placeholder="e.g., Paracetamol"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Generic Name</Label>
-                        <Input
-                          value={medicationForm.generic_name}
-                          onChange={(e) => setMedicationForm({ ...medicationForm, generic_name: e.target.value })}
-                          placeholder="e.g., Acetaminophen"
-                        />
-                      </div>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label>Dosage</Label>
-                          <Input
-                            value={medicationForm.dosage}
-                            onChange={(e) => setMedicationForm({ ...medicationForm, dosage: e.target.value })}
-                            placeholder="e.g., 500mg"
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Form</Label>
-                          <Select
-                            value={medicationForm.form}
-                            onValueChange={(value) => setMedicationForm({ ...medicationForm, form: value })}
-                          >
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent className="bg-background border shadow-lg z-50">
-                              <SelectItem value="tablet">Tablet</SelectItem>
-                              <SelectItem value="capsule">Capsule</SelectItem>
-                              <SelectItem value="syrup">Syrup</SelectItem>
-                              <SelectItem value="injection">Injection</SelectItem>
-                              <SelectItem value="cream">Cream</SelectItem>
-                              <SelectItem value="drops">Drops</SelectItem>
-                              <SelectItem value="inhaler">Inhaler</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
+                        <Label>Medication *</Label>
+                        <Select
+                          value={medicationForm.medication_catalog_id}
+                          onValueChange={(v) => setMedicationForm({ ...medicationForm, medication_catalog_id: v })}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select from catalog" />
+                          </SelectTrigger>
+                          <SelectContent className="bg-background border shadow-lg z-50 max-h-60">
+                            {catalogItems?.map((item) => (
+                              <SelectItem key={item.id} value={item.id}>
+                                {formatCatalogLabel(item)}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
@@ -467,7 +470,7 @@ export function MedicationAvailabilityPage() {
                           />
                         </div>
                         <div className="space-y-2">
-                          <Label>Price (₦)</Label>
+                          <Label>Price (&#x20A6;)</Label>
                           <Input
                             type="number"
                             step="0.01"
@@ -487,7 +490,7 @@ export function MedicationAvailabilityPage() {
                       </div>
                       <Button
                         onClick={() => createMedicationMutation.mutate()}
-                        disabled={!medicationForm.medication_name || createMedicationMutation.isPending}
+                        disabled={!medicationForm.medication_catalog_id || createMedicationMutation.isPending}
                         className="w-full"
                       >
                         {createMedicationMutation.isPending ? (
@@ -524,7 +527,7 @@ export function MedicationAvailabilityPage() {
                     <TableHead>Dosage</TableHead>
                     <TableHead>Form</TableHead>
                     <TableHead>Quantity</TableHead>
-                    <TableHead>Price (₦)</TableHead>
+                    <TableHead>Price (&#x20A6;)</TableHead>
                     <TableHead>Available</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -533,14 +536,14 @@ export function MedicationAvailabilityPage() {
                     <TableRow key={med.id}>
                       <TableCell>
                         <div>
-                          <p className="font-medium">{med.medication_name}</p>
-                          {med.generic_name && (
-                            <p className="text-sm text-muted-foreground">{med.generic_name}</p>
+                          <p className="font-medium">{med.medication_catalog?.name ?? "Unknown"}</p>
+                          {med.medication_catalog?.generic_name && (
+                            <p className="text-sm text-muted-foreground">{med.medication_catalog.generic_name}</p>
                           )}
                         </div>
                       </TableCell>
-                      <TableCell>{med.dosage || "-"}</TableCell>
-                      <TableCell className="capitalize">{med.form || "-"}</TableCell>
+                      <TableCell>{med.medication_catalog?.dosage || "-"}</TableCell>
+                      <TableCell className="capitalize">{med.medication_catalog?.form || "-"}</TableCell>
                       <TableCell>{med.quantity_available ?? "-"}</TableCell>
                       <TableCell>
                         {med.price_naira ? `₦${med.price_naira.toLocaleString()}` : "-"}

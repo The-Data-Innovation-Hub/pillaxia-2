@@ -1,4 +1,4 @@
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/db";
 
 let cachedVapidPublicKey: string | null = null;
 
@@ -18,7 +18,7 @@ export async function getVapidPublicKey(): Promise<string> {
     return cachedVapidPublicKey;
   }
 
-  const { data, error } = await supabase.functions.invoke("get-vapid-public-key");
+  const { data, error } = await db.functions.invoke("get-vapid-public-key");
   if (error) throw error;
 
   const key = (data as { publicKey?: string } | null)?.publicKey;

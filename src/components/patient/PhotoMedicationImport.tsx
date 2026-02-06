@@ -1,6 +1,6 @@
 import { useState, useRef } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/db";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -72,7 +72,7 @@ export function PhotoMedicationImport({ open, onOpenChange, onSuccess }: PhotoMe
     setError(null);
 
     try {
-      const { data, error: funcError } = await supabase.functions.invoke("extract-medication-ocr", {
+      const { data, error: funcError } = await db.functions.invoke("extract-medication-ocr", {
         body: { image: imageData },
       });
 
@@ -119,7 +119,7 @@ export function PhotoMedicationImport({ open, onOpenChange, onSuccess }: PhotoMe
         };
       });
 
-      const { error } = await supabase.from("medications").insert(medsToSave);
+      const { error } = await db.from("medications").insert(medsToSave);
       if (error) throw error;
 
       toast.success(`${medsToSave.length} medication(s) imported successfully!`);

@@ -1,7 +1,7 @@
 // Force module refresh - v2
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/integrations/db";
 import { toast } from "sonner";
 import { useOfflineSymptomLog } from "@/hooks/useOfflineSymptomLog";
 import { useLanguage } from "@/i18n/LanguageContext";
@@ -70,7 +70,7 @@ export function SymptomEntryDialog({ open, onOpenChange, onSuccess }: SymptomEnt
 
   const fetchMedications = async () => {
     if (!user) return;
-    const { data } = await supabase
+    const { data } = await db
       .from("medications")
       .select("id, name")
       .eq("user_id", user.id)
@@ -107,7 +107,7 @@ export function SymptomEntryDialog({ open, onOpenChange, onSuccess }: SymptomEnt
           // Check for red flag symptoms if severity is high
           if (severity[0] >= 8) {
             // Trigger red flag check in background
-            supabase.functions.invoke("check-red-flag-symptoms", {
+            db.functions.invoke("check-red-flag-symptoms", {
               body: { symptom_entry_id: result.id },
             }).catch(console.error);
           }
