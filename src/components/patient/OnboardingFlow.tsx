@@ -32,6 +32,7 @@ import {
   Shield,
   Calendar,
   Clock,
+  Heart,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
