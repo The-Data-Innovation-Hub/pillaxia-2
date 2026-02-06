@@ -70,6 +70,32 @@ export function isE2ETestMode(): boolean {
 }
 
 /**
+ * Check if demo data mode is enabled (banner and demo accounts).
+ * Also true when deployed to Azure Static Web Apps (*.azurestaticapps.net)
+ * so the demo banner shows without requiring build-time env.
+ */
+export function isDemoMode(): boolean {
+  if (
+    import.meta.env.VITE_DEMO_MODE === 'true' ||
+    import.meta.env.VITE_ENABLE_DEMO === 'true'
+  ) {
+    return true;
+  }
+  if (typeof window !== 'undefined' && window.location.hostname.endsWith('.azurestaticapps.net')) {
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Check if the given email is a known demo account (e.g. *@pillaxia-dev.com)
+ */
+export function isDemoAccountEmail(email: string | null | undefined): boolean {
+  if (!email) return false;
+  return email.endsWith('@pillaxia-dev.com') || email.endsWith('@demo.pillaxia.com');
+}
+
+/**
  * Get environment display name for UI banners
  */
 export function getEnvironmentLabel(): string {

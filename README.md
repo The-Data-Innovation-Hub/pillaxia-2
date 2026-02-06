@@ -97,6 +97,26 @@ The following environment variables are automatically configured in Lovable Clou
 | `VITE_SUPABASE_PUBLISHABLE_KEY` | Supabase anon key |
 | `VITE_SUPABASE_PROJECT_ID` | Supabase project ID |
 
+### Demo data (Azure / PostgreSQL)
+
+To demonstrate the platform with sample data:
+
+1. **Seed demo users and data** (run after migrations):
+   ```bash
+   psql "$DATABASE_URL" -f scripts/seed-azure-dev-data.sql
+   ```
+   This creates demo accounts (e.g. `patient.bola@pillaxia-dev.com`, `dr.okafor@pillaxia-dev.com`) and fills medications, vitals, symptoms, prescriptions, and other screens.
+
+2. **Give your own account demo data** (so you see data when logged in as yourself):
+   ```bash
+   psql "$DATABASE_URL" -v user_email='your@email.com' -f scripts/seed-demo-for-user.sql
+   ```
+   The user must already exist in `public.users` (e.g. signed up via the app). Run the main seed script first.
+
+3. **Demo banner**: When `VITE_ENABLE_DEMO=true` or when the app is served from `*.azurestaticapps.net`, a “Demo data – for demonstration only” banner is shown so demo data is always clearly identified.
+
+4. **demo.pillaxia.com accounts**: For standard demo logins (patient, clinician, pharmacist, manager), see [Demo users (docs/DEMO_USERS.md)](docs/DEMO_USERS.md) for usernames and password. Create those users in Microsoft Entra, then run the seed (and optionally `scripts/seed-demo-pillaxia-users-by-email.sql` after first sign-in).
+
 ## 🧪 Testing
 
 ### Unit Tests (Vitest)

@@ -9,6 +9,7 @@ import { OrganizationProvider } from "@/contexts/OrganizationContext";
 import { LanguageProvider } from "@/i18n/LanguageContext";
 import { OfflineBanner } from "@/components/OfflineBanner";
 import { EnvironmentBanner } from "@/components/EnvironmentBanner";
+import { DemoDataBanner } from "@/components/DemoDataBanner";
 import { ThemeProvider } from "next-themes";
 import { PageLoadingFallback } from "@/components/ui/loading-spinner";
 import { OnboardingProvider, TourOverlay, OnboardingChecklist } from "@/components/onboarding";
@@ -18,6 +19,7 @@ import { useServerVerifiedRoles } from "@/hooks/useServerVerifiedRoles";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
+import SelectRolePage from "./pages/SelectRolePage";
 
 // Layout components (not lazy - needed immediately)
 import { PatientLayout } from "@/components/patient/PatientLayout";
@@ -85,6 +87,7 @@ const App = () => (
                   <OnboardingProvider>
                     <SkipLink href="#main-content" />
                     <EnvironmentBanner />
+                    <DemoDataBanner />
                     <OfflineBanner />
                     <SessionTimeoutWarning />
                     <TourOverlay />
@@ -207,8 +210,9 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
 // Role-based dashboard router with server-side verification
 function DashboardRouter() {
-  const { loading: authLoading } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const { 
+    roles,
     isAdmin, 
     isManager, 
     isClinician, 
@@ -225,6 +229,11 @@ function DashboardRouter() {
   // If roles aren't verified yet but we have a session, show loading
   if (!verified) {
     return <PageLoadingFallback />;
+  }
+
+  // New user with no role: show role selection so they can choose and save
+  if (user && roles.length === 0) {
+    return <SelectRolePage />;
   }
 
   // Route based on server-verified role priority

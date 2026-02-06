@@ -28,12 +28,20 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Search, User, Shield, Stethoscope, Pill, Plus, Trash2 } from "lucide-react";
+import { Search, User, Shield, Stethoscope, Pill, Building2, Plus, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import type { Database } from "@/types/database";
 
 type AppRole = Database["public"]["Enums"]["app_role"];
+
+const APP_ROLES: { value: AppRole; label: string; filterLabel?: string }[] = [
+  { value: "patient", label: "Patient", filterLabel: "Patients" },
+  { value: "clinician", label: "Clinician", filterLabel: "Clinicians" },
+  { value: "pharmacist", label: "Pharmacist", filterLabel: "Pharmacists" },
+  { value: "manager", label: "Manager", filterLabel: "Managers" },
+  { value: "admin", label: "Admin", filterLabel: "Admins" },
+];
 
 interface UserWithRoles {
   user_id: string;
@@ -151,6 +159,8 @@ export function UserManagementPage() {
         return <Stethoscope className="h-3 w-3" />;
       case "pharmacist":
         return <Pill className="h-3 w-3" />;
+      case "manager":
+        return <Building2 className="h-3 w-3" />;
       default:
         return <User className="h-3 w-3" />;
     }
@@ -163,6 +173,8 @@ export function UserManagementPage() {
       case "clinician":
         return "default";
       case "pharmacist":
+        return "secondary";
+      case "manager":
         return "secondary";
       default:
         return "outline";
@@ -196,10 +208,11 @@ export function UserManagementPage() {
                 </SelectTrigger>
                 <SelectContent className="bg-background border shadow-lg z-50">
                   <SelectItem value="all">All Roles</SelectItem>
-                  <SelectItem value="patient">Patients</SelectItem>
-                  <SelectItem value="clinician">Clinicians</SelectItem>
-                  <SelectItem value="pharmacist">Pharmacists</SelectItem>
-                  <SelectItem value="admin">Admins</SelectItem>
+                  {APP_ROLES.map((r) => (
+                    <SelectItem key={r.value} value={r.value}>
+                      {r.filterLabel ?? r.label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -302,6 +315,9 @@ export function UserManagementPage() {
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle>Add Role</DialogTitle>
+            <p className="text-xs text-muted-foreground font-normal mt-1">
+              Roles: Patient · Clinician · Pharmacist · Manager · Admin
+            </p>
           </DialogHeader>
           {selectedUser && (
             <div className="space-y-4">
@@ -315,10 +331,14 @@ export function UserManagementPage() {
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="bg-background border shadow-lg z-50">
+                <SelectContent
+                  className="bg-background border shadow-lg z-50 [&_[data-radix-select-viewport]]:!h-auto [&_[data-radix-select-viewport]]:!min-h-[var(--radix-select-trigger-height)] [&_[data-radix-select-viewport]]:max-h-[16rem]"
+                  position="popper"
+                >
                   <SelectItem value="patient">Patient</SelectItem>
                   <SelectItem value="clinician">Clinician</SelectItem>
                   <SelectItem value="pharmacist">Pharmacist</SelectItem>
+                  <SelectItem value="manager">Manager</SelectItem>
                   <SelectItem value="admin">Admin</SelectItem>
                 </SelectContent>
               </Select>

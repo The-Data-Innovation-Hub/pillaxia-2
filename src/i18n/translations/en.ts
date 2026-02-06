@@ -145,6 +145,7 @@ export const en = {
     rolePatient: "Patient",
     roleClinician: "Healthcare Provider",
     rolePharmacist: "Pharmacist",
+    roleManager: "Manager",
   },
   dashboard: {
     welcome: "Welcome back",
