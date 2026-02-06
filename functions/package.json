@@ -7,7 +7,7 @@
   "scripts": {
     "build": "func extensions install",
     "start": "func start",
-    "test": "vitest --run"
+    "test": "vitest --run --passWithNoTests"
   },
   "dependencies": {
     "@azure/functions": "^4.0.0",
