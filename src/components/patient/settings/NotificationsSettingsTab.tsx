@@ -90,7 +90,7 @@ export function NotificationsSettingsTab() {
   } | null>(null);
 
   const formatUnknownError = (err: unknown): string => {
-    const anyErr = err as any;
+    const anyErr = err as { name?: string; message?: string; context?: { status?: number }; status?: number };
     const name = typeof anyErr?.name === "string" ? anyErr.name : undefined;
     const message =
       typeof anyErr?.message === "string"
@@ -192,7 +192,7 @@ export function NotificationsSettingsTab() {
         results,
       });
 
-      const successCount = results.filter((r: any) => r.success).length;
+      const successCount = results.filter((r: { success: boolean }) => r.success).length;
       
       if (successCount === results.length) {
         toast({

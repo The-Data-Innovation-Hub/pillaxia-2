@@ -45,9 +45,9 @@ export function SecuritySettingsTab() {
       
       toast.success("Account deletion requested. You have been signed out.");
       navigate("/");
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error deleting account:", error);
-      toast.error(error.message || "Failed to delete account");
+      toast.error((error as Error).message || "Failed to delete account");
     } finally {
       setIsDeleting(false);
       setDialogOpen(false);

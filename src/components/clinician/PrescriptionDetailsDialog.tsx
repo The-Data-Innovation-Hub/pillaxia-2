@@ -283,7 +283,7 @@ export function PrescriptionDetailsDialog({
                     </div>
                   ) : statusHistory && statusHistory.length > 0 ? (
                     <div className="space-y-3">
-                      {statusHistory.map((entry: any) => (
+                      {statusHistory.map((entry: { id: string; new_status: PrescriptionStatus; previous_status: PrescriptionStatus; created_at: string; changed_by_profile?: { first_name: string; last_name: string }; notes?: string }) => (
                         <div
                           key={entry.id}
                           className="flex items-start gap-3 text-sm"
@@ -316,8 +316,7 @@ export function PrescriptionDetailsDialog({
                               )}
                               {entry.changed_by_profile && (
                                 <span>
-                                  {" "}
-                                  by {entry.changed_by_profile.first_name}{" "}
+                                  {" "}by {entry.changed_by_profile.first_name}{" "}
                                   {entry.changed_by_profile.last_name}
                                 </span>
                               )}

@@ -64,7 +64,7 @@ export function ComplianceReportPage() {
       const endStr = format(endDate, "yyyy-MM-dd");
 
       // Fetch data based on report type
-      let reportData: any = {};
+      let reportData: Record<string, unknown> = {};
       let summary: ReportSummary = {
         total_events: 0,
         critical_events: 0,
@@ -136,8 +136,8 @@ export function ComplianceReportPage() {
           report_period_start: startStr,
           report_period_end: endStr,
           generated_by: user?.id || '',
-          report_data: reportData as any,
-          summary: summary as any,
+          report_data: reportData,
+          summary: summary,
         })
         .select()
         .single();
@@ -150,14 +150,19 @@ export function ComplianceReportPage() {
       toast.success("Compliance report generated successfully");
       refetch();
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
       console.error("Failed to generate report:", error);
       toast.error("Failed to generate report");
     },
   });
 
   // Download report as JSON
-  const downloadReport = (report: any) => {
+  const downloadReport = (report: {
+    report_data: unknown;
+    report_type: string;
+    report_period_start: string;
+    report_period_end: string;
+  }) => {
     const dataStr = JSON.stringify(report.report_data, null, 2);
     const blob = new Blob([dataStr], { type: "application/json" });
     const url = URL.createObjectURL(blob);
@@ -171,12 +176,12 @@ export function ComplianceReportPage() {
   };
 
   // Download report as CSV
-  const downloadReportCSV = (report: any) => {
+  const downloadReportCSV = (report: { report_data: { security_events?: Record<string, unknown>[]; data_access_logs?: Record<string, unknown>[]; audit_logs?: Record<string, unknown>[]; }; report_type: string; report_period_start: string; report_period_end: string; }): void => {
     let csvContent = "";
     const data = report.report_data;
 
     // Determine which data to export based on report type
-    let rows: any[] = [];
+    let rows: Record<string, unknown>[] = [];
     let headers: string[] = [];
 
     if (data.security_events?.length) {

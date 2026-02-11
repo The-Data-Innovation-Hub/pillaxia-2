@@ -254,7 +254,7 @@ export function UserManagementPage() {
                           {user.roles.map((role) => (
                             <Badge
                               key={role}
-                              variant={getRoleBadgeVariant(role) as any}
+                              variant={getRoleBadgeVariant(role)}
                               className="gap-1 text-xs"
                             >
                               {getRoleIcon(role)}

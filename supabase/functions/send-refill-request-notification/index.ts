@@ -64,7 +64,7 @@ serve(async (req) => {
     const title = isApproved 
       ? `Refill Request Approved! ✅` 
       : `Refill Request Update`;
-    
+
     let body = isApproved
       ? `Great news! Your refill request for ${medication_name} has been approved.`
       : `Your refill request for ${medication_name} has been reviewed.`;
@@ -77,7 +77,12 @@ serve(async (req) => {
       body += ` Note from pharmacist: ${pharmacist_notes}`;
     }
 
-    const results = { email: null as any, push: null as any, sms: null as any, whatsapp: null as any };
+    const results: {
+      email: unknown;
+      push: unknown;
+      sms: unknown;
+      whatsapp: unknown;
+    } = { email: null, push: null, sms: null, whatsapp: null };
 
     // Send email notification
     if (emailEnabled && profile.email) {

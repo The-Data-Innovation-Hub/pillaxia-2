@@ -111,8 +111,12 @@ export function DispenseControlledDrugDialog({
       form.reset();
       onOpenChange(false);
       onSuccess();
-    } catch (error: any) {
-      toast.error(error.message || "Failed to record dispensing");
+    } catch (error: unknown) {
+      let message = "Failed to record dispensing";
+      if (error instanceof Error) {
+        message = error.message || message;
+      }
+      toast.error(message);
     } finally {
       setIsSubmitting(false);
     }

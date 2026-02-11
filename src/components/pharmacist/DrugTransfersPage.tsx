@@ -177,7 +177,14 @@ export function DrugTransfersPage() {
 
   const updateTransferMutation = useMutation({
     mutationFn: async ({ id, status, notes }: { id: string; status: string; notes?: string }) => {
-      const updateData: Record<string, any> = { status };
+      const updateData: {
+        status: string;
+        approved_by?: string;
+        approved_at?: string;
+        completed_by?: string;
+        completed_at?: string;
+        notes?: string;
+      } = { status };
       
       if (status === "approved") {
         updateData.approved_by = user?.id;

@@ -62,10 +62,11 @@ export function RequestRefillDialog({
       setNotes("");
       onOpenChange(false);
       onSuccess?.();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error submitting refill request:", error);
+      const message = error instanceof Error ? error.message : String(error);
       toast.error("Failed to submit refill request", {
-        description: error.message,
+        description: message,
       });
     } finally {
       setIsSubmitting(false);

@@ -217,7 +217,7 @@ export function PharmacyPrescriptionsPage() {
           </div>
         </CardHeader>
         <CardContent>
-          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
+          <Tabs value={activeTab} onValueChange={(v: string) => setActiveTab(v)}>
             <TabsList className="mb-4">
               <TabsTrigger value="incoming">Incoming</TabsTrigger>
               <TabsTrigger value="processing">Processing</TabsTrigger>
