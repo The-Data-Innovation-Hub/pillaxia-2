@@ -50,68 +50,68 @@ describe("CacheManager", () => {
   describe("Key Validation", () => {
     it("validates string keys", () => {
       // Access private method via any cast for testing
-      const manager = cacheManager as any;
+      const manager = cacheManager as unknown as { isValidKey(key: string): boolean };
       expect(manager.isValidKey("test-key")).toBe(true);
       expect(manager.isValidKey("")).toBe(true);
     });
 
     it("validates number keys", () => {
-      const manager = cacheManager as any;
+      const manager = cacheManager;
       expect(manager.isValidKey(123)).toBe(true);
       expect(manager.isValidKey(0)).toBe(true);
       expect(manager.isValidKey(-1)).toBe(true);
     });
 
     it("rejects null and undefined keys", () => {
-      const manager = cacheManager as any;
+      const manager = cacheManager;
       expect(manager.isValidKey(null)).toBe(false);
       expect(manager.isValidKey(undefined)).toBe(false);
     });
 
     it("validates Date keys", () => {
-      const manager = cacheManager as any;
+      const manager = cacheManager;
       expect(manager.isValidKey(new Date())).toBe(true);
     });
 
     it("validates ArrayBuffer keys", () => {
-      const manager = cacheManager as any;
+      const manager = cacheManager;
       expect(manager.isValidKey(new ArrayBuffer(8))).toBe(true);
     });
 
     it("validates array keys with valid elements", () => {
-      const manager = cacheManager as any;
-      expect(manager.isValidKey(["a", "b", "c"])).toBe(true);
-      expect(manager.isValidKey([1, 2, 3])).toBe(true);
-      expect(manager.isValidKey(["mixed", 123])).toBe(true);
+      const manager = cacheManager;
+      expect(manager.isValidKey(["a", "b", "c"])) .toBe(true);
+      expect(manager.isValidKey([1, 2, 3])) .toBe(true);
+      expect(manager.isValidKey(["mixed", 123])) .toBe(true);
     });
 
     it("rejects arrays containing invalid elements", () => {
-      const manager = cacheManager as any;
+      const manager = cacheManager;
       expect(manager.isValidKey([null])).toBe(false);
       expect(manager.isValidKey([undefined])).toBe(false);
       expect(manager.isValidKey(["valid", null])).toBe(false);
     });
 
     it("rejects object keys", () => {
-      const manager = cacheManager as any;
+      const manager = cacheManager;
       expect(manager.isValidKey({ id: "test" })).toBe(false);
       expect(manager.isValidKey({})).toBe(false);
     });
 
     it("rejects function keys", () => {
-      const manager = cacheManager as any;
+      const manager = cacheManager;
       expect(manager.isValidKey(() => {})).toBe(false);
     });
   });
 
   describe("getAllByIndex with invalid keys", () => {
     it("returns empty array for null index value", async () => {
-      const result = await cacheManager.getAllByIndex(STORES.MEDICATIONS, "user_id", null as any);
+      const result = await cacheManager.getAllByIndex(STORES.MEDICATIONS, "user_id", null as unknown);
       expect(result).toEqual([]);
     });
 
     it("returns empty array for undefined index value", async () => {
-      const result = await cacheManager.getAllByIndex(STORES.MEDICATIONS, "user_id", undefined as any);
+      const result = await cacheManager.getAllByIndex(STORES.MEDICATIONS, "user_id", undefined as unknown);
       expect(result).toEqual([]);
     });
   });
@@ -120,14 +120,14 @@ describe("CacheManager", () => {
     it("handles null index value gracefully", async () => {
       // Should not throw
       await expect(
-        cacheManager.deleteAllByIndex(STORES.MEDICATIONS, "user_id", null as any)
+        cacheManager.deleteAllByIndex(STORES.MEDICATIONS, "user_id", null as unknown)
       ).resolves.not.toThrow();
     });
 
     it("handles undefined index value gracefully", async () => {
       // Should not throw
       await expect(
-        cacheManager.deleteAllByIndex(STORES.MEDICATIONS, "user_id", undefined as any)
+        cacheManager.deleteAllByIndex(STORES.MEDICATIONS, "user_id", undefined as unknown)
       ).resolves.not.toThrow();
     });
   });

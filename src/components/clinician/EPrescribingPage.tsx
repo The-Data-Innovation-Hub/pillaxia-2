@@ -154,7 +154,7 @@ export function EPrescribingPage() {
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-64">
             {patients && patients.length > 0 ? (
-              patients.map((assignment: any) => (
+              patients.map((assignment) => (
                 <DropdownMenuItem
                   key={assignment.patient_user_id}
                   onClick={() => handleNewPrescription(
@@ -233,7 +233,7 @@ export function EPrescribingPage() {
           </div>
         </CardHeader>
         <CardContent>
-          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
+          <Tabs value={activeTab} onValueChange={(v: string) => setActiveTab(v)}>
             <TabsList className="mb-4">
               <TabsTrigger value="active">Active</TabsTrigger>
               <TabsTrigger value="completed">Completed</TabsTrigger>

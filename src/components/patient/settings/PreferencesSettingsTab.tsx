@@ -83,7 +83,7 @@ export function PreferencesSettingsTab() {
       if (medError) throw medError;
       
       if (medications) {
-        await medicationCache.saveMedications(user.id, medications as any);
+        await medicationCache.saveMedications(user.id, medications as unknown[]);
         medicationsCount = medications.length;
       }
 
@@ -110,7 +110,7 @@ export function PreferencesSettingsTab() {
       if (logError) throw logError;
 
       if (logs) {
-        await scheduleCache.saveTodaysSchedule(user.id, logs as any);
+        await scheduleCache.saveTodaysSchedule(user.id, logs as unknown[]);
         scheduleCount = logs.length;
       }
 
@@ -128,7 +128,7 @@ export function PreferencesSettingsTab() {
       if (symptomError) throw symptomError;
 
       if (symptoms) {
-        await symptomCache.saveSymptoms(user.id, symptoms as any);
+        await symptomCache.saveSymptoms(user.id, symptoms as unknown[]);
         symptomsCount = symptoms.length;
       }
 
@@ -194,7 +194,7 @@ export function PreferencesSettingsTab() {
             </div>
             <Select
               value={language}
-              onValueChange={(value) => setLanguage(value as any)}
+              onValueChange={(value: string) => setLanguage(value)}
               disabled={langLoading}
             >
               <SelectTrigger className="w-48">

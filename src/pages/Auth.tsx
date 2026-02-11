@@ -419,9 +419,9 @@ const Auth = () => {
         toast.success("Welcome back!");
       }
       navigate("/dashboard");
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("MFA verification failed:", error);
-      toast.error(error.message || "Invalid verification code. Please try again.");
+      toast.error((error as Error).message || "Invalid verification code. Please try again.");
       setMfaCode("");
     } finally {
       setMfaLoading(false);
@@ -482,7 +482,6 @@ const Auth = () => {
         .is("used_at", null);
 
       setRemainingCodes(count || 0);
-
       // Send email alert if running low on codes (3 or fewer)
       if (count !== null && count <= 3) {
         toast.warning(`You have ${count} recovery code${count === 1 ? "" : "s"} remaining. Consider generating new codes in your settings.`);
@@ -507,9 +506,10 @@ const Auth = () => {
         toast.success("Recovery code accepted!");
       }
       navigate("/dashboard");
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Recovery code verification failed:", error);
-      toast.error(error.message || "Failed to verify recovery code. Please try again.");
+      const errorMessage = error instanceof Error ? error.message : "Failed to verify recovery code. Please try again.";
+      toast.error(errorMessage);
       setRecoveryCode("");
     } finally {
       setMfaLoading(false);

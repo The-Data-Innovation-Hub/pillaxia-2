@@ -30,7 +30,7 @@ export async function getABTestVariant(
   try {
     // Get active test for this notification type
     const { data: testData, error: testError } = await supabase
-      .from("email_ab_tests" as any)
+      .from<ABTestRecord>("email_ab_tests")
       .select("*")
       .eq("notification_type", notificationType)
       .eq("is_active", true)
@@ -42,11 +42,11 @@ export async function getABTestVariant(
       return null;
     }
 
-    const test = testData as unknown as ABTestRecord;
+    const test = testData;
 
     // Check if user already has an assignment for this test
     const { data: assignmentData } = await supabase
-      .from("email_ab_assignments" as any)
+      .from<ABAssignmentRecord>("email_ab_assignments")
       .select("variant")
       .eq("test_id", test.id)
       .eq("user_id", userId)
@@ -55,7 +55,7 @@ export async function getABTestVariant(
     let variant: "A" | "B";
 
     if (assignmentData) {
-      const assignment = assignmentData as unknown as ABAssignmentRecord;
+      const assignment = assignmentData;
       variant = assignment.variant as "A" | "B";
     } else {
       // Assign based on user ID hash for consistent assignment
@@ -86,12 +86,12 @@ export async function recordABTestAssignment(
   notificationId: string
 ): Promise<void> {
   try {
-    await supabase.from("email_ab_assignments" as any).insert({
+    await supabase.from("email_ab_assignments").insert({
       test_id: testId,
       user_id: userId,
       variant,
       notification_id: notificationId,
-    } as any);
+    });
   } catch (error) {
     console.error("Error recording A/B test assignment:", error);
   }

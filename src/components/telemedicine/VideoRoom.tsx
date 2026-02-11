@@ -134,9 +134,9 @@ export function VideoRoom() {
       } else {
         stopScreenShare();
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       // User cancelled screen share dialog
-      if (error.name === 'NotAllowedError') {
+      if (error instanceof DOMException && error.name === 'NotAllowedError') {
         console.log('Screen share cancelled by user');
       } else {
         console.error('Screen share error:', error);
@@ -393,7 +393,11 @@ function WaitingRoomPanel({
   participants, 
   onAdmit 
 }: { 
-  participants: any[];
+  participants: { 
+    id: string;
+    profile?: { first_name?: string; last_name?: string };
+    created_at: string;
+  }[];
   onAdmit: (id: string) => void;
 }) {
   if (participants.length === 0) {

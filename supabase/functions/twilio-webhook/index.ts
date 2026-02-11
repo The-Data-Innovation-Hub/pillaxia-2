@@ -1,7 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { withSentry, captureMessage, captureException } from "../_shared/sentry.ts";
-import { getCorsHeaders, handleCorsPreflightRequest } from "../_shared/cors.ts";
+import { getCorsHeaders, handleCorsPreflightRequest } from "../_shared/cors.ts"
 
 const FUNCTION_NAME = "twilio-webhook";
 
@@ -146,8 +146,7 @@ function validateCallback(formData: FormData): {
 }
 
 async function processNotificationUpdate(
-  // deno-lint-ignore no-explicit-any
-  supabase: any,
+  supabase: SupabaseClient,
   notificationId: string,
   currentMetadata: Record<string, unknown> | null,
   callback: TwilioStatusCallback
@@ -169,8 +168,13 @@ async function processNotificationUpdate(
   };
 
   // Build update object
-  // deno-lint-ignore no-explicit-any
-  const updateData: any = {
+  const updateData: {
+    status: string;
+    metadata: Record<string, unknown>;
+    delivered_at?: string;
+    opened_at?: string;
+    error_message?: string;
+  } = {
     status: newStatus,
     metadata: updatedMetadata,
   };

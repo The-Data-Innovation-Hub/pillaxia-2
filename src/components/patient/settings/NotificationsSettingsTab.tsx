@@ -90,16 +90,21 @@ export function NotificationsSettingsTab() {
   } | null>(null);
 
   const formatUnknownError = (err: unknown): string => {
-    const anyErr = err as any;
-    const name = typeof anyErr?.name === "string" ? anyErr.name : undefined;
+    const errorObj = typeof err === 'object' && err !== null ? (err as Record<string, unknown>) : {};
+    const name = typeof errorObj['name'] === "string" ? errorObj['name'] : undefined;
     const message =
-      typeof anyErr?.message === "string"
-        ? anyErr.message
+      typeof errorObj['message'] === "string"
+        ? errorObj['message']
         : typeof err === "string"
           ? err
           : "Unknown error";
-    const status = anyErr?.context?.status ?? anyErr?.status;
-    const statusPart = typeof status === "number" ? `HTTP ${status}` : undefined;
+    const statusValue =
+      typeof errorObj['context'] === "object" && errorObj['context'] !== null && typeof (errorObj['context'] as Record<string, unknown>)['status'] === "number"
+        ? (errorObj['context'] as Record<string, unknown>)['status']
+        : typeof errorObj['status'] === "number"
+          ? errorObj['status']
+          : undefined;
+    const statusPart = typeof statusValue === "number" ? `HTTP ${statusValue}` : undefined;
     return [name, statusPart, message].filter(Boolean).join(" — ");
   };
 
@@ -192,7 +197,7 @@ export function NotificationsSettingsTab() {
         results,
       });
 
-      const successCount = results.filter((r: any) => r.success).length;
+      const successCount = results.filter((r: { success: boolean }) => r.success).length;
       
       if (successCount === results.length) {
         toast({

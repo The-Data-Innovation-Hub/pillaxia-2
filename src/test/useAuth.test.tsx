@@ -122,7 +122,7 @@ describe("useAuth Hook", () => {
         select: vi.fn().mockReturnThis(),
         eq: vi.fn().mockReturnThis(),
         maybeSingle: vi.fn().mockResolvedValue({ data: mockProfile, error: null }),
-      } as any);
+      } as unknown);
 
       const { result } = renderHook(() => useAuth(), { wrapper });
 
@@ -268,18 +268,18 @@ describe("useAuth Hook", () => {
             select: vi.fn().mockReturnThis(),
             eq: vi.fn().mockReturnThis(),
             maybeSingle: vi.fn().mockResolvedValue({ data: mockProfile, error: null }),
-          } as any;
+          } as unknown;
         }
         if (table === "user_roles") {
           return {
             select: vi.fn().mockReturnThis(),
             eq: vi.fn().mockResolvedValue({ data: [{ role: "patient" }], error: null }),
-          } as any;
+          } as unknown;
         }
         return {
           select: vi.fn().mockReturnThis(),
           eq: vi.fn().mockReturnThis(),
-        } as any;
+        } as unknown;
       });
 
       const { result } = renderHook(() => useAuth(), { wrapper });
