@@ -258,7 +258,7 @@ self.addEventListener("notificationclick", (event) => {
   }
 
   event.waitUntil(
-    clients
+    self.clients
       .matchAll({ type: "window", includeUncontrolled: true })
       .then((clientList) => {
         for (const client of clientList) {
@@ -267,8 +267,8 @@ self.addEventListener("notificationclick", (event) => {
             return client.focus();
           }
         }
-        if (clients.openWindow) {
-          return clients.openWindow(urlToOpen);
+        if (self.clients.openWindow) {
+          return self.clients.openWindow(urlToOpen);
         }
       })
   );
