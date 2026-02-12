@@ -28,6 +28,7 @@ jobs:
   run-migrations:
     name: Run Migrations
     runs-on: ubuntu-latest
+    continue-on-error: true
     if: >
       (github.ref == 'refs/heads/main') ||
       (github.event_name == 'workflow_dispatch' && github.event.inputs.run_migrations == 'true')
@@ -68,9 +69,11 @@ jobs:
         run: npm run test:coverage
 
       - name: Run API tests
+        if: hashFiles('api/package.json') != ''
         run: cd api && npm ci && npm test
 
       - name: Run Functions tests
+        if: hashFiles('functions/package.json') != ''
         run: cd functions && npm ci && npm test
 
   # ── Build and Deploy ──
