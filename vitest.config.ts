@@ -106,7 +106,6 @@ export default defineConfig({
           lines: 60,
         },
       },
-      },
     },
     testTimeout: 10000,
     env: {
