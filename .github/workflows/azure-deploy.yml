@@ -220,39 +220,46 @@ jobs:
           APP_NAME: ${{ secrets.AZURE_API_APP_NAME }}
           RESOURCE_GROUP: ${{ secrets.AZURE_RESOURCE_GROUP }}
 
-  # Deploy Azure Functions
+  # Deploy Azure Functions (steps skip when functions/ not in repo)
   deploy-functions:
     name: Deploy Azure Functions
     needs: build-and-deploy
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && hashFiles('functions/package.json') != ''
+    if: github.ref == 'refs/heads/main'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Setup Node.js
+        if: hashFiles('functions/package.json') != ''
         uses: actions/setup-node@v4
         with:
           node-version: '20'
 
       - name: Install Functions dependencies
+        if: hashFiles('functions/package.json') != ''
         run: cd functions && npm ci
 
       - name: Deploy to Azure Functions
+        if: hashFiles('functions/package.json') != ''
         uses: Azure/functions-action@v1
         with:
           app-name: pillaxia-dev-functions
           package: functions
           publish-profile: ${{ secrets.AZURE_FUNCTIONS_PUBLISH_PROFILE }}
 
-  # Post-deployment health check (only when API was deployed)
+  # Post-deployment health check (step skips when api/ not in repo)
   health-check:
     name: Post-Deploy Health Check
     needs: build-and-deploy
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && hashFiles('api/package.json') != ''
+    if: github.ref == 'refs/heads/main'
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Check API health
+        if: hashFiles('api/package.json') != ''
         run: |
           sleep 15
           for i in 1 2 3 4 5; do
