@@ -117,13 +117,13 @@ jobs:
           VITE_AZURE_B2C_TENANT: ${{ secrets.VITE_AZURE_B2C_TENANT }}
           VITE_AZURE_B2C_POLICY: ${{ secrets.VITE_AZURE_B2C_POLICY }}
 
-      # Deploy frontend to Azure Static Web Apps
+      # Deploy frontend to Azure Static Web Apps (skip if token not set)
       - name: Deploy to Azure Static Web Apps
         if: vars.DEPLOY_STATIC_WEB_APP == 'true'
         run: |
           if [ -z "$SWA_CLI_DEPLOYMENT_TOKEN" ]; then
-            echo "::error::Secret AZURE_STATIC_WEB_APPS_API_TOKEN is missing."
-            exit 1
+            echo "::warning::Skipping SWA deploy — secret AZURE_STATIC_WEB_APPS_API_TOKEN not set. Add it in repo Secrets to deploy the frontend."
+            exit 0
           fi
           npx --yes @azure/static-web-apps-cli deploy ./dist --deployment-token "$SWA_CLI_DEPLOYMENT_TOKEN" --env production
         env:
