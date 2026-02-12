@@ -129,8 +129,9 @@ jobs:
         env:
           SWA_CLI_DEPLOYMENT_TOKEN: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
 
-      # Zip API with node_modules
+      # Zip API with node_modules (skip if no api/ in repo)
       - name: Create API deployment zip
+        if: hashFiles('api/package.json') != ''
         run: |
           cd api
           npm ci --omit=dev
@@ -138,6 +139,7 @@ jobs:
 
       # Deploy API to staging slot first (if staging slot exists), otherwise direct deploy
       - name: Deploy API to Azure Web App
+        if: hashFiles('api/package.json') != ''
         run: |
           echo "$PUBLISH_PROFILE" > publish-profile.xml
           if [ -n "$APP_NAME" ]; then
@@ -182,9 +184,9 @@ jobs:
           APP_NAME: ${{ secrets.AZURE_API_APP_NAME }}
           USE_STAGING_SLOT: ${{ vars.USE_STAGING_SLOT || 'true' }}
 
-      # Health check staging slot (only on main with staging enabled)
+      # Health check staging slot (only on main with staging enabled and API in repo)
       - name: Health check staging slot
-        if: vars.USE_STAGING_SLOT == 'true' && github.ref == 'refs/heads/main'
+        if: vars.USE_STAGING_SLOT == 'true' && github.ref == 'refs/heads/main' && hashFiles('api/package.json') != ''
         run: |
           echo "Waiting 30s for staging slot to warm up..."
           sleep 30
@@ -199,15 +201,15 @@ jobs:
         env:
           APP_NAME: ${{ secrets.AZURE_API_APP_NAME }}
 
-      # Swap staging to production (only on main with staging enabled)
+      # Swap staging to production (only on main with staging enabled and API in repo)
       - name: Swap staging to production
-        if: vars.USE_STAGING_SLOT == 'true' && github.ref == 'refs/heads/main'
+        if: vars.USE_STAGING_SLOT == 'true' && github.ref == 'refs/heads/main' && hashFiles('api/package.json') != ''
         uses: azure/login@v2
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
       - name: Execute slot swap
-        if: vars.USE_STAGING_SLOT == 'true' && github.ref == 'refs/heads/main'
+        if: vars.USE_STAGING_SLOT == 'true' && github.ref == 'refs/heads/main' && hashFiles('api/package.json') != ''
         run: |
           az webapp deployment slot swap \
             -g "$RESOURCE_GROUP" \
@@ -223,7 +225,7 @@ jobs:
     name: Deploy Azure Functions
     needs: build-and-deploy
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && hashFiles('functions/package.json') != ''
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -243,12 +245,12 @@ jobs:
           package: functions
           publish-profile: ${{ secrets.AZURE_FUNCTIONS_PUBLISH_PROFILE }}
 
-  # Post-deployment health check
+  # Post-deployment health check (only when API was deployed)
   health-check:
     name: Post-Deploy Health Check
     needs: build-and-deploy
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && hashFiles('api/package.json') != ''
     steps:
       - name: Check API health
         run: |
@@ -270,7 +272,7 @@ jobs:
     if: always()
     steps:
       - name: Notify on success
-        if: needs.health-check.result == 'success'
+        if: needs.health-check.result == 'success' || needs.health-check.result == 'skipped'
         run: |
           curl -s -X POST "$WEBHOOK_URL" -H 'Content-Type: application/json' \
             -d "{\"text\":\"Pillaxia deployed successfully to production (commit: ${GITHUB_SHA:0:7})\"}" || true
@@ -278,7 +280,7 @@ jobs:
           WEBHOOK_URL: ${{ secrets.DEPLOY_NOTIFICATION_WEBHOOK }}
 
       - name: Notify on failure
-        if: needs.health-check.result != 'success'
+        if: needs.health-check.result != 'success' && needs.health-check.result != 'skipped'
         run: |
           curl -s -X POST "$WEBHOOK_URL" -H 'Content-Type: application/json' \
             -d "{\"text\":\"Pillaxia deployment FAILED (commit: ${GITHUB_SHA:0:7}). Check: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\"}" || true
