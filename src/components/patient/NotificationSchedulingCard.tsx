@@ -1,7 +1,13 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import {
+  listMedications,
+  listMedicationSchedules,
+  createMedicationSchedule,
+  updateMedicationSchedule,
+  deleteMedicationSchedule,
+} from "@/integrations/azure/data";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -69,41 +75,34 @@ export function NotificationSchedulingCard() {
   const { data: medications, isLoading: medsLoading } = useQuery({
     queryKey: ["medications-list", user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("medications")
-        .select("id, name, dosage, dosage_unit")
-        .eq("user_id", user!.id)
-        .eq("is_active", true)
-        .order("name");
-      if (error) throw error;
-      return data;
+      const data = await listMedications(user!.id);
+      return (data || [])
+        .filter((m) => m.is_active !== false)
+        .sort((a, b) => String(a.name).localeCompare(String(b.name)));
     },
     enabled: !!user,
   });
 
-  // Fetch schedules
+  // Fetch schedules (merge with medications)
   const { data: schedules, isLoading } = useQuery({
     queryKey: ["medication-schedules", user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("medication_schedules")
-        .select(`
-          id,
-          medication_id,
-          time_of_day,
-          quantity,
-          days_of_week,
-          is_active,
-          with_food,
-          medications(id, name, dosage, dosage_unit)
-        `)
-        .eq("user_id", user!.id)
-        .order("time_of_day");
-      if (error) throw error;
-      return data.map(s => ({
-        ...s,
-        medication: s.medications as unknown as MedicationSchedule["medication"],
-      })) as MedicationSchedule[];
+      const [schedList, medList] = await Promise.all([
+        listMedicationSchedules(undefined, user!.id),
+        listMedications(user!.id),
+      ]);
+      const medMap = new Map((medList || []).map((m) => [m.id as string, m]));
+      return (schedList || [])
+        .map((s) => {
+          const med = medMap.get(s.medication_id as string);
+          return {
+            ...s,
+            medication: med
+              ? { id: med.id, name: med.name, dosage: med.dosage, dosage_unit: med.dosage_unit }
+              : { id: "", name: "", dosage: "", dosage_unit: "" },
+          };
+        })
+        .sort((a, b) => String(a.time_of_day).localeCompare(String(b.time_of_day))) as MedicationSchedule[];
     },
     enabled: !!user,
   });
@@ -111,7 +110,7 @@ export function NotificationSchedulingCard() {
   // Add schedule mutation
   const addMutation = useMutation({
     mutationFn: async (schedule: typeof newSchedule) => {
-      const { error } = await supabase.from("medication_schedules").insert({
+      await createMedicationSchedule({
         user_id: user!.id,
         medication_id: schedule.medication_id,
         time_of_day: schedule.time_of_day,
@@ -119,7 +118,6 @@ export function NotificationSchedulingCard() {
         days_of_week: schedule.days_of_week,
         with_food: schedule.with_food,
       });
-      if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["medication-schedules"] });
@@ -141,17 +139,13 @@ export function NotificationSchedulingCard() {
   // Update schedule mutation
   const updateMutation = useMutation({
     mutationFn: async (schedule: MedicationSchedule) => {
-      const { error } = await supabase
-        .from("medication_schedules")
-        .update({
-          time_of_day: schedule.time_of_day,
-          quantity: schedule.quantity,
-          days_of_week: schedule.days_of_week,
-          is_active: schedule.is_active,
-          with_food: schedule.with_food,
-        })
-        .eq("id", schedule.id);
-      if (error) throw error;
+      await updateMedicationSchedule(schedule.id, {
+        time_of_day: schedule.time_of_day,
+        quantity: schedule.quantity,
+        days_of_week: schedule.days_of_week,
+        is_active: schedule.is_active,
+        with_food: schedule.with_food,
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["medication-schedules"] });
@@ -166,11 +160,7 @@ export function NotificationSchedulingCard() {
   // Delete schedule mutation
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from("medication_schedules")
-        .delete()
-        .eq("id", id);
-      if (error) throw error;
+      await deleteMedicationSchedule(id);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["medication-schedules"] });

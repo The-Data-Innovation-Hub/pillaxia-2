@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { listUserRoles, listProfilesByUserIds } from "@/integrations/azure/data";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -36,38 +36,25 @@ export function LicenseCompliancePage() {
 
   const fetchProfiles = async () => {
     try {
-      // Fetch profiles for clinicians and pharmacists
-      const { data: rolesData, error: rolesError } = await supabase
-        .from("user_roles")
-        .select("user_id, role")
-        .in("role", ["clinician", "pharmacist"]);
-
-      if (rolesError) throw rolesError;
-
-      if (!rolesData || rolesData.length === 0) {
+      const [clinicianRoles, pharmacistRoles] = await Promise.all([
+        listUserRoles({ role: "clinician" }),
+        listUserRoles({ role: "pharmacist" }),
+      ]);
+      const rolesData = [...clinicianRoles, ...pharmacistRoles];
+      if (!rolesData.length) {
         setProfiles([]);
         setLoading(false);
         return;
       }
-
-      const userIds = rolesData.map((r) => r.user_id);
-
-      const { data: profilesData, error: profilesError } = await supabase
-        .from("profiles")
-        .select("user_id, first_name, last_name, email, license_number, license_expiration_date, avatar_url, organization")
-        .in("user_id", userIds);
-
-      if (profilesError) throw profilesError;
-
-      // Merge profiles with roles
-      const mergedProfiles: ProfileWithLicense[] = (profilesData || []).map((profile) => {
-        const roleEntry = rolesData.find((r) => r.user_id === profile.user_id);
+      const userIds = [...new Set(rolesData.map((r: Record<string, unknown>) => r.user_id as string))];
+      const profilesData = await listProfilesByUserIds(userIds);
+      const mergedProfiles: ProfileWithLicense[] = (profilesData || []).map((profile: Record<string, unknown>) => {
+        const roleEntry = rolesData.find((r: Record<string, unknown>) => r.user_id === profile.user_id);
         return {
           ...profile,
-          role: roleEntry?.role || "unknown",
-        };
+          role: (roleEntry?.role as string) || "unknown",
+        } as ProfileWithLicense;
       });
-
       setProfiles(mergedProfiles);
     } catch (error) {
       console.error("Error fetching profiles:", error);

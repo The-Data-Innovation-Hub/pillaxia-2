@@ -1,5 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import {
+  listCaregiverInvitations,
+  listProfilesByUserIds,
+  listMedicationLogs,
+  listCaregiverMessages,
+} from "@/integrations/azure/data";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   Card,
@@ -53,62 +58,51 @@ export function CaregiverNotificationHistoryPage() {
     queryFn: async () => {
       if (!user) return [];
 
-      const { data: invitations, error: invError } = await supabase
-        .from("caregiver_invitations")
-        .select("patient_user_id, permissions")
-        .eq("caregiver_user_id", user.id)
-        .eq("status", "accepted");
-
-      if (invError) throw invError;
-      if (!invitations || invitations.length === 0) return [];
-
-      const patientIds = invitations
+      const invitations = await listCaregiverInvitations({
+        caregiver_user_id: user.id,
+        status: "accepted",
+      });
+      const patientIds = (invitations || [])
         .filter((inv) => {
           const permissions = inv.permissions as Record<string, boolean> | null;
           return permissions?.view_adherence;
         })
-        .map((inv) => inv.patient_user_id);
+        .map((inv) => inv.patient_user_id as string);
 
       if (patientIds.length === 0) return [];
 
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("user_id, first_name, last_name")
-        .in("user_id", patientIds);
-
+      const profiles = await listProfilesByUserIds(patientIds);
       const profileMap = new Map(
         (profiles || []).map((p) => [
-          p.user_id,
-          `${p.first_name || ""} ${p.last_name || ""}`.trim() || "Patient",
+          (p.user_id as string) ?? (p as { user_id?: string }).user_id!,
+          `${(p.first_name as string) || ""} ${(p.last_name as string) || ""}`.trim() || "Patient",
         ])
       );
 
       const thirtyDaysAgo = subDays(new Date(), 30);
-      const { data: logs, error: logsError } = await supabase
-        .from("medication_logs")
-        .select(`
-          id,
-          medication_id,
-          scheduled_time,
-          status,
-          user_id,
-          medications(name)
-        `)
-        .in("user_id", patientIds)
-        .in("status", ["missed", "skipped"])
-        .gte("scheduled_time", thirtyDaysAgo.toISOString())
-        .order("scheduled_time", { ascending: false });
+      const fromStr = thirtyDaysAgo.toISOString();
+      const allLogs: Array<Record<string, unknown>> = [];
+      for (const pid of patientIds) {
+        const logs = await listMedicationLogs(pid, { from: fromStr });
+        const missedSkipped = (logs || []).filter(
+          (l) => (l.status as string) === "missed" || (l.status as string) === "skipped"
+        );
+        allLogs.push(...missedSkipped);
+      }
+      allLogs.sort(
+        (a, b) =>
+          new Date((b.scheduled_time as string) || 0).getTime() -
+          new Date((a.scheduled_time as string) || 0).getTime()
+      );
 
-      if (logsError) throw logsError;
-
-      return (logs || []).map((log) => ({
+      return allLogs.map((log) => ({
         id: log.id,
         medication_id: log.medication_id,
         scheduled_time: log.scheduled_time,
         status: log.status,
         user_id: log.user_id,
-        medication_name: (log.medications as { name: string } | null)?.name || "Unknown Medication",
-        patient_name: profileMap.get(log.user_id) || "Patient",
+        medication_name: (log.medications as { name?: string } | null)?.name ?? (log.medication_name as string) ?? "Unknown Medication",
+        patient_name: profileMap.get(log.user_id as string) || "Patient",
       })) as MissedDoseLog[];
     },
     enabled: !!user,
@@ -120,36 +114,30 @@ export function CaregiverNotificationHistoryPage() {
     queryFn: async () => {
       if (!user) return [];
 
-      const { data: messages, error } = await supabase
-        .from("caregiver_messages")
-        .select("id, patient_user_id, message, created_at, is_read, sender_type")
-        .eq("caregiver_user_id", user.id)
-        .eq("sender_type", "caregiver")
-        .order("created_at", { ascending: false })
-        .limit(100);
+      const messages = await listCaregiverMessages({ caregiver_user_id: user.id });
+      const caregiverSent = (messages || [])
+        .filter((m) => (m.sender_type as string) === "caregiver")
+        .sort(
+          (a, b) =>
+            new Date((b.created_at as string) || 0).getTime() -
+            new Date((a.created_at as string) || 0).getTime()
+        )
+        .slice(0, 100);
 
-      if (error) throw error;
-
-      // Get unique patient IDs
-      const patientIds = [...new Set(messages?.map((m) => m.patient_user_id) || [])];
-      
+      const patientIds = [...new Set(caregiverSent.map((m) => m.patient_user_id as string))];
       if (patientIds.length === 0) return [];
 
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("user_id, first_name, last_name")
-        .in("user_id", patientIds);
-
+      const profiles = await listProfilesByUserIds(patientIds);
       const profileMap = new Map(
         (profiles || []).map((p) => [
-          p.user_id,
-          `${p.first_name || ""} ${p.last_name || ""}`.trim() || "Patient",
+          (p.user_id as string) ?? (p as { user_id?: string }).user_id!,
+          `${(p.first_name as string) || ""} ${(p.last_name as string) || ""}`.trim() || "Patient",
         ])
       );
 
-      return (messages || []).map((msg) => ({
+      return caregiverSent.map((msg) => ({
         ...msg,
-        patient_name: profileMap.get(msg.patient_user_id) || "Patient",
+        patient_name: profileMap.get(msg.patient_user_id as string) || "Patient",
       })) as EncouragementMessage[];
     },
     enabled: !!user,

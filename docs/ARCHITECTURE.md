@@ -52,9 +52,11 @@ Organized by user role:
 - Background refetching for freshness
 
 **React Context** for app state:
-- `AuthContext` - Authentication and user session
+- `AuthContext` - Authentication and user session (Azure/Entra only; no Supabase Auth)
 - `OrganizationContext` - Multi-tenant organization data
 - `LanguageContext` - i18n translations
+
+**Authentication (Azure/Entra):** Sign-in uses Microsoft Entra ID (OAuth2 PKCE). The app redirects to Entra for login and handles the callback at `/auth/callback`, exchanging the code for tokens via the backend. Profile and roles are loaded from `GET /api/me` (Bearer token). The backend (e.g. Azure Functions) must validate the Entra token, map the external identity to an internal user, and return `{ user_id, profile, roles }`. Set `VITE_ENTRA_*` and `VITE_AZURE_FUNCTIONS_URL` for web; native uses `src/lib/native-auth.ts` with backend token exchange.
 
 ### 3. Data Access Layer (`src/hooks/`)
 

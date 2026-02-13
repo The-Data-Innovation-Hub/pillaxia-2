@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { getProfileByUserId, createClinicianMessage, apiInvoke } from "@/integrations/azure/data";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/hooks/use-toast";
 import {
@@ -40,48 +40,31 @@ export function ClinicianEncouragementDialog({
   const queryClient = useQueryClient();
   const [message, setMessage] = useState("");
 
-  // Fetch clinician name for the message
   const { data: clinicianProfile } = useQuery({
     queryKey: ["clinician-profile", user?.id],
-    queryFn: async () => {
-      if (!user?.id) return null;
-      const { data } = await supabase
-        .from("profiles")
-        .select("first_name, last_name")
-        .eq("user_id", user.id)
-        .single();
-      return data;
-    },
+    queryFn: async () => (user?.id ? getProfileByUserId(user.id) : null),
     enabled: !!user?.id,
   });
 
   const clinicianName = clinicianProfile
-    ? `${clinicianProfile.first_name || ""} ${clinicianProfile.last_name || ""}`.trim() || "Your care team"
+    ? `${(clinicianProfile as Record<string, unknown>).first_name || ""} ${(clinicianProfile as Record<string, unknown>).last_name || ""}`.trim() || "Your care team"
     : "Your care team";
 
   const sendMutation = useMutation({
     mutationFn: async (messageText: string) => {
       if (!user) throw new Error("Not authenticated");
-
-      // Insert the message into clinician_messages
-      const { error } = await supabase.from("clinician_messages").insert({
+      await createClinicianMessage({
         clinician_user_id: user.id,
         patient_user_id: patientUserId,
         message: messageText.trim(),
         sender_type: "clinician",
       });
-
-      if (error) throw error;
-
-      // Send notification via edge function (fire and forget)
       try {
-        await supabase.functions.invoke("send-clinician-message-notification", {
-          body: {
-            patient_user_id: patientUserId,
-            clinician_name: clinicianName,
-            message: messageText.trim(),
-            is_encouragement: true,
-          },
+        await apiInvoke("send-clinician-message-notification", {
+          patient_user_id: patientUserId,
+          clinician_name: clinicianName,
+          message: messageText.trim(),
+          is_encouragement: true,
         });
       } catch (notifError) {
         console.error("Failed to send notification:", notifError);

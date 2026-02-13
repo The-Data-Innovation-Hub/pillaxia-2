@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { listAppointments, listProfilesByUserIds, updateAppointment } from "@/integrations/azure/data";
 import { format, parseISO, isSameDay, startOfMonth, endOfMonth } from "date-fns";
 import { Calendar } from "@/components/ui/calendar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -72,29 +72,24 @@ export function AppointmentsCalendarPage() {
       const monthStart = startOfMonth(currentMonth);
       const monthEnd = endOfMonth(currentMonth);
 
-      const { data, error } = await supabase
-        .from("appointments")
-        .select("*")
-        .eq("patient_user_id", user!.id)
-        .gte("appointment_date", format(monthStart, "yyyy-MM-dd"))
-        .lte("appointment_date", format(monthEnd, "yyyy-MM-dd"))
-        .order("appointment_date", { ascending: true })
-        .order("appointment_time", { ascending: true });
-
-      if (error) throw error;
-
-      // Fetch clinician profiles
-      const clinicianIds = [...new Set(data.map((a) => a.clinician_user_id))];
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("user_id, first_name, last_name")
-        .in("user_id", clinicianIds);
-
-      const profileMap = new Map(profiles?.map((p) => [p.user_id, p]));
-
-      return data.map((appointment) => ({
+      const data = await listAppointments({ patient_user_id: user!.id });
+      const monthStartStr = format(monthStart, "yyyy-MM-dd");
+      const monthEndStr = format(monthEnd, "yyyy-MM-dd");
+      const inRange = (data || []).filter(
+        (a) =>
+          (a.appointment_date as string) >= monthStartStr &&
+          (a.appointment_date as string) <= monthEndStr
+      );
+      const sorted = inRange.sort((a, b) => {
+        const d = (a.appointment_date as string).localeCompare(b.appointment_date as string);
+        return d !== 0 ? d : (a.appointment_time as string).localeCompare(b.appointment_time as string);
+      });
+      const clinicianIds = [...new Set(sorted.map((a) => a.clinician_user_id as string))];
+      const profiles = await listProfilesByUserIds(clinicianIds);
+      const profileMap = new Map((profiles || []).map((p) => [(p.user_id as string) ?? (p as { user_id?: string }).user_id!, p]));
+      return sorted.map((appointment) => ({
         ...appointment,
-        clinician: profileMap.get(appointment.clinician_user_id),
+        clinician: profileMap.get(appointment.clinician_user_id as string),
       })) as Appointment[];
     },
     enabled: !!user,
@@ -102,11 +97,7 @@ export function AppointmentsCalendarPage() {
 
   const updateStatusMutation = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
-      const { error } = await supabase
-        .from("appointments")
-        .update({ status })
-        .eq("id", id);
-      if (error) throw error;
+      await updateAppointment(id, { status });
     },
     onSuccess: (_, { status }) => {
       queryClient.invalidateQueries({ queryKey: ["patient-appointments-calendar"] });

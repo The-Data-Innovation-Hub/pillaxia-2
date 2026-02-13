@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
+import { listNotificationHistory } from "@/integrations/azure/data";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -75,19 +75,13 @@ export function NotificationCenterCard() {
     queryFn: async () => {
       if (!user) return [];
       
-      const { data, error } = await supabase
-        .from("notification_history")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false })
-        .limit(50);
-
-      if (error) {
-        console.error("Error fetching notifications:", error);
-        return [];
-      }
-
-      return data as Notification[];
+      const data = await listNotificationHistory(user.id);
+      const sorted = (data || []).sort(
+        (a, b) =>
+          new Date((b.created_at as string) || 0).getTime() -
+          new Date((a.created_at as string) || 0).getTime()
+      );
+      return sorted.slice(0, 50) as Notification[];
     },
     enabled: !!user,
     refetchInterval: 30000, // Refresh every 30 seconds

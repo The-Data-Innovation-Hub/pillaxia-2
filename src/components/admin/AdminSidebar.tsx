@@ -1,8 +1,16 @@
-import { LayoutDashboard, Users, BarChart3, LogOut, Settings, TrendingUp, FlaskConical, Activity, HelpCircle, BadgeCheck, ShieldCheck, Building2 } from "lucide-react";
+import { useState } from "react";
+import { LayoutDashboard, Users, BarChart3, LogOut, Settings, TrendingUp, FlaskConical, Activity, HelpCircle, BadgeCheck, ShieldCheck, Building2, ChevronDown, Loader2 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/contexts/AuthContext";
+import { useOrganization } from "@/contexts/OrganizationContext";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Sidebar,
   SidebarContent,
@@ -15,6 +23,7 @@ import {
   SidebarFooter,
   SidebarHeader,
 } from "@/components/ui/sidebar";
+import { isMultiTenant } from "@/lib/environment";
 
 const menuItems = [
   { title: "Overview", url: "/dashboard", icon: LayoutDashboard, adminOnly: false, tourId: "dashboard" },
@@ -30,10 +39,23 @@ const menuItems = [
 
 export function AdminSidebar() {
   const { signOut, profile, isAdmin, isManager } = useAuth();
+  const { organization, availableOrganizations, switchOrganization, isLoading } = useOrganization();
+  const [switching, setSwitching] = useState(false);
+  const showOrgSwitcher = isMultiTenant() && availableOrganizations.length > 1;
+
+  const handleSwitchOrg = async (orgId: string) => {
+    if (orgId === organization?.id) return;
+    setSwitching(true);
+    try {
+      await switchOrganization(orgId);
+    } finally {
+      setSwitching(false);
+    }
+  };
 
   return (
     <Sidebar className="border-r">
-      <SidebarHeader className="p-4 border-b">
+      <SidebarHeader className="p-4 border-b space-y-3">
         <div className="flex items-center gap-3">
           <Avatar className="h-10 w-10">
             <AvatarImage src={profile?.avatar_url || undefined} alt={profile?.first_name || "User"} />
@@ -50,6 +72,38 @@ export function AdminSidebar() {
             </span>
           </div>
         </div>
+        {showOrgSwitcher && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full justify-between gap-2"
+                disabled={isLoading || switching}
+              >
+                {switching ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Building2 className="h-4 w-4 shrink-0" />
+                )}
+                <span className="truncate">{organization?.name ?? "Organization"}</span>
+                <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-[--radix-dropdown-menu-trigger-width] min-w-[200px]">
+              {availableOrganizations.map((org) => (
+                <DropdownMenuItem
+                  key={org.id}
+                  onClick={() => handleSwitchOrg(org.id)}
+                  disabled={org.id === organization?.id}
+                >
+                  {org.name}
+                  {org.id === organization?.id && " (current)"}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
       </SidebarHeader>
 
       <SidebarContent>

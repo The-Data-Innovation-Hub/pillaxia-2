@@ -1,7 +1,14 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import {
+  listClinicianPatientAssignments,
+  listProfilesByUserIds,
+  listSoapNotes,
+  createSoapNote,
+  updateSoapNote,
+  deleteSoapNote as apiDeleteSoapNote,
+} from "@/integrations/azure/data";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -68,41 +75,31 @@ export function SOAPNotesPage() {
     visit_date: format(new Date(), "yyyy-MM-dd"),
   });
 
-  // Fetch assigned patients
   const { data: patients } = useQuery({
     queryKey: ["clinician-patients", user?.id],
     queryFn: async () => {
-      const { data: assignments } = await supabase
-        .from("clinician_patient_assignments")
-        .select("patient_user_id")
-        .eq("clinician_user_id", user!.id);
-
+      const assignments = await listClinicianPatientAssignments(user!.id);
       if (!assignments?.length) return [];
-
-      const patientIds = assignments.map((a) => a.patient_user_id);
-
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("user_id, first_name, last_name")
-        .in("user_id", patientIds);
-
-      return profiles as PatientInfo[];
+      const patientIds = (assignments || []).map((a) => a.patient_user_id as string);
+      const profiles = await listProfilesByUserIds(patientIds);
+      return (profiles || []).map((p) => ({
+        user_id: (p.user_id ?? (p as { user_id?: string }).user_id) as string,
+        first_name: p.first_name ?? null,
+        last_name: p.last_name ?? null,
+      })) as PatientInfo[];
     },
     enabled: !!user,
   });
 
-  // Fetch SOAP notes
   const { data: notes, isLoading } = useQuery({
     queryKey: ["soap-notes", user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("soap_notes")
-        .select("*")
-        .eq("clinician_user_id", user!.id)
-        .order("visit_date", { ascending: false });
-
-      if (error) throw error;
-      return data as SOAPNote[];
+      const data = await listSoapNotes({ clinician_user_id: user!.id });
+      return (data || []).sort(
+        (a, b) =>
+          new Date((b.visit_date as string) || 0).getTime() -
+          new Date((a.visit_date as string) || 0).getTime()
+      ) as SOAPNote[];
     },
     enabled: !!user,
   });
@@ -119,30 +116,23 @@ export function SOAPNotesPage() {
       id?: string;
     }) => {
       if (data.id) {
-        const { error } = await supabase
-          .from("soap_notes")
-          .update({
-            subjective: data.subjective || null,
-            objective: data.objective || null,
-            assessment: data.assessment || null,
-            plan: data.plan || null,
-            visit_date: data.visit_date,
-          })
-          .eq("id", data.id);
-        if (error) throw error;
+        await updateSoapNote(data.id, {
+          subjective: data.subjective || null,
+          objective: data.objective || null,
+          assessment: data.assessment || null,
+          plan: data.plan || null,
+          visit_date: data.visit_date,
+        });
       } else {
-        const { error } = await supabase
-          .from("soap_notes")
-          .insert({
-            clinician_user_id: user!.id,
-            patient_user_id: data.patient_user_id,
-            subjective: data.subjective || null,
-            objective: data.objective || null,
-            assessment: data.assessment || null,
-            plan: data.plan || null,
-            visit_date: data.visit_date,
-          });
-        if (error) throw error;
+        await createSoapNote({
+          clinician_user_id: user!.id,
+          patient_user_id: data.patient_user_id,
+          subjective: data.subjective || null,
+          objective: data.objective || null,
+          assessment: data.assessment || null,
+          plan: data.plan || null,
+          visit_date: data.visit_date,
+        });
       }
     },
     onSuccess: () => {
@@ -160,8 +150,7 @@ export function SOAPNotesPage() {
   // Delete mutation
   const deleteMutation = useMutation({
     mutationFn: async (noteId: string) => {
-      const { error } = await supabase.from("soap_notes").delete().eq("id", noteId);
-      if (error) throw error;
+      await apiDeleteSoapNote(noteId);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["soap-notes"] });

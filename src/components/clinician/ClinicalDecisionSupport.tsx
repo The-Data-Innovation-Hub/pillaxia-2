@@ -19,7 +19,7 @@ import {
   User
 } from "lucide-react";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import angelaImage from "@/assets/hero-angela.png";
 import ReactMarkdown from "react-markdown";
 
@@ -71,9 +71,15 @@ interface ClinicalDecisionSupportProps {
   onClose?: () => void;
 }
 
-const CDS_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/clinical-decision-support`;
+import { getApiBaseUrl } from "@/integrations/azure/client";
+
+function getCdsUrl(): string {
+  const base = getApiBaseUrl();
+  return base ? `${base}/api/clinical-decision-support` : "";
+}
 
 export function ClinicalDecisionSupport({ patient, onClose }: ClinicalDecisionSupportProps) {
+  const { session } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -116,13 +122,13 @@ export function ClinicalDecisionSupport({ patient, onClose }: ClinicalDecisionSu
       const conversationHistory = messages
         .map((m) => ({ role: m.role, content: m.content }));
 
-      // Get the user's session token for authenticated requests
-      const { data: { session } } = await supabase.auth.getSession();
       if (!session?.access_token) {
         throw new Error("Please log in to use Clinical Decision Support");
       }
 
-      const response = await fetch(CDS_URL, {
+      const cdsUrl = getCdsUrl();
+      if (!cdsUrl) throw new Error("API URL not configured");
+      const response = await fetch(cdsUrl, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -232,7 +238,7 @@ export function ClinicalDecisionSupport({ patient, onClose }: ClinicalDecisionSu
     } finally {
       setLoading(false);
     }
-  }, [patient, messages]);
+  }, [patient, messages, session]);
 
   const handleSend = async () => {
     if (!input.trim() || loading) return;

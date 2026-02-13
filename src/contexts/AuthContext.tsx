@@ -1,34 +1,35 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from "react";
-import { User, Session } from "@supabase/supabase-js";
-import { supabase } from "@/integrations/supabase/client";
+import { createContext, useContext, useEffect, useState, useCallback, ReactNode } from "react";
 import { toast } from "sonner";
 import { setSentryUser, clearSentryUser, setSentryContext } from "@/lib/sentry";
-import type { Database } from "@/integrations/supabase/types";
+import {
+  getStoredNativeTokens,
+  clearStoredNativeTokens,
+  decodeIdTokenPayload,
+  buildWebAuthUrl,
+  storePkceVerifier,
+} from "@/lib/native-auth";
+import { fetchMe, type MeProfile, type AppRole } from "@/lib/azure-api";
 
-type AppRole = Database["public"]["Enums"]["app_role"];
-// ProfileRow and UserRoleRow inferred from query selects
-
-// Subset of profile fields used in the auth context
-interface Profile {
+/** Minimal user shape for compatibility (id and email from Entra id_token) */
+export interface AzureUser {
   id: string;
-  user_id: string;
-  first_name: string | null;
-  last_name: string | null;
-  email: string | null;
-  phone: string | null;
-  organization: string | null;
-  language_preference: string | null;
-  avatar_url: string | null;
+  email?: string | null;
+}
+
+/** Session with Azure access token; session.user.id used as app user identity */
+export interface AzureSession {
+  access_token: string;
+  user: AzureUser;
 }
 
 interface AuthContextType {
-  user: User | null;
-  session: Session | null;
-  profile: Profile | null;
+  user: AzureUser | null;
+  session: AzureSession | null;
+  profile: MeProfile | null;
   roles: AppRole[];
   loading: boolean;
-  signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
-  signUp: (email: string, password: string, firstName?: string, lastName?: string, role?: AppRole) => Promise<{ error: Error | null }>;
+  signIn: (email?: string, password?: string) => Promise<{ error: Error | null }>;
+  signUp: (email?: string, password?: string, firstName?: string, lastName?: string, role?: AppRole) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   hasRole: (role: AppRole) => boolean;
   refreshProfile: () => Promise<void>;
@@ -43,115 +44,72 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
-  const [profile, setProfile] = useState<Profile | null>(null);
+  const [user, setUser] = useState<AzureUser | null>(null);
+  const [session, setSession] = useState<AzureSession | null>(null);
+  const [profile, setProfile] = useState<MeProfile | null>(null);
   const [roles, setRoles] = useState<AppRole[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Fetch user profile
-  const fetchProfile = async (userId: string): Promise<Profile | null> => {
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("id, user_id, first_name, last_name, email, phone, organization, language_preference, avatar_url")
-      .eq("user_id", userId)
-      .maybeSingle();
-
-    if (error) {
-      console.error("Error fetching profile:", error);
-      return null;
-    }
-    return data;
-  };
-
-  // Fetch user roles with proper typing
-  const fetchRoles = async (userId: string): Promise<AppRole[]> => {
-    const { data, error } = await supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", userId);
-
-    if (error) {
-      console.error("Error fetching roles:", error);
-      return [];
-    }
-    
-    // data is properly typed as Pick<UserRoleRow, "role">[]
-    return data?.map((r) => r.role) ?? [];
-  };
-
-  useEffect(() => {
-    // Set up auth state listener FIRST
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
-
-        // Defer data fetching to avoid deadlock
-        if (session?.user) {
-          setTimeout(async () => {
-            const [profileData, rolesData] = await Promise.all([
-              fetchProfile(session.user.id),
-              fetchRoles(session.user.id),
-            ]);
-            setProfile(profileData);
-            setRoles(rolesData);
-            setLoading(false);
-            
-            // Set Sentry user context with all roles
-            setSentryUser({
-              id: session.user.id,
-              email: session.user.email,
-              role: rolesData.includes('admin') ? 'admin' : rolesData[0] || 'patient',
-            });
-            setSentryContext('user_roles', {
-              roles: rolesData,
-              isAdmin: rolesData.includes('admin'),
-              isManager: rolesData.includes('manager'),
-              isClinician: rolesData.includes('clinician'),
-              isPharmacist: rolesData.includes('pharmacist'),
-            });
-            setSentryContext('profile', {
-              firstName: profileData?.first_name,
-              lastName: profileData?.last_name,
-              organization: profileData?.organization,
-            });
-          }, 0);
-        } else {
-          setProfile(null);
-          setRoles([]);
-          setLoading(false);
-          clearSentryUser();
-        }
-      }
-    );
-
-    // THEN check for existing session
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-
-      if (session?.user) {
-        const [profileData, rolesData] = await Promise.all([
-          fetchProfile(session.user.id),
-          fetchRoles(session.user.id),
-        ]);
-        setProfile(profileData);
-        setRoles(rolesData);
-      }
+  const loadSessionFromTokens = useCallback(async () => {
+    const tokens = getStoredNativeTokens();
+    if (!tokens?.access_token) {
+      setUser(null);
+      setSession(null);
+      setProfile(null);
+      setRoles([]);
       setLoading(false);
-    });
+      clearSentryUser();
+      return;
+    }
 
-    return () => subscription.unsubscribe();
+    const payload = tokens.id_token
+      ? decodeIdTokenPayload(tokens.id_token)
+      : {};
+    const userId = payload.oid ?? payload.sub ?? "";
+    const email = payload.email ?? null;
+    const azureUser: AzureUser = { id: userId, email: email ?? undefined };
+    const azureSession: AzureSession = { access_token: tokens.access_token, user: azureUser };
+    setUser(azureUser);
+    setSession(azureSession);
+
+    const me = await fetchMe(tokens.access_token);
+    if (me) {
+      setProfile(me.profile ?? null);
+      setRoles(me.roles ?? []);
+      setSentryUser({
+        id: me.user_id,
+        email: me.profile?.email ?? email ?? undefined,
+        role: me.roles?.includes("admin") ? "admin" : me.roles?.[0] || "patient",
+      });
+      setSentryContext("user_roles", {
+        roles: me.roles ?? [],
+        isAdmin: (me.roles ?? []).includes("admin"),
+        isManager: (me.roles ?? []).includes("manager"),
+        isClinician: (me.roles ?? []).includes("clinician"),
+        isPharmacist: (me.roles ?? []).includes("pharmacist"),
+      });
+      setSentryContext("profile", {
+        firstName: me.profile?.first_name,
+        lastName: me.profile?.last_name,
+        organization: me.profile?.organization,
+      });
+    } else {
+      setProfile(null);
+      setRoles([]);
+      setSentryUser({ id: userId, email: email ?? undefined });
+    }
+    setLoading(false);
   }, []);
 
-  const signIn = async (email: string, password: string) => {
+  useEffect(() => {
+    loadSessionFromTokens();
+  }, [loadSessionFromTokens]);
+
+  const signIn = async (_email?: string, _password?: string): Promise<{ error: Error | null }> => {
     try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-      if (error) throw error;
+      const { url, state, codeVerifier } = await buildWebAuthUrl();
+      storePkceVerifier(state, codeVerifier);
+      window.location.href = url;
       return { error: null };
     } catch (error) {
       return { error: error as Error };
@@ -159,58 +117,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signUp = async (
-    email: string,
-    password: string,
-    firstName?: string,
-    lastName?: string,
-    role?: AppRole
-  ) => {
-    try {
-      const redirectUrl = `${window.location.origin}/`;
-      
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          emailRedirectTo: redirectUrl,
-          data: {
-            first_name: firstName,
-            last_name: lastName,
-            role: role || 'patient',
-          },
-        },
-      });
-
-      if (error) throw error;
-
-      // Update profile with name if provided
-      if (data.user && (firstName || lastName)) {
-        await supabase
-          .from("profiles")
-          .update({
-            first_name: firstName,
-            last_name: lastName,
-          })
-          .eq("user_id", data.user.id);
-      }
-
-      return { error: null };
-    } catch (error) {
-      return { error: error as Error };
-    }
+    _email?: string,
+    _password?: string,
+    _firstName?: string,
+    _lastName?: string,
+    _role?: AppRole
+  ): Promise<{ error: Error | null }> => {
+    return signIn();
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    clearStoredNativeTokens();
+    setUser(null);
+    setSession(null);
+    setProfile(null);
+    setRoles([]);
     clearSentryUser();
     toast.success("Signed out successfully");
   };
 
-  const refreshProfile = async () => {
-    if (!user) return;
-    const profileData = await fetchProfile(user.id);
-    setProfile(profileData);
-  };
+  const refreshProfile = useCallback(async () => {
+    const tokens = getStoredNativeTokens();
+    if (!tokens?.access_token) return;
+    const me = await fetchMe(tokens.access_token);
+    if (me) {
+      setProfile(me.profile ?? null);
+      setRoles(me.roles ?? []);
+    }
+  }, []);
 
   const hasRole = (role: AppRole) => roles.includes(role);
 

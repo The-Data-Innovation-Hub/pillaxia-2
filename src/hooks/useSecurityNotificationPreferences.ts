@@ -1,7 +1,10 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
+import {
+  getSecurityNotificationPreferences,
+  upsertSecurityNotificationPreferences,
+} from "@/integrations/azure/data";
 
 export interface SecurityNotificationPreferences {
   id: string;
@@ -23,7 +26,10 @@ export interface SecurityNotificationPreferences {
   updated_at: string;
 }
 
-const DEFAULT_PREFERENCES: Omit<SecurityNotificationPreferences, 'id' | 'user_id' | 'created_at' | 'updated_at'> = {
+const DEFAULT_PREFERENCES: Omit<
+  SecurityNotificationPreferences,
+  "id" | "user_id" | "created_at" | "updated_at"
+> = {
   notify_account_locked: true,
   notify_account_unlocked: true,
   notify_password_change: true,
@@ -48,24 +54,11 @@ export function useSecurityNotificationPreferences() {
     queryFn: async (): Promise<SecurityNotificationPreferences> => {
       if (!user?.id) throw new Error("User not authenticated");
 
-      const { data, error } = await supabase
-        .from("security_notification_preferences")
-        .select("*")
-        .eq("user_id", user.id)
-        .maybeSingle();
+      const data = await getSecurityNotificationPreferences(user.id);
 
-      if (error) throw error;
-
-      // If no preferences exist, create default ones
       if (!data) {
-        const { data: newData, error: insertError } = await supabase
-          .from("security_notification_preferences")
-          .insert({ user_id: user.id, ...DEFAULT_PREFERENCES })
-          .select()
-          .single();
-
-        if (insertError) throw insertError;
-        return newData as SecurityNotificationPreferences;
+        const created = await upsertSecurityNotificationPreferences(user.id, DEFAULT_PREFERENCES);
+        return created as SecurityNotificationPreferences;
       }
 
       return data as SecurityNotificationPreferences;
@@ -74,18 +67,18 @@ export function useSecurityNotificationPreferences() {
   });
 
   const updatePreferences = useMutation({
-    mutationFn: async (updates: Partial<Omit<SecurityNotificationPreferences, 'id' | 'user_id' | 'created_at' | 'updated_at'>>) => {
+    mutationFn: async (
+      updates: Partial<
+        Omit<SecurityNotificationPreferences, "id" | "user_id" | "created_at" | "updated_at">
+      >
+    ) => {
       if (!user?.id) throw new Error("User not authenticated");
-
-      const { error } = await supabase
-        .from("security_notification_preferences")
-        .update(updates)
-        .eq("user_id", user.id);
-
-      if (error) throw error;
+      await upsertSecurityNotificationPreferences(user.id, updates);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["security-notification-preferences", user?.id] });
+      queryClient.invalidateQueries({
+        queryKey: ["security-notification-preferences", user?.id],
+      });
       toast.success("Security notification preferences updated");
     },
     onError: (error: Error) => {
@@ -93,7 +86,12 @@ export function useSecurityNotificationPreferences() {
     },
   });
 
-  const togglePreference = (key: keyof Omit<SecurityNotificationPreferences, 'id' | 'user_id' | 'created_at' | 'updated_at'>) => {
+  const togglePreference = (
+    key: keyof Omit<
+      SecurityNotificationPreferences,
+      "id" | "user_id" | "created_at" | "updated_at"
+    >
+  ) => {
     if (!preferences) return;
     updatePreferences.mutate({ [key]: !preferences[key] });
   };

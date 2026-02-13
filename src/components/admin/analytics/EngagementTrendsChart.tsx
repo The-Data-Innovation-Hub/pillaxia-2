@@ -1,6 +1,9 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import {
+  listAllPatientEngagementScores,
+  listProfilesByUserIds,
+} from "@/integrations/azure/data";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
@@ -47,41 +50,37 @@ export function EngagementTrendsChart() {
   const { data: patients, isLoading: patientsLoading } = useQuery({
     queryKey: ["engagement-patients"],
     queryFn: async () => {
-      const { data: scores, error: scoresError } = await supabase
-        .from("patient_engagement_scores")
-        .select("user_id, risk_level, score_date")
-        .order("score_date", { ascending: false });
-
-      if (scoresError) throw scoresError;
-
-      // Get unique user_ids with their latest risk level
+      const scores = await listAllPatientEngagementScores();
+      const sorted = [...scores].sort(
+        (a, b) =>
+          new Date((b.score_date as string) ?? 0).getTime() -
+          new Date((a.score_date as string) ?? 0).getTime()
+      );
       const latestByUser = new Map<string, { risk_level: string }>();
-      scores?.forEach((s) => {
-        if (!latestByUser.has(s.user_id)) {
-          latestByUser.set(s.user_id, { risk_level: s.risk_level });
+      sorted.forEach((s) => {
+        const uid = s.user_id as string;
+        if (!latestByUser.has(uid)) {
+          latestByUser.set(uid, { risk_level: (s.risk_level as string) ?? "low" });
         }
       });
-
       const userIds = Array.from(latestByUser.keys());
       if (userIds.length === 0) return [];
-
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("user_id, first_name, last_name, email")
-        .in("user_id", userIds);
-
-      const result: PatientOption[] = userIds.map((uid) => {
-        const profile = profiles?.find((p) => p.user_id === uid);
+      const profiles = await listProfilesByUserIds(userIds);
+      const profileMap = new Map(
+        profiles.map((p) => [(p.user_id as string) ?? (p.id as string), p])
+      );
+      return userIds.map((uid) => {
+        const profile = profileMap.get(uid);
         const riskInfo = latestByUser.get(uid);
+        const first = (profile?.first_name as string) ?? "";
+        const last = (profile?.last_name as string) ?? "";
         return {
           user_id: uid,
-          name: profile ? `${profile.first_name || ""} ${profile.last_name || ""}`.trim() || "Unknown" : "Unknown",
-          email: profile?.email || "",
-          currentRisk: riskInfo?.risk_level || "low",
+          name: `${first} ${last}`.trim() || "Unknown",
+          email: (profile?.email as string) ?? "",
+          currentRisk: riskInfo?.risk_level ?? "low",
         };
       });
-
-      return result;
     },
   });
 
@@ -89,26 +88,25 @@ export function EngagementTrendsChart() {
   const { data: trendData, isLoading: trendsLoading } = useQuery({
     queryKey: ["engagement-trends", selectedPatient, dateRange],
     queryFn: async () => {
-      const startDate = subDays(new Date(), parseInt(dateRange));
-
-      let query = supabase
-        .from("patient_engagement_scores")
-        .select("user_id, score_date, overall_score, adherence_score, app_usage_score, notification_score")
-        .gte("score_date", format(startDate, "yyyy-MM-dd"))
-        .order("score_date", { ascending: true });
-
+      const startDate = subDays(new Date(), parseInt(dateRange, 10));
+      const fromDate = format(startDate, "yyyy-MM-dd");
+      const toDate = format(new Date(), "yyyy-MM-dd");
+      let scores = await listAllPatientEngagementScores({ from_date: fromDate, to_date: toDate });
       if (selectedPatient !== "all") {
-        query = query.eq("user_id", selectedPatient);
+        scores = scores.filter((s) => (s.user_id as string) === selectedPatient);
       }
+      scores.sort(
+        (a, b) =>
+          new Date((a.score_date as string) ?? 0).getTime() -
+          new Date((b.score_date as string) ?? 0).getTime()
+      );
 
-      const { data, error } = await query;
-      if (error) throw error;
-
-      // Group by date and average if showing all patients
-      const dateMap = new Map<string, { overall: number[]; adherence: number[]; appUsage: number[]; notifications: number[] }>();
-
-      data?.forEach((record) => {
-        const date = record.score_date;
+      const dateMap = new Map<
+        string,
+        { overall: number[]; adherence: number[]; appUsage: number[]; notifications: number[] }
+      >();
+      scores.forEach((record) => {
+        const date = (record.score_date as string) ?? "";
         if (!dateMap.has(date)) {
           dateMap.set(date, { overall: [], adherence: [], appUsage: [], notifications: [] });
         }
@@ -122,10 +120,31 @@ export function EngagementTrendsChart() {
       const result: TrendDataPoint[] = Array.from(dateMap.entries())
         .map(([date, values]) => ({
           date,
-          overall: Math.round(values.overall.reduce((a, b) => a + b, 0) / values.overall.length),
-          adherence: Math.round(values.adherence.reduce((a, b) => a + b, 0) / values.adherence.length),
-          appUsage: Math.round(values.appUsage.reduce((a, b) => a + b, 0) / values.appUsage.length),
-          notifications: Math.round(values.notifications.reduce((a, b) => a + b, 0) / values.notifications.length),
+          overall:
+            values.overall.length > 0
+              ? Math.round(
+                  values.overall.reduce((a, b) => a + b, 0) / values.overall.length
+                )
+              : 0,
+          adherence:
+            values.adherence.length > 0
+              ? Math.round(
+                  values.adherence.reduce((a, b) => a + b, 0) / values.adherence.length
+                )
+              : 0,
+          appUsage:
+            values.appUsage.length > 0
+              ? Math.round(
+                  values.appUsage.reduce((a, b) => a + b, 0) / values.appUsage.length
+                )
+              : 0,
+          notifications:
+            values.notifications.length > 0
+              ? Math.round(
+                  values.notifications.reduce((a, b) => a + b, 0) /
+                    values.notifications.length
+                )
+              : 0,
         }))
         .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 

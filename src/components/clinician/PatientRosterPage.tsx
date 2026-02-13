@@ -1,6 +1,15 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import {
+  getProfileByUserId,
+  listClinicianPatientAssignments,
+  createClinicianPatientAssignment,
+  deleteClinicianPatientAssignmentByPatient,
+  listUserRoles,
+  listProfilesByUserIds,
+  listMedications,
+  listMedicationLogs,
+} from "@/integrations/azure/data";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePatientCDSData } from "@/hooks/usePatientCDSData";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -97,12 +106,7 @@ export function PatientRosterPage() {
     queryKey: ["clinician-profile", user?.id],
     queryFn: async () => {
       if (!user) return null;
-      const { data } = await supabase
-        .from("profiles")
-        .select("first_name, last_name")
-        .eq("user_id", user.id)
-        .single();
-      return data;
+      return getProfileByUserId(user.id);
     },
     enabled: !!user,
   });
@@ -115,75 +119,58 @@ export function PatientRosterPage() {
   const { data: patientsData, isLoading } = useQuery({
     queryKey: ["clinician-patients-roster", user?.id],
     queryFn: async () => {
-      // Get assignments first
-      const { data: assignments, error: assignError } = await supabase
-        .from("clinician_patient_assignments")
-        .select("patient_user_id, assigned_at, notes")
-        .eq("clinician_user_id", user!.id);
-
-      if (assignError) throw assignError;
-      
+      const assignments = await listClinicianPatientAssignments(user!.id);
       const assignmentMap = new Map(
-        (assignments || []).map(a => [a.patient_user_id, a])
+        assignments.map((a: Record<string, unknown>) => [a.patient_user_id as string, a])
       );
 
-      // Get all users with patient role
-      const { data: patientRoles, error: rolesError } = await supabase
-        .from("user_roles")
-        .select("user_id")
-        .eq("role", "patient");
-
-      if (rolesError) throw rolesError;
+      const patientRoles = await listUserRoles({ role: "patient" });
       if (!patientRoles?.length) return { assigned: [], unassigned: [] };
 
-      const patientIds = patientRoles.map((r) => r.user_id);
+      const patientIds = patientRoles.map((r) => r.user_id as string);
 
-      // Get profiles
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("user_id, first_name, last_name, email, phone")
-        .in("user_id", patientIds);
+      const profilesList = await listProfilesByUserIds(patientIds);
+      const profiles = Array.isArray(profilesList) ? profilesList : [];
 
-      // Get medication counts
-      const { data: medications } = await supabase
-        .from("medications")
-        .select("user_id, id")
-        .in("user_id", patientIds)
-        .eq("is_active", true);
+      const [medicationsByPatient, logsByPatient] = await Promise.all([
+        Promise.all(patientIds.map((id) => listMedications(id))),
+        (() => {
+          const sevenDaysAgo = new Date();
+          sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+          return Promise.all(
+            patientIds.map((id) =>
+              listMedicationLogs(id, { from: sevenDaysAgo.toISOString() })
+            )
+          );
+        })(),
+      ]);
 
-      // Get adherence data (last 7 days)
-      const sevenDaysAgo = new Date();
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-
-      const { data: logs } = await supabase
-        .from("medication_logs")
-        .select("user_id, status")
-        .in("user_id", patientIds)
-        .gte("scheduled_time", sevenDaysAgo.toISOString());
-
-      // Build patient details
-      const allPatients: PatientDetails[] = patientIds.map((patientId) => {
-        const profile = profiles?.find((p) => p.user_id === patientId);
-        const patientMeds = medications?.filter((m) => m.user_id === patientId) || [];
-        const patientLogs = logs?.filter((l) => l.user_id === patientId) || [];
+      const allPatients: PatientDetails[] = patientIds.map((patientId, i) => {
+        const profile = profiles.find((p: Record<string, unknown>) => p.user_id === patientId);
+        const patientMeds = (medicationsByPatient[i] || []).filter(
+          (m: Record<string, unknown>) => m.is_active !== false
+        );
+        const patientLogs = logsByPatient[i] || [];
         const assignment = assignmentMap.get(patientId);
 
         const adherence =
           patientLogs.length > 0
             ? Math.round(
-                (patientLogs.filter((l) => l.status === "taken").length / patientLogs.length) * 100
+                (patientLogs.filter((l: Record<string, unknown>) => l.status === "taken").length /
+                  patientLogs.length) *
+                  100
               )
             : 100;
 
         return {
           userId: patientId,
           profile: {
-            first_name: profile?.first_name || null,
-            last_name: profile?.last_name || null,
-            email: profile?.email || null,
-            phone: profile?.phone || null,
+            first_name: (profile?.first_name as string) ?? null,
+            last_name: (profile?.last_name as string) ?? null,
+            email: (profile?.email as string) ?? null,
+            phone: (profile?.phone as string) ?? null,
           },
-          assignedAt: assignment?.assigned_at,
+          assignedAt: assignment?.assigned_at as string | undefined,
           medicationCount: patientMeds.length,
           recentAdherence: adherence,
           isAssigned: !!assignment,
@@ -191,8 +178,8 @@ export function PatientRosterPage() {
       });
 
       return {
-        assigned: allPatients.filter(p => p.isAssigned),
-        unassigned: allPatients.filter(p => !p.isAssigned),
+        assigned: allPatients.filter((p) => p.isAssigned),
+        unassigned: allPatients.filter((p) => !p.isAssigned),
       };
     },
     enabled: !!user,
@@ -200,13 +187,10 @@ export function PatientRosterPage() {
 
   const assignMutation = useMutation({
     mutationFn: async (patientUserId: string) => {
-      const { error } = await supabase
-        .from("clinician_patient_assignments")
-        .insert({
-          clinician_user_id: user!.id,
-          patient_user_id: patientUserId,
-        });
-      if (error) throw error;
+      await createClinicianPatientAssignment({
+        clinician_user_id: user!.id,
+        patient_user_id: patientUserId,
+      });
     },
     onSuccess: () => {
       toast.success("Patient assigned successfully");
@@ -220,12 +204,7 @@ export function PatientRosterPage() {
 
   const unassignMutation = useMutation({
     mutationFn: async (patientUserId: string) => {
-      const { error } = await supabase
-        .from("clinician_patient_assignments")
-        .delete()
-        .eq("clinician_user_id", user!.id)
-        .eq("patient_user_id", patientUserId);
-      if (error) throw error;
+      await deleteClinicianPatientAssignmentByPatient(user!.id, patientUserId);
     },
     onSuccess: () => {
       toast.success("Patient unassigned successfully");

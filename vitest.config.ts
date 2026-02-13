@@ -111,6 +111,10 @@ export default defineConfig({
     env: {
       // Disable demo mode in tests for consistent UI behavior
       VITE_ENABLE_DEMO: "false",
+      // Enable Entra sign-in in Auth page tests (no real redirect)
+      VITE_ENTRA_CLIENT_ID: "test-client-id",
+      VITE_ENTRA_EXTERNAL_ID_AUTHORITY: "https://test.authority.com",
+      VITE_AZURE_FUNCTIONS_URL: "https://functions.test.com",
     },
   },
   resolve: {

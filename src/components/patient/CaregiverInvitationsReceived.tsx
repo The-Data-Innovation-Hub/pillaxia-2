@@ -1,6 +1,10 @@
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  listCaregiverInvitations,
+  getProfileByUserId,
+  updateCaregiverInvitation,
+} from "@/integrations/azure/data";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -37,43 +41,40 @@ export function CaregiverInvitationsReceived() {
     queryFn: async () => {
       if (!profile?.email) return [];
 
-      const { data, error } = await supabase
-        .from("caregiver_invitations")
-        .select("*")
-        .eq("caregiver_email", profile.email.toLowerCase())
-        .in("status", ["pending", "accepted"])
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-
-      // Fetch patient profiles
+      const data = await listCaregiverInvitations({
+        caregiver_email: profile.email.toLowerCase(),
+      });
+      const filtered = (data || []).filter((inv) =>
+        ["pending", "accepted"].includes((inv.status as string) || "")
+      );
+      const sorted = filtered.sort(
+        (a, b) =>
+          new Date((b.created_at as string) || 0).getTime() -
+          new Date((a.created_at as string) || 0).getTime()
+      );
       const invitationsWithProfiles = await Promise.all(
-        (data || []).map(async (inv) => {
-          const { data: patientProfile } = await supabase
-            .from("profiles")
-            .select("first_name, last_name, email")
-            .eq("user_id", inv.patient_user_id)
-            .maybeSingle();
-          return { ...inv, patient_profile: patientProfile };
+        sorted.map(async (inv) => {
+          const patientProfile = await getProfileByUserId(inv.patient_user_id as string);
+          const pp = patientProfile as { first_name?: string; last_name?: string; email?: string } | null;
+          return {
+            ...inv,
+            patient_profile: pp
+              ? { first_name: pp.first_name ?? null, last_name: pp.last_name ?? null, email: pp.email ?? null }
+              : null,
+          };
         })
       );
-
       return invitationsWithProfiles as unknown as ReceivedInvitation[];
     },
     enabled: !!user && !!profile?.email,
   });
 
-  // Accept invitation mutation
   const acceptMutation = useMutation({
     mutationFn: async (invitationId: string) => {
-      const { error } = await supabase
-        .from("caregiver_invitations")
-        .update({
-          status: "accepted",
-          caregiver_user_id: user!.id,
-        })
-        .eq("id", invitationId);
-      if (error) throw error;
+      await updateCaregiverInvitation(invitationId, {
+        status: "accepted",
+        caregiver_user_id: user!.id,
+      });
     },
     onSuccess: () => {
       toast.success("You are now a caregiver for this patient");
@@ -85,14 +86,9 @@ export function CaregiverInvitationsReceived() {
     },
   });
 
-  // Decline invitation mutation
   const declineMutation = useMutation({
     mutationFn: async (invitationId: string) => {
-      const { error } = await supabase
-        .from("caregiver_invitations")
-        .update({ status: "declined" })
-        .eq("id", invitationId);
-      if (error) throw error;
+      await updateCaregiverInvitation(invitationId, { status: "declined" });
     },
     onSuccess: () => {
       toast.info("Invitation declined");

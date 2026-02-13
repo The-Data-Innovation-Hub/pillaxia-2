@@ -1,6 +1,13 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import {
+  listRefillRequests,
+  updateRefillRequest,
+  updateMedication,
+  listProfilesByUserIds,
+  listMedications,
+  apiInvoke,
+} from "@/integrations/azure/data";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -67,40 +74,37 @@ export function RefillRequestsPage() {
   const { data: requests, isLoading } = useQuery({
     queryKey: ["pharmacist-refill-requests"],
     queryFn: async () => {
-      // Get all pending refill requests
-      const { data: refillRequests, error } = await supabase
-        .from("refill_requests")
-        .select(`
-          id,
-          patient_user_id,
-          medication_id,
-          status,
-          patient_notes,
-          pharmacist_notes,
-          refills_granted,
-          created_at,
-          resolved_at,
-          resolved_by,
-          medications (name, dosage, dosage_unit, form, pharmacy)
-        `)
-        .order("created_at", { ascending: false });
+      const refillRequests = await listRefillRequests();
+      const sorted = [...refillRequests].sort(
+        (a, b) =>
+          new Date((b.created_at as string) || 0).getTime() -
+          new Date((a.created_at as string) || 0).getTime()
+      );
+      const patientIds = [...new Set(sorted.map((r) => r.patient_user_id as string))];
+      const [profilesList, ...medsPerPatient] = await Promise.all([
+        listProfilesByUserIds(patientIds),
+        ...patientIds.map((id) => listMedications(id)),
+      ]);
+      const profiles = Array.isArray(profilesList) ? profilesList : [];
+      const medMap = new Map<string, Record<string, unknown>>();
+      medsPerPatient.forEach((meds: Record<string, unknown>[]) => {
+        (meds || []).forEach((m: Record<string, unknown>) => medMap.set(m.id as string, m));
+      });
 
-      if (error) throw error;
-
-      // Get unique patient IDs
-      const patientIds = [...new Set(refillRequests?.map((r) => r.patient_user_id) || [])];
-
-      // Fetch patient profiles
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("user_id, first_name, last_name, email, phone")
-        .in("user_id", patientIds);
-
-      // Map requests with patient info
-      const requestsWithPatients: RefillRequest[] = (refillRequests || []).map((req) => {
-        const profile = profiles?.find((p) => p.user_id === req.patient_user_id);
+      return sorted.map((req) => {
+        const profile = profiles.find((p: Record<string, unknown>) => p.user_id === req.patient_user_id);
+        const med = req.medication_id ? medMap.get(req.medication_id as string) : null;
         return {
           ...req,
+          medications: med
+            ? {
+                name: med.name,
+                dosage: med.dosage,
+                dosage_unit: med.dosage_unit,
+                form: med.form,
+                pharmacy: med.pharmacy ?? null,
+              }
+            : null,
           patient: profile
             ? {
                 first_name: profile.first_name,
@@ -110,9 +114,7 @@ export function RefillRequestsPage() {
               }
             : null,
         };
-      });
-
-      return requestsWithPatients;
+      }) as RefillRequest[];
     },
   });
 
@@ -134,40 +136,25 @@ export function RefillRequestsPage() {
       refillsGranted?: number;
       notes?: string;
     }) => {
-      // Update the refill request
-      const { error: requestError } = await supabase
-        .from("refill_requests")
-        .update({
-          status,
-          pharmacist_notes: notes || null,
-          refills_granted: status === "approved" ? refillsGranted : null,
-          resolved_at: new Date().toISOString(),
-          resolved_by: user?.id,
-        })
-        .eq("id", requestId);
+      await updateRefillRequest(requestId, {
+        status,
+        pharmacist_notes: notes || null,
+        refills_granted: status === "approved" ? refillsGranted : null,
+        resolved_at: new Date().toISOString(),
+        resolved_by: user?.id,
+      });
 
-      if (requestError) throw requestError;
-
-      // If approved, update medication refills_remaining
       if (status === "approved" && refillsGranted) {
-        const { error: medError } = await supabase
-          .from("medications")
-          .update({ refills_remaining: refillsGranted })
-          .eq("id", medicationId);
-
-        if (medError) throw medError;
+        await updateMedication(medicationId, { refills_remaining: refillsGranted });
       }
 
-      // Send notification to patient
       try {
-        await supabase.functions.invoke("send-refill-request-notification", {
-          body: {
-            patient_user_id: patientUserId,
-            medication_name: medicationName,
-            status,
-            refills_granted: refillsGranted,
-            pharmacist_notes: notes,
-          },
+        await apiInvoke("send-refill-request-notification", {
+          patient_user_id: patientUserId,
+          medication_name: medicationName,
+          status,
+          refills_granted: refillsGranted,
+          pharmacist_notes: notes,
         });
       } catch (notifyError) {
         console.error("Failed to send notification:", notifyError);

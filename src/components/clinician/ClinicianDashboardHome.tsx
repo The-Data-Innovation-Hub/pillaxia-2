@@ -1,6 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import {
+  listClinicianPatientAssignments,
+  listMedications,
+  listMedicationLogs,
+} from "@/integrations/azure/data";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Users, Pill, Activity, AlertTriangle, FileText, CalendarDays } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -18,62 +22,42 @@ export function ClinicianDashboardHome() {
   const { data: stats, isLoading } = useQuery({
     queryKey: ["clinician-stats", user?.id],
     queryFn: async () => {
-      // Get assigned patients count
-      const { count: patientCount } = await supabase
-        .from("clinician_patient_assignments")
-        .select("*", { count: "exact", head: true })
-        .eq("clinician_user_id", user!.id);
-
-      // Get patients with their medication data
-      const { data: assignments } = await supabase
-        .from("clinician_patient_assignments")
-        .select("patient_user_id")
-        .eq("clinician_user_id", user!.id);
-
-      const patientIds = assignments?.map((a) => a.patient_user_id) || [];
+      const assignments = await listClinicianPatientAssignments(user!.id);
+      const patientIds = (assignments || []).map((a) => a.patient_user_id as string);
+      const patientCount = patientIds.length;
 
       let activeMedications = 0;
       let lowAdherenceCount = 0;
 
       if (patientIds.length > 0) {
-        // Get active medications for assigned patients
-        const { count: medCount } = await supabase
-          .from("medications")
-          .select("*", { count: "exact", head: true })
-          .in("user_id", patientIds)
-          .eq("is_active", true);
-
-        activeMedications = medCount || 0;
-
-        // Get adherence data (last 7 days)
         const sevenDaysAgo = new Date();
         sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+        const fromStr = sevenDaysAgo.toISOString();
 
-        const { data: logs } = await supabase
-          .from("medication_logs")
-          .select("user_id, status")
-          .in("user_id", patientIds)
-          .gte("scheduled_time", sevenDaysAgo.toISOString());
-
-        // Calculate patients with <80% adherence
+        let totalMeds = 0;
         const patientAdherence: Record<string, { taken: number; total: number }> = {};
-        logs?.forEach((log) => {
-          if (!patientAdherence[log.user_id]) {
-            patientAdherence[log.user_id] = { taken: 0, total: 0 };
-          }
-          patientAdherence[log.user_id].total++;
-          if (log.status === "taken") {
-            patientAdherence[log.user_id].taken++;
-          }
-        });
 
+        for (const pid of patientIds) {
+          const [meds, logs] = await Promise.all([
+            listMedications(pid),
+            listMedicationLogs(pid, { from: fromStr }),
+          ]);
+          totalMeds += (meds || []).filter((m) => m.is_active !== false).length;
+          (logs || []).forEach((log) => {
+            const uid = log.user_id as string;
+            if (!patientAdherence[uid]) patientAdherence[uid] = { taken: 0, total: 0 };
+            patientAdherence[uid].total++;
+            if (log.status === "taken") patientAdherence[uid].taken++;
+          });
+        }
+        activeMedications = totalMeds;
         lowAdherenceCount = Object.values(patientAdherence).filter(
           (p) => p.total > 0 && p.taken / p.total < 0.8
         ).length;
       }
 
       return {
-        patientCount: patientCount || 0,
+        patientCount,
         activeMedications,
         lowAdherenceCount,
       };

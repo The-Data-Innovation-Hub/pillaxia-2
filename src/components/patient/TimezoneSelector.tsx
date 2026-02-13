@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { getProfileByUserId, updateProfile } from "@/integrations/azure/data";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/hooks/use-toast";
 import {
@@ -90,14 +90,8 @@ export function TimezoneSelector() {
     queryKey: ["profile-timezone", user?.id],
     queryFn: async () => {
       if (!user) return null;
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("timezone")
-        .eq("user_id", user.id)
-        .single();
-      
-      if (error) throw error;
-      return data;
+      const data = await getProfileByUserId(user.id);
+      return data as { timezone?: string } | null;
     },
     enabled: !!user,
   });
@@ -105,13 +99,7 @@ export function TimezoneSelector() {
   const updateTimezoneMutation = useMutation({
     mutationFn: async (timezone: string) => {
       if (!user) throw new Error("Not authenticated");
-      
-      const { error } = await supabase
-        .from("profiles")
-        .update({ timezone })
-        .eq("user_id", user.id);
-      
-      if (error) throw error;
+      await updateProfile(user.id, { timezone });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["profile-timezone"] });

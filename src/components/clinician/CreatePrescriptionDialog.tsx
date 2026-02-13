@@ -32,7 +32,7 @@ import {
 import { Loader2, FileText, AlertTriangle } from "lucide-react";
 import { usePrescriptions, CreatePrescriptionData } from "@/hooks/usePrescriptions";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { listPharmacyLocations } from "@/integrations/azure/data";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 const prescriptionSchema = z.object({
@@ -80,13 +80,8 @@ export function CreatePrescriptionDialog({
   const { data: pharmacies } = useQuery({
     queryKey: ["pharmacies-for-prescription"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("pharmacy_locations")
-        .select("id, name, city, state")
-        .eq("is_active", true)
-        .order("name");
-      if (error) throw error;
-      return data;
+      const list = await listPharmacyLocations({ is_active: true });
+      return [...list].sort((a, b) => ((a.name as string) || "").localeCompare((b.name as string) || ""));
     },
   });
 

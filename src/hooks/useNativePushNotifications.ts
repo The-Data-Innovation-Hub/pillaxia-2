@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { Capacitor } from "@capacitor/core";
 import { PushNotifications, Token, PushNotificationSchema, ActionPerformed } from "@capacitor/push-notifications";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { upsertPushSubscription, deletePushSubscription } from "@/integrations/azure/data";
 import { toast } from "@/hooks/use-toast";
 
 interface NativePushState {
@@ -116,22 +116,14 @@ export function useNativePushNotifications() {
     if (!user) return;
 
     try {
-      const { error } = await supabase.from("push_subscriptions").upsert(
-        {
-          user_id: user.id,
-          endpoint: `native://${devicePlatform}/${token.slice(0, 32)}`, // Unique identifier
-          p256dh: "native", // Placeholder for native
-          auth: "native", // Placeholder for native
-          native_token: token,
-          platform: devicePlatform,
-        },
-        { onConflict: "user_id,endpoint" }
-      );
-
-      if (error) {
-        console.error("Error saving native token:", error);
-        throw error;
-      }
+      await upsertPushSubscription({
+        user_id: user.id,
+        endpoint: `native://${devicePlatform}/${token.slice(0, 32)}`,
+        p256dh: "native",
+        auth: "native",
+        native_token: token,
+        platform: devicePlatform,
+      });
 
       console.log("Native push token saved successfully");
     } catch (error) {
@@ -202,12 +194,7 @@ export function useNativePushNotifications() {
     setState(prev => ({ ...prev, isLoading: true }));
 
     try {
-      // Remove from database
-      await supabase
-        .from("push_subscriptions")
-        .delete()
-        .eq("user_id", user.id)
-        .eq("native_token", state.token);
+      await deletePushSubscription(user.id, { native_token: state.token });
 
       setState(prev => ({
         ...prev,

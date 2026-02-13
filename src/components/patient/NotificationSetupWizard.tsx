@@ -1,6 +1,11 @@
 import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
+import {
+  getPatientNotificationPreferences,
+  createPatientNotificationPreferences,
+  updatePatientNotificationPreferences,
+  updateProfile,
+} from "@/integrations/azure/data";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -107,24 +112,15 @@ export function NotificationSetupWizard({
     mutationFn: async () => {
       if (!user) throw new Error("Not authenticated");
 
-      // First, upsert notification preferences
-      const { error: prefsError } = await supabase
-        .from("patient_notification_preferences")
-        .upsert({
-          user_id: user.id,
-          ...preferences,
-        }, { onConflict: "user_id" });
+      const existing = await getPatientNotificationPreferences(user.id);
+      if (existing) {
+        await updatePatientNotificationPreferences(user.id, preferences);
+      } else {
+        await createPatientNotificationPreferences({ user_id: user.id, ...preferences });
+      }
 
-      if (prefsError) throw prefsError;
-
-      // If phone number provided, update profile
       if (phoneNumber.trim()) {
-        const { error: profileError } = await supabase
-          .from("profiles")
-          .update({ phone: phoneNumber.trim() })
-          .eq("user_id", user.id);
-
-        if (profileError) throw profileError;
+        await updateProfile(user.id, { phone: phoneNumber.trim() });
       }
     },
     onSuccess: () => {

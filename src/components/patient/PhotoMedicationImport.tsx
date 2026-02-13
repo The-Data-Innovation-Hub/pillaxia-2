@@ -1,6 +1,7 @@
 import { useState, useRef } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
+import { createMedication } from "@/integrations/azure/data";
+import { apiInvoke } from "@/integrations/azure/client";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -72,11 +73,9 @@ export function PhotoMedicationImport({ open, onOpenChange, onSuccess }: PhotoMe
     setError(null);
 
     try {
-      const { data, error: funcError } = await supabase.functions.invoke("extract-medication-ocr", {
-        body: { image: imageData },
+      const data = await apiInvoke<{ medications?: ExtractedMedication[] }>("extract-medication-ocr", {
+        image: imageData,
       });
-
-      if (funcError) throw funcError;
 
       if (data?.medications && data.medications.length > 0) {
         setExtracted(data.medications);
@@ -119,8 +118,7 @@ export function PhotoMedicationImport({ open, onOpenChange, onSuccess }: PhotoMe
         };
       });
 
-      const { error } = await supabase.from("medications").insert(medsToSave);
-      if (error) throw error;
+      await Promise.all(medsToSave.map((m) => createMedication(m)));
 
       toast.success(`${medsToSave.length} medication(s) imported successfully!`);
       resetState();

@@ -1,6 +1,6 @@
 import { useEffect, useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
+import { insertPatientActivityLog } from "@/integrations/azure/data";
 import { useLocation } from "react-router-dom";
 
 type ActivityType = 
@@ -21,7 +21,7 @@ export function useActivityTracking() {
       if (!user) return;
 
       try {
-        await supabase.from("patient_activity_log").insert({
+        await insertPatientActivityLog({
           user_id: user.id,
           activity_type: activityType,
           activity_data: {

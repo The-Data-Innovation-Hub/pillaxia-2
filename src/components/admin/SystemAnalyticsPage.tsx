@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { getSystemAnalytics } from "@/integrations/azure/data";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
@@ -31,78 +31,7 @@ const COLORS = ["#8884d8", "#82ca9d", "#ffc658", "#ff7300"];
 export function SystemAnalyticsPage() {
   const { data: analytics, isLoading } = useQuery({
     queryKey: ["system-analytics"],
-    queryFn: async () => {
-      // Get medication logs stats
-      const { data: logs } = await supabase
-        .from("medication_logs")
-        .select("status, created_at");
-
-      const logStats = {
-        taken: 0,
-        missed: 0,
-        pending: 0,
-        skipped: 0,
-      };
-
-      logs?.forEach((log) => {
-        if (log.status in logStats) {
-          logStats[log.status as keyof typeof logStats]++;
-        }
-      });
-
-      const total = logs?.length || 0;
-      const adherenceRate = total > 0 ? (logStats.taken / total) * 100 : 0;
-
-      // Get symptom entries
-      const { count: symptomCount } = await supabase
-        .from("symptom_entries")
-        .select("*", { count: "exact", head: true });
-
-      // Get medications by form
-      const { data: medications } = await supabase
-        .from("medications")
-        .select("form");
-
-      const formCounts: Record<string, number> = {};
-      medications?.forEach((med) => {
-        formCounts[med.form] = (formCounts[med.form] || 0) + 1;
-      });
-
-      const medicationsByForm = Object.entries(formCounts).map(([name, value]) => ({
-        name,
-        value,
-      }));
-
-      // Get user activity by role
-      const { data: roles } = await supabase.from("user_roles").select("role");
-
-      const roleActivity = {
-        patient: 0,
-        clinician: 0,
-        pharmacist: 0,
-        admin: 0,
-      };
-
-      roles?.forEach((r) => {
-        if (r.role in roleActivity) {
-          roleActivity[r.role as keyof typeof roleActivity]++;
-        }
-      });
-
-      const roleData = Object.entries(roleActivity).map(([name, count]) => ({
-        name: name.charAt(0).toUpperCase() + name.slice(1),
-        count,
-      }));
-
-      return {
-        logStats,
-        adherenceRate,
-        totalLogs: total,
-        symptomCount: symptomCount || 0,
-        medicationsByForm,
-        roleData,
-      };
-    },
+    queryFn: () => getSystemAnalytics(),
   });
 
   const adherenceCards = [

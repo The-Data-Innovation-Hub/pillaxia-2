@@ -1,6 +1,11 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import {
+  listClinicianPatientAssignments,
+  listProfilesByUserIds,
+  listMedications,
+  listMedicationSchedules,
+} from "@/integrations/azure/data";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -52,46 +57,36 @@ export function MedicationReviewPage() {
   const { data, isLoading } = useQuery({
     queryKey: ["clinician-medications", user?.id],
     queryFn: async () => {
-      // Get assignments
-      const { data: assignments } = await supabase
-        .from("clinician_patient_assignments")
-        .select("patient_user_id")
-        .eq("clinician_user_id", user!.id);
+      const assignments = await listClinicianPatientAssignments(user!.id);
+      const patientIds = assignments.map((a) => a.patient_user_id as string);
+      if (!patientIds.length) return [];
 
-      if (!assignments?.length) return [];
+      const [profilesList, ...medsAndSchedules] = await Promise.all([
+        listProfilesByUserIds(patientIds),
+        ...patientIds.map(async (patientId) => {
+          const [meds, schedules] = await Promise.all([
+            listMedications(patientId),
+            listMedicationSchedules(undefined, patientId),
+          ]);
+          return { patientId, meds, schedules };
+        }),
+      ]);
+      const profiles = Array.isArray(profilesList) ? profilesList : [];
 
-      const patientIds = assignments.map((a) => a.patient_user_id);
-
-      // Get profiles
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("user_id, first_name, last_name")
-        .in("user_id", patientIds);
-
-      // Get medications with schedules
-      const { data: medications } = await supabase
-        .from("medications")
-        .select(`
-          *,
-          medication_schedules (
-            time_of_day,
-            quantity,
-            with_food,
-            is_active
-          )
-        `)
-        .in("user_id", patientIds)
-        .eq("is_active", true);
-
-      // Group by patient
-      const patientMeds: PatientMedication[] = patientIds.map((patientId) => {
-        const profile = profiles?.find((p) => p.user_id === patientId);
-        const patientMedications = medications?.filter((m) => m.user_id === patientId) || [];
+      const patientMeds: PatientMedication[] = medsAndSchedules.map(({ patientId, meds, schedules }) => {
+        const profile = profiles.find((p: Record<string, unknown>) => p.user_id === patientId);
+        const activeMeds = (meds || []).filter((m: Record<string, unknown>) => m.is_active !== false);
+        const scheduleByMed = new Map<string, Record<string, unknown>[]>();
+        (schedules || []).forEach((s: Record<string, unknown>) => {
+          const mid = s.medication_id as string;
+          if (!scheduleByMed.has(mid)) scheduleByMed.set(mid, []);
+          if (s.is_active !== false) scheduleByMed.get(mid)!.push(s);
+        });
 
         return {
           patientId,
-          patientName: `${profile?.first_name || ""} ${profile?.last_name || ""}`.trim() || "Unknown",
-          medications: patientMedications.map((med) => ({
+          patientName: `${(profile?.first_name as string) || ""} ${(profile?.last_name as string) || ""}`.trim() || "Unknown",
+          medications: activeMeds.map((med: Record<string, unknown>) => ({
             id: med.id,
             name: med.name,
             dosage: med.dosage,
@@ -102,13 +97,11 @@ export function MedicationReviewPage() {
             pharmacy: med.pharmacy,
             start_date: med.start_date,
             is_active: med.is_active,
-            schedules: (med.medication_schedules || [])
-              .filter((s: { is_active: boolean }) => s.is_active)
-              .map((s: { time_of_day: string; quantity: number; with_food: boolean | null }) => ({
-                time_of_day: s.time_of_day,
-                quantity: s.quantity,
-                with_food: s.with_food,
-              })),
+            schedules: (scheduleByMed.get(med.id as string) || []).map((s) => ({
+              time_of_day: s.time_of_day,
+              quantity: s.quantity,
+              with_food: s.with_food,
+            })),
           })),
         };
       });

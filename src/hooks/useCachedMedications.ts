@@ -1,15 +1,23 @@
 import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
+import { listMedications } from "@/integrations/azure/data";
 import { medicationCache } from "@/lib/cache";
 import { useOfflineStatus } from "@/hooks/useOfflineStatus";
-import type { Tables } from "@/integrations/supabase/types";
 
-type Medication = Tables<"medications"> & {
-  medication_schedules: Array<{
-    time_of_day: string;
-    quantity: number;
-  }>;
+export type Medication = {
+  id: string;
+  user_id: string;
+  name: string;
+  dosage: string | null;
+  form: string | null;
+  instructions: string | null;
+  prescribed_by: string | null;
+  pharmacy_id: string | null;
+  created_at: string;
+  updated_at: string;
+  [key: string]: unknown;
+} & {
+  medication_schedules: Array<{ time_of_day: string; quantity: number }>;
 };
 
 interface UseCachedMedicationsResult {
@@ -58,21 +66,9 @@ export function useCachedMedications(): UseCachedMedicationsResult {
     if (!user) return;
 
     try {
-      const { data, error: fetchError } = await supabase
-        .from("medications")
-        .select(`
-          *,
-          medication_schedules (
-            time_of_day,
-            quantity
-          )
-        `)
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false });
-
-      if (fetchError) throw fetchError;
-
-      const medicationData = data as Medication[];
+      const data = await listMedications(user.id);
+      const medicationData = (Array.isArray(data) ? data : []) as Medication[];
+      medicationData.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
       setMedications(medicationData);
       setIsFromCache(false);
       setLastSynced(new Date());

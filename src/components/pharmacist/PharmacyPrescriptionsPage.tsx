@@ -48,7 +48,7 @@ import {
 import { usePrescriptions, Prescription, PrescriptionStatus } from "@/hooks/usePrescriptions";
 import { format } from "date-fns";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { listPharmacyLocations } from "@/integrations/azure/data";
 import { useAuth } from "@/contexts/AuthContext";
 
 const STATUS_CONFIG: Record<PrescriptionStatus, { label: string; variant: "default" | "secondary" | "destructive" | "outline"; icon: React.ReactNode }> = {
@@ -79,17 +79,9 @@ export function PharmacyPrescriptionsPage() {
   const [statusDialogOpen, setStatusDialogOpen] = useState(false);
   const [nextStatus, setNextStatus] = useState<PrescriptionStatus | null>(null);
 
-  // Get all pharmacies managed by this pharmacist
   const { data: pharmacies } = useQuery({
     queryKey: ["my-pharmacies", user?.id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("pharmacy_locations")
-        .select("id, name")
-        .eq("pharmacist_user_id", user?.id);
-      if (error) throw error;
-      return data || [];
-    },
+    queryFn: () => listPharmacyLocations({ pharmacist_user_id: user!.id }),
     enabled: !!user,
   });
 

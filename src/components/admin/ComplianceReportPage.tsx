@@ -1,6 +1,13 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import {
+  listComplianceReports,
+  createComplianceReport,
+  listSecurityEvents,
+  listAccountLockouts,
+  listDataAccessLogs,
+  listAuditLogs,
+} from "@/integrations/azure/data";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -46,14 +53,12 @@ export function ComplianceReportPage() {
   const { data: existingReports, isLoading: reportsLoading, refetch } = useQuery({
     queryKey: ["compliance-reports"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("compliance_reports")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(10);
-
-      if (error) throw error;
-      return data;
+      const reports = await listComplianceReports(10);
+      return reports.sort(
+        (a, b) =>
+          new Date((b.created_at as string) ?? 0).getTime() -
+          new Date((a.created_at as string) ?? 0).getTime()
+      );
     },
   });
 
@@ -62,9 +67,9 @@ export function ComplianceReportPage() {
     mutationFn: async () => {
       const startStr = format(startDate, "yyyy-MM-dd");
       const endStr = format(endDate, "yyyy-MM-dd");
+      const endStrMax = endStr + "T23:59:59";
 
-      // Fetch data based on report type
-      let reportData: any = {};
+      const reportData: Record<string, unknown> = {};
       let summary: ReportSummary = {
         total_events: 0,
         critical_events: 0,
@@ -74,77 +79,52 @@ export function ComplianceReportPage() {
       };
 
       if (reportType === "security_summary" || reportType === "hipaa_audit") {
-        const { data: securityEvents, error: secError } = await supabase
-          .from("security_events")
-          .select("*")
-          .gte("created_at", startStr)
-          .lte("created_at", endStr + "T23:59:59");
-
-        if (secError) throw secError;
-
+        const securityEvents = await listSecurityEvents({
+          from_date: startStr,
+          to_date: endStrMax,
+        });
         reportData.security_events = securityEvents;
-        summary.total_events = securityEvents?.length || 0;
-        summary.critical_events = securityEvents?.filter(e => e.severity === 'critical').length || 0;
-        summary.warning_events = securityEvents?.filter(e => e.severity === 'warning').length || 0;
-        summary.unique_users = new Set(securityEvents?.map(e => e.user_id)).size;
+        summary.total_events = securityEvents.length;
+        summary.critical_events = securityEvents.filter((e) => (e.severity as string) === "critical").length;
+        summary.warning_events = securityEvents.filter((e) => (e.severity as string) === "warning").length;
+        summary.unique_users = new Set(securityEvents.map((e) => e.user_id as string)).size;
 
-        // Get account lockouts
-        const { data: lockouts } = await supabase
-          .from("account_lockouts")
-          .select("*")
-          .gte("created_at", startStr)
-          .lte("created_at", endStr + "T23:59:59");
-
+        const lockouts = await listAccountLockouts({ from_date: startStr, to_date: endStrMax });
         reportData.account_lockouts = lockouts;
       }
 
       if (reportType === "data_access" || reportType === "hipaa_audit") {
-        const { data: accessLogs, error: accessError } = await supabase
-          .from("data_access_log")
-          .select("*")
-          .gte("created_at", startStr)
-          .lte("created_at", endStr + "T23:59:59");
-
-        if (accessError) throw accessError;
-
+        const accessLogs = await listDataAccessLogs({
+          from_date: startStr,
+          to_date: endStrMax,
+        });
         reportData.data_access_logs = accessLogs;
         if (reportType === "data_access") {
-          summary.total_events = accessLogs?.length || 0;
-          summary.unique_users = new Set(accessLogs?.map(e => e.user_id)).size;
+          summary.total_events = accessLogs.length;
+          summary.unique_users = new Set(accessLogs.map((e) => e.user_id as string)).size;
         }
       }
 
       if (reportType === "user_activity") {
-        const { data: auditLogs, error: auditError } = await supabase
-          .from("audit_log")
-          .select("*")
-          .gte("created_at", startStr)
-          .lte("created_at", endStr + "T23:59:59");
-
-        if (auditError) throw auditError;
-
+        const auditLogs = await listAuditLogs({
+          from_date: startStr,
+          to_date: endStrMax,
+        });
         reportData.audit_logs = auditLogs;
-        summary.total_events = auditLogs?.length || 0;
-        summary.unique_users = new Set(auditLogs?.map(e => e.user_id)).size;
+        summary.total_events = auditLogs.length;
+        summary.unique_users = new Set(auditLogs.map((e) => e.user_id as string)).size;
       }
 
-      // Save report to database
-      const { data: savedReport, error: saveError } = await supabase
-        .from("compliance_reports")
-        .insert({
-          report_type: reportType,
-          report_period_start: startStr,
-          report_period_end: endStr,
-          generated_by: user?.id || '',
-          report_data: reportData as any,
-          summary: summary as any,
-        })
-        .select()
-        .single();
+      const savedReport = await createComplianceReport({
+        report_type: reportType,
+        report_period_start: startStr,
+        report_period_end: endStr,
+        generated_by: user?.id ?? "",
+        report_data: reportData,
+        summary,
+      });
 
-      if (saveError) throw saveError;
-
-      return savedReport;
+      return savedReport as Record<string, unknown> & { id: string; created_at: string; report_type: string; report_period_start: string; report_period_end: string; summary: ReportSummary };
     },
     onSuccess: () => {
       toast.success("Compliance report generated successfully");

@@ -1,58 +1,35 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, waitFor, act } from "@testing-library/react";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
-import { AuthError, Session, User } from "@supabase/supabase-js";
 import React from "react";
 
-// Mock Supabase client
-vi.mock("@/integrations/supabase/client", () => ({
-  supabase: {
-    auth: {
-      getSession: vi.fn(),
-      signInWithPassword: vi.fn(),
-      signUp: vi.fn(),
-      signOut: vi.fn(),
-      onAuthStateChange: vi.fn(),
-    },
-    from: vi.fn(() => ({
-      select: vi.fn().mockReturnThis(),
-      eq: vi.fn().mockReturnThis(),
-      single: vi.fn(),
-      maybeSingle: vi.fn(),
-    })),
-  },
+const mockGetStoredNativeTokens = vi.fn();
+const mockClearStoredNativeTokens = vi.fn();
+const mockDecodeIdTokenPayload = vi.fn();
+const mockBuildWebAuthUrl = vi.fn();
+const mockStorePkceVerifier = vi.fn();
+const mockFetchMe = vi.fn();
+
+vi.mock("@/lib/native-auth", () => ({
+  getStoredNativeTokens: () => mockGetStoredNativeTokens(),
+  clearStoredNativeTokens: () => mockClearStoredNativeTokens(),
+  decodeIdTokenPayload: (token: string) => mockDecodeIdTokenPayload(token),
+  buildWebAuthUrl: () => mockBuildWebAuthUrl(),
+  storePkceVerifier: (state: string, verifier: string) => mockStorePkceVerifier(state, verifier),
 }));
 
-// Mock Sentry
+vi.mock("@/lib/azure-api", () => ({
+  fetchMe: (token: string) => mockFetchMe(token),
+}));
+
 vi.mock("@/lib/sentry", () => ({
   setSentryUser: vi.fn(),
   clearSentryUser: vi.fn(),
   setSentryContext: vi.fn(),
 }));
 
-const mockUser: User = {
-  id: "test-user-id",
-  email: "test@example.com",
-  created_at: new Date().toISOString(),
-  app_metadata: {},
-  user_metadata: {},
-  aud: "authenticated",
-  role: "",
-};
-
-const mockSession: Session = {
-  access_token: "test-token",
-  refresh_token: "test-refresh",
-  expires_in: 3600,
-  expires_at: Math.floor(Date.now() / 1000) + 3600,
-  token_type: "bearer" as const,
-  user: mockUser,
-};
-
+const mockUser = { id: "test-user-id", email: "test@example.com" };
 const mockProfile = {
-  id: "test-profile-id",
-  user_id: "test-user-id",
   first_name: "Test",
   last_name: "User",
   email: "test@example.com",
@@ -62,11 +39,6 @@ const mockProfile = {
   avatar_url: null,
 };
 
-// Helper to create a mock AuthError
-const createMockAuthError = (message: string, status: number) => {
-  return new AuthError(message, status);
-};
-
 const wrapper = ({ children }: { children: React.ReactNode }) => (
   <AuthProvider>{children}</AuthProvider>
 );
@@ -74,34 +46,24 @@ const wrapper = ({ children }: { children: React.ReactNode }) => (
 describe("useAuth Hook", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    
-    // Default mock implementations
-    vi.mocked(supabase.auth.getSession).mockResolvedValue({
-      data: { session: null },
-      error: null,
-    });
-    
-    vi.mocked(supabase.auth.onAuthStateChange).mockReturnValue({
-      data: {
-        subscription: {
-          id: "test-sub-id",
-          callback: vi.fn(),
-          unsubscribe: vi.fn(),
-        },
-      },
-    });
+    mockGetStoredNativeTokens.mockReturnValue(null);
+    mockFetchMe.mockResolvedValue(null);
   });
 
   describe("Initial State", () => {
-    it("starts with loading true and no user", async () => {
+    it("ends with no user when no tokens", async () => {
+      mockGetStoredNativeTokens.mockReturnValue(null);
+
       const { result } = renderHook(() => useAuth(), { wrapper });
 
-      expect(result.current.loading).toBe(true);
+      await waitFor(() => {
+        expect(result.current.loading).toBe(false);
+      });
       expect(result.current.user).toBe(null);
       expect(result.current.session).toBe(null);
     });
 
-    it("sets loading to false after initialization", async () => {
+    it("sets loading to false after initialization when no tokens", async () => {
       const { result } = renderHook(() => useAuth(), { wrapper });
 
       await waitFor(() => {
@@ -111,42 +73,43 @@ describe("useAuth Hook", () => {
   });
 
   describe("Session Management", () => {
-    it("loads existing session on mount", async () => {
-      vi.mocked(supabase.auth.getSession).mockResolvedValue({
-        data: { session: mockSession },
-        error: null,
+    it("loads session from stored tokens and fetchMe", async () => {
+      mockGetStoredNativeTokens.mockReturnValue({
+        access_token: "test-token",
+        id_token: "mock-id-token",
       });
-
-      // Mock profile fetch
-      vi.mocked(supabase.from).mockReturnValue({
-        select: vi.fn().mockReturnThis(),
-        eq: vi.fn().mockReturnThis(),
-        maybeSingle: vi.fn().mockResolvedValue({ data: mockProfile, error: null }),
-      } as any);
+      mockDecodeIdTokenPayload.mockReturnValue({
+        oid: "test-user-id",
+        sub: "test-user-id",
+        email: "test@example.com",
+      });
+      mockFetchMe.mockResolvedValue({
+        user_id: "test-user-id",
+        profile: mockProfile,
+        roles: ["patient"],
+      });
 
       const { result } = renderHook(() => useAuth(), { wrapper });
 
       await waitFor(() => {
-        expect(result.current.user).toEqual(mockUser);
-        expect(result.current.session).toEqual(mockSession);
+        expect(result.current.loading).toBe(false);
+        expect(result.current.user).not.toBe(null);
       });
+
+      expect(result.current.user).toEqual(mockUser);
+      expect(result.current.session).not.toBe(null);
+      expect(result.current.session?.access_token).toBe("test-token");
+      expect(result.current.profile).toEqual(mockProfile);
+      expect(result.current.roles).toEqual(["patient"]);
     });
 
-    it("clears state on session end", async () => {
-      let authCallback: (event: string, session: unknown) => void;
-      
-      vi.mocked(supabase.auth.onAuthStateChange).mockImplementation((callback) => {
-        authCallback = callback;
-        return {
-          data: {
-            subscription: {
-              id: "test-sub",
-              callback: vi.fn(),
-              unsubscribe: vi.fn(),
-            },
-          },
-        };
+    it("clears state on signOut", async () => {
+      mockGetStoredNativeTokens.mockReturnValue({
+        access_token: "test-token",
+        id_token: "mock-id-token",
       });
+      mockDecodeIdTokenPayload.mockReturnValue({ oid: "test-user-id", sub: "test-user-id" });
+      mockFetchMe.mockResolvedValue({ user_id: "test-user-id", profile: null, roles: [] });
 
       const { result } = renderHook(() => useAuth(), { wrapper });
 
@@ -154,23 +117,27 @@ describe("useAuth Hook", () => {
         expect(result.current.loading).toBe(false);
       });
 
-      // Simulate sign out
-      act(() => {
-        authCallback!("SIGNED_OUT", null);
+      await act(async () => {
+        await result.current.signOut();
       });
 
-      await waitFor(() => {
-        expect(result.current.user).toBe(null);
-        expect(result.current.session).toBe(null);
-      });
+      expect(mockClearStoredNativeTokens).toHaveBeenCalled();
+      expect(result.current.user).toBe(null);
+      expect(result.current.session).toBe(null);
     });
   });
 
   describe("signIn", () => {
-    it("calls supabase signInWithPassword", async () => {
-      vi.mocked(supabase.auth.signInWithPassword).mockResolvedValue({
-        data: { user: mockUser, session: mockSession },
-        error: null,
+    it("calls buildWebAuthUrl and redirects", async () => {
+      const mockAssign = vi.fn();
+      Object.defineProperty(window, "location", {
+        value: { href: "", assign: mockAssign },
+        writable: true,
+      });
+      mockBuildWebAuthUrl.mockResolvedValue({
+        url: "https://login.microsoftonline.com/...",
+        state: "state-123",
+        codeVerifier: "verifier-456",
       });
 
       const { result } = renderHook(() => useAuth(), { wrapper });
@@ -179,18 +146,17 @@ describe("useAuth Hook", () => {
         expect(result.current.loading).toBe(false);
       });
 
-      const response = await result.current.signIn("test@example.com", "password123");
+      const response = await result.current.signIn();
 
-      expect(supabase.auth.signInWithPassword).toHaveBeenCalledWith({
-        email: "test@example.com",
-        password: "password123",
-      });
+      expect(mockBuildWebAuthUrl).toHaveBeenCalled();
+      expect(mockStorePkceVerifier).toHaveBeenCalledWith("state-123", "verifier-456");
       expect(response.error).toBe(null);
+      expect(window.location.href).toBe("https://login.microsoftonline.com/...");
     });
 
-    it("returns error on failed sign in", async () => {
-      const mockError = new Error("Invalid credentials");
-      vi.mocked(supabase.auth.signInWithPassword).mockRejectedValue(mockError);
+    it("returns error when buildWebAuthUrl fails", async () => {
+      const err = new Error("Auth config error");
+      mockBuildWebAuthUrl.mockRejectedValue(err);
 
       const { result } = renderHook(() => useAuth(), { wrapper });
 
@@ -198,17 +164,18 @@ describe("useAuth Hook", () => {
         expect(result.current.loading).toBe(false);
       });
 
-      const response = await result.current.signIn("test@example.com", "wrong");
+      const response = await result.current.signIn();
 
-      expect(response.error).toEqual(mockError);
+      expect(response.error).toEqual(err);
     });
   });
 
   describe("signUp", () => {
-    it("calls supabase signUp with user metadata", async () => {
-      vi.mocked(supabase.auth.signUp).mockResolvedValue({
-        data: { user: mockUser, session: null },
-        error: null,
+    it("delegates to signIn (Entra flow)", async () => {
+      mockBuildWebAuthUrl.mockResolvedValue({
+        url: "https://login.microsoftonline.com/...",
+        state: "state",
+        codeVerifier: "verifier",
       });
 
       const { result } = renderHook(() => useAuth(), { wrapper });
@@ -217,7 +184,7 @@ describe("useAuth Hook", () => {
         expect(result.current.loading).toBe(false);
       });
 
-      await result.current.signUp(
+      const response = await result.current.signUp(
         "new@example.com",
         "password123",
         "John",
@@ -225,80 +192,40 @@ describe("useAuth Hook", () => {
         "patient"
       );
 
-      expect(supabase.auth.signUp).toHaveBeenCalledWith({
-        email: "new@example.com",
-        password: "password123",
-        options: expect.objectContaining({
-          data: {
-            first_name: "John",
-            last_name: "Doe",
-            role: "patient",
-          },
-        }),
-      });
-    });
-  });
-
-  describe("signOut", () => {
-    it("calls supabase signOut", async () => {
-      vi.mocked(supabase.auth.signOut).mockResolvedValue({ error: null });
-
-      const { result } = renderHook(() => useAuth(), { wrapper });
-
-      await waitFor(() => {
-        expect(result.current.loading).toBe(false);
-      });
-
-      await result.current.signOut();
-
-      expect(supabase.auth.signOut).toHaveBeenCalled();
+      expect(mockBuildWebAuthUrl).toHaveBeenCalled();
+      expect(response.error).toBe(null);
     });
   });
 
   describe("Role Checks", () => {
-    it("hasRole method is available", async () => {
-      vi.mocked(supabase.auth.getSession).mockResolvedValue({
-        data: { session: mockSession },
-        error: null,
+    it("hasRole returns true when role is in roles", async () => {
+      mockGetStoredNativeTokens.mockReturnValue({
+        access_token: "token",
+        id_token: "id-token",
       });
-
-      vi.mocked(supabase.from).mockImplementation((table: string) => {
-        if (table === "profiles") {
-          return {
-            select: vi.fn().mockReturnThis(),
-            eq: vi.fn().mockReturnThis(),
-            maybeSingle: vi.fn().mockResolvedValue({ data: mockProfile, error: null }),
-          } as any;
-        }
-        if (table === "user_roles") {
-          return {
-            select: vi.fn().mockReturnThis(),
-            eq: vi.fn().mockResolvedValue({ data: [{ role: "patient" }], error: null }),
-          } as any;
-        }
-        return {
-          select: vi.fn().mockReturnThis(),
-          eq: vi.fn().mockReturnThis(),
-        } as any;
+      mockDecodeIdTokenPayload.mockReturnValue({ oid: "uid", sub: "uid" });
+      mockFetchMe.mockResolvedValue({
+        user_id: "uid",
+        profile: mockProfile,
+        roles: ["patient", "clinician"],
       });
 
       const { result } = renderHook(() => useAuth(), { wrapper });
 
       await waitFor(() => {
         expect(result.current.loading).toBe(false);
+        expect(result.current.roles).toContain("patient");
       });
 
-      // Verify hasRole is a function
-      expect(typeof result.current.hasRole).toBe("function");
+      expect(result.current.hasRole("patient")).toBe(true);
+      expect(result.current.hasRole("clinician")).toBe(true);
+      expect(result.current.hasRole("admin")).toBe(false);
     });
   });
 
   describe("Error Handling", () => {
-    it("handles getSession errors gracefully", async () => {
-      vi.mocked(supabase.auth.getSession).mockResolvedValue({
-        data: { session: null },
-        error: createMockAuthError("Session error", 500),
-      });
+    it("handles missing tokens gracefully", async () => {
+      mockGetStoredNativeTokens.mockReturnValue(null);
 
       const { result } = renderHook(() => useAuth(), { wrapper });
 
@@ -307,13 +234,13 @@ describe("useAuth Hook", () => {
       });
 
       expect(result.current.user).toBe(null);
+      expect(result.current.session).toBe(null);
     });
   });
 });
 
 describe("useAuth - Context Error", () => {
   it("throws error when used outside AuthProvider", () => {
-    // Suppress console error for this test
     const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
     expect(() => {

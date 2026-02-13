@@ -1,7 +1,14 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import {
+  apiInvoke,
+  listVideoRooms,
+  getVideoRoom,
+  listVideoRoomParticipants,
+  getVideoCallNotes,
+  upsertVideoCallNotes,
+} from '@/integrations/azure/data';
 import { toast } from 'sonner';
 
 export interface VideoRoom {
@@ -57,7 +64,7 @@ export interface VideoCallNotes {
 }
 
 export function useVideoCall(roomId?: string) {
-  const { user } = useAuth();
+  const { user, session } = useAuth();
   const queryClient = useQueryClient();
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [roomName, setRoomName] = useState<string | null>(null);
@@ -68,83 +75,32 @@ export function useVideoCall(roomId?: string) {
     queryKey: ['video-room', roomId],
     queryFn: async () => {
       if (!roomId) return null;
-      const { data, error } = await supabase
-        .from('video_rooms')
-        .select('*')
-        .eq('id', roomId)
-        .single();
-      if (error) throw error;
+      const data = await getVideoRoom(roomId);
       return data as VideoRoom;
     },
     enabled: !!roomId,
   });
 
-  // Fetch participants
+  // Fetch participants (refetch periodically instead of realtime)
   const { data: participants = [], refetch: refetchParticipants } = useQuery({
     queryKey: ['video-room-participants', roomId],
     queryFn: async () => {
       if (!roomId) return [];
-      
-      // Get participants
-      const { data: participantData, error: participantError } = await supabase
-        .from('video_room_participants')
-        .select('*')
-        .eq('room_id', roomId);
-      
-      if (participantError) throw participantError;
-      
-      // Get profiles separately
-      const userIds = participantData?.map(p => p.user_id) || [];
-      const { data: profileData } = await supabase
-        .from('profiles')
-        .select('user_id, first_name, last_name, email')
-        .in('user_id', userIds);
-      
-      // Merge participants with profiles
-      return (participantData || []).map(p => ({
+      const participantData = await listVideoRoomParticipants(roomId);
+      const userIds = [...new Set((participantData || []).map((p: Record<string, unknown>) => p.user_id as string))];
+      const profileData = userIds.length
+        ? await import('@/integrations/azure/data').then((m) => m.listProfilesByUserIds(userIds))
+        : [];
+      return (participantData || []).map((p: Record<string, unknown>) => ({
         ...p,
-        profile: profileData?.find(pr => pr.user_id === p.user_id) || undefined,
+        profile: profileData.find((pr: Record<string, unknown>) => pr.user_id === p.user_id) || undefined,
       })) as VideoRoomParticipant[];
     },
     enabled: !!roomId,
+    refetchInterval: 5000,
   });
 
-  // Subscribe to realtime updates for waiting room
-  useEffect(() => {
-    if (!roomId) return;
-
-    const channel = supabase
-      .channel(`video-room-${roomId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'video_room_participants',
-          filter: `room_id=eq.${roomId}`,
-        },
-        () => {
-          refetchParticipants();
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'video_rooms',
-          filter: `id=eq.${roomId}`,
-        },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ['video-room', roomId] });
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [roomId, refetchParticipants, queryClient]);
+  // Realtime replaced by refetchInterval on participants query above
 
   // Create room mutation
   const createRoom = useMutation({
@@ -155,15 +111,11 @@ export function useVideoCall(roomId?: string) {
       isGroupCall?: boolean;
       recordingEnabled?: boolean;
     }) => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error('Not authenticated');
+      if (!session?.access_token) throw new Error('Not authenticated');
 
-      const response = await supabase.functions.invoke('twilio-video-token/create-room', {
-        body: params,
-      });
-
-      if (response.error) throw new Error(response.error.message);
-      return response.data;
+      const { data, error } = await apiInvoke('twilio-video-token/create-room', params);
+      if (error) throw new Error(error.message);
+      return data;
     },
     onSuccess: (data) => {
       toast.success('Video room created');
@@ -178,39 +130,35 @@ export function useVideoCall(roomId?: string) {
   // Get access token
   const getToken = useCallback(async (roomNameParam: string) => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error('Not authenticated');
+      if (!session?.access_token) throw new Error('Not authenticated');
 
-      const response = await supabase.functions.invoke('twilio-video-token/token', {
-        body: { roomName: roomNameParam, roomId },
-      });
-
-      if (response.error) throw new Error(response.error.message);
-      
-      setAccessToken(response.data.token);
-      setRoomName(response.data.roomName);
-      setIsHost(response.data.isHost);
-      
-      return response.data;
+      const { data, error } = await apiInvoke<{ token: string; roomName: string; isHost: boolean }>(
+        'twilio-video-token/token',
+        { roomName: roomNameParam, roomId }
+      );
+      if (error) throw new Error(error.message);
+      setAccessToken(data!.token);
+      setRoomName(data!.roomName);
+      setIsHost(data!.isHost);
+      return data!;
     } catch (error) {
       console.error('Failed to get token:', error);
       toast.error('Failed to connect to video call');
       throw error;
     }
-  }, [roomId]);
+  }, [roomId, session?.access_token]);
 
   // Admit patient from waiting room
   const admitPatient = useMutation({
     mutationFn: async (participantId: string) => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error('Not authenticated');
+      if (!session?.access_token) throw new Error('Not authenticated');
 
-      const response = await supabase.functions.invoke('twilio-video-token/admit-patient', {
-        body: { participantId, roomId },
+      const { data, error } = await apiInvoke('twilio-video-token/admit-patient', {
+        participantId,
+        roomId,
       });
-
-      if (response.error) throw new Error(response.error.message);
-      return response.data;
+      if (error) throw new Error(error.message);
+      return data;
     },
     onSuccess: () => {
       toast.success('Patient admitted');
@@ -225,16 +173,11 @@ export function useVideoCall(roomId?: string) {
   const endCall = useMutation({
     mutationFn: async () => {
       if (!roomId) throw new Error('No room ID');
-      
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error('Not authenticated');
+      if (!session?.access_token) throw new Error('Not authenticated');
 
-      const response = await supabase.functions.invoke('twilio-video-token/end-call', {
-        body: { roomId },
-      });
-
-      if (response.error) throw new Error(response.error.message);
-      return response.data;
+      const { data, error } = await apiInvoke('twilio-video-token/end-call', { roomId });
+      if (error) throw new Error(error.message);
+      return data;
     },
     onSuccess: () => {
       toast.success('Call ended');
@@ -274,15 +217,13 @@ export function useVideoRooms() {
     queryKey: ['video-rooms', user?.id],
     queryFn: async () => {
       if (!user?.id) return [];
-      
-      const { data, error } = await supabase
-        .from('video_rooms')
-        .select('*')
-        .or(`clinician_user_id.eq.${user.id},patient_user_id.eq.${user.id}`)
-        .order('scheduled_start', { ascending: false });
-      
-      if (error) throw error;
-      return data as VideoRoom[];
+      const data = await listVideoRooms({ user_id: user.id });
+      const sorted = (data || []).sort(
+        (a, b) =>
+          new Date((b.scheduled_start as string) || 0).getTime() -
+          new Date((a.scheduled_start as string) || 0).getTime()
+      );
+      return sorted as VideoRoom[];
     },
     enabled: !!user?.id,
   });
@@ -296,13 +237,7 @@ export function useVideoCallNotes(roomId: string) {
   const { data: notes, isLoading } = useQuery({
     queryKey: ['video-call-notes', roomId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('video_call_notes')
-        .select('*')
-        .eq('room_id', roomId)
-        .single();
-      
-      if (error && error.code !== 'PGRST116') throw error;
+      const data = await getVideoCallNotes(roomId);
       return data as VideoCallNotes | null;
     },
     enabled: !!roomId,
@@ -316,15 +251,10 @@ export function useVideoCallNotes(roomId: string) {
       plan?: string;
       isDraft?: boolean;
     }) => {
-      const { data: room } = await supabase
-        .from('video_rooms')
-        .select('patient_user_id')
-        .eq('id', roomId)
-        .single();
-
+      const room = await getVideoRoom(roomId);
       if (!room) throw new Error('Room not found');
 
-      const noteData = {
+      const noteData: Record<string, unknown> = {
         room_id: roomId,
         clinician_user_id: user?.id,
         patient_user_id: room.patient_user_id,
@@ -334,25 +264,10 @@ export function useVideoCallNotes(roomId: string) {
         plan: params.plan || null,
         is_draft: params.isDraft ?? true,
       };
+      if (notes?.id) noteData.id = notes.id;
 
-      if (notes?.id) {
-        const { data, error } = await supabase
-          .from('video_call_notes')
-          .update(noteData)
-          .eq('id', notes.id)
-          .select()
-          .single();
-        if (error) throw error;
-        return data;
-      } else {
-        const { data, error } = await supabase
-          .from('video_call_notes')
-          .insert(noteData)
-          .select()
-          .single();
-        if (error) throw error;
-        return data;
-      }
+      const data = await upsertVideoCallNotes(noteData);
+      return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['video-call-notes', roomId] });

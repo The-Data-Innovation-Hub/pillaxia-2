@@ -1,18 +1,30 @@
 // IndexedDB cache for medications - uses centralized cache manager
-import type { Tables } from "@/integrations/supabase/types";
 import { cacheManager, STORES } from "./cacheManager";
 
-type Medication = Tables<"medications"> & {
-  medication_schedules: Array<{
+export interface Medication {
+  id: string;
+  user_id: string;
+  name: string;
+  dosage: string;
+  dosage_unit: string;
+  form: string;
+  is_active?: boolean;
+  created_at: string;
+  updated_at: string;
+  [key: string]: unknown;
+}
+
+export interface CachedMedication extends Medication {
+  medication_schedules?: Array<{
     time_of_day: string;
     quantity: number;
   }>;
-};
+}
 
 const CACHE_KEY_PREFIX = "medications-";
 
 class MedicationCache {
-  async saveMedications(userId: string, medications: Medication[]): Promise<void> {
+  async saveMedications(userId: string, medications: CachedMedication[]): Promise<void> {
     // Clear existing medications for this user
     await cacheManager.deleteAllByIndex(STORES.MEDICATIONS, "user_id", userId);
     
@@ -27,8 +39,8 @@ class MedicationCache {
     });
   }
 
-  async getMedications(userId: string): Promise<Medication[]> {
-    const medications = await cacheManager.getAllByIndex<Medication>(
+  async getMedications(userId: string): Promise<CachedMedication[]> {
+    const medications = await cacheManager.getAllByIndex<CachedMedication>(
       STORES.MEDICATIONS,
       "user_id",
       userId

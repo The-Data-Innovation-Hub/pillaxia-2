@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { listMedicationsForPharmacist, apiInvoke } from "@/integrations/azure/data";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -36,17 +36,12 @@ export function InventoryPage() {
   const handleExpiryCheck = async () => {
     setIsCheckingExpiry(true);
     try {
-      const { data, error } = await supabase.functions.invoke("check-medication-expiry", {
-        body: { manual: true },
-      });
-
-      if (error) throw error;
-
+      const data = await apiInvoke("check-medication-expiry", { manual: true }) as { summary?: { expired?: number; critical?: number; warning?: number } };
       const summary = data?.summary;
       if (summary) {
-        if (summary.expired > 0 || summary.critical > 0 || summary.warning > 0) {
+        if ((summary.expired ?? 0) > 0 || (summary.critical ?? 0) > 0 || (summary.warning ?? 0) > 0) {
           toast.warning(
-            `Expiry Check Complete: ${summary.expired} expired, ${summary.critical} critical, ${summary.warning} warning`,
+            `Expiry Check Complete: ${summary.expired ?? 0} expired, ${summary.critical ?? 0} critical, ${summary.warning ?? 0} warning`,
             { duration: 5000 }
           );
         } else {
@@ -55,9 +50,9 @@ export function InventoryPage() {
       } else {
         toast.success("Expiry check completed successfully");
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Expiry check error:", error);
-      toast.error(error.message || "Failed to run expiry check");
+      toast.error(error instanceof Error ? error.message : "Failed to run expiry check");
     } finally {
       setIsCheckingExpiry(false);
     }
@@ -66,37 +61,30 @@ export function InventoryPage() {
   const { data: inventory, isLoading } = useQuery({
     queryKey: ["pharmacy-inventory"],
     queryFn: async () => {
-      const { data: medications } = await supabase
-        .from("medications")
-        .select("name, form, dosage, dosage_unit, refills_remaining, is_active")
-        .eq("is_active", true);
+      const medications = await listMedicationsForPharmacist();
+      const active = medications.filter((m: Record<string, unknown>) => m.is_active !== false);
+      if (!active.length) return [];
 
-      if (!medications?.length) return [];
-
-      // Group by medication name and aggregate
       const inventoryMap = new Map<string, InventoryItem>();
 
-      medications.forEach((med) => {
+      active.forEach((med: Record<string, unknown>) => {
         const key = `${med.name}-${med.dosage}-${med.dosage_unit}`;
         const existing = inventoryMap.get(key);
+        const refills = (med.refills_remaining as number) ?? 0;
 
         if (existing) {
           existing.totalPrescriptions++;
-          if ((med.refills_remaining || 0) <= 2 && (med.refills_remaining || 0) > 0) {
-            existing.lowRefillCount++;
-          }
-          if ((med.refills_remaining || 0) === 0) {
-            existing.noRefillCount++;
-          }
+          if (refills <= 2 && refills > 0) existing.lowRefillCount++;
+          if (refills === 0) existing.noRefillCount++;
         } else {
           inventoryMap.set(key, {
-            name: med.name,
-            form: med.form,
-            dosage: med.dosage,
-            dosage_unit: med.dosage_unit,
+            name: med.name as string,
+            form: med.form as string,
+            dosage: med.dosage as string,
+            dosage_unit: med.dosage_unit as string,
             totalPrescriptions: 1,
-            lowRefillCount: (med.refills_remaining || 0) <= 2 && (med.refills_remaining || 0) > 0 ? 1 : 0,
-            noRefillCount: (med.refills_remaining || 0) === 0 ? 1 : 0,
+            lowRefillCount: refills <= 2 && refills > 0 ? 1 : 0,
+            noRefillCount: refills === 0 ? 1 : 0,
             stockLevel: "good",
           });
         }

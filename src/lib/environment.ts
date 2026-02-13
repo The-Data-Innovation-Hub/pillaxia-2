@@ -70,6 +70,15 @@ export function isE2ETestMode(): boolean {
 }
 
 /**
+ * Whether the app is running in multi-tenant mode (multiple organizations;
+ * users can belong to and switch between orgs). When true, org switcher is
+ * shown and non-admins see "Your organization" instead of "single-tenant mode".
+ */
+export function isMultiTenant(): boolean {
+  return import.meta.env.VITE_MULTI_TENANT === 'true';
+}
+
+/**
  * Get environment display name for UI banners
  */
 export function getEnvironmentLabel(): string {

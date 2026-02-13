@@ -1,7 +1,8 @@
 import { useEffect, useRef } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import { RealtimePostgresChangesPayload } from "@supabase/supabase-js";
+import { listMedicationLogs } from "@/integrations/azure/data";
+import { subMinutes } from "date-fns";
 
 interface MedicationLog {
   id: string;
@@ -14,7 +15,7 @@ interface MedicationLog {
 interface PatientInfo {
   patient_user_id: string;
   patient_name: string;
-  medications: Map<string, string>; // medication_id -> name
+  medications: Map<string, string>;
 }
 
 export function useMissedDoseAlerts(
@@ -23,8 +24,8 @@ export function useMissedDoseAlerts(
 ) {
   const { toast } = useToast();
   const patientMapRef = useRef<Map<string, PatientInfo>>(new Map());
+  const notifiedMissedRef = useRef<Set<string>>(new Set());
 
-  // Update the patient map when the list changes
   useEffect(() => {
     const map = new Map<string, PatientInfo>();
     patientInfoList.forEach((patient) => {
@@ -33,50 +34,45 @@ export function useMissedDoseAlerts(
     patientMapRef.current = map;
   }, [patientInfoList]);
 
+  const patientIds = patientInfoList.map((p) => p.patient_user_id);
+
+  const { data: missedLogs } = useQuery({
+    queryKey: ["missed-dose-alerts", patientIds],
+    queryFn: async () => {
+      const from = subMinutes(new Date(), 60).toISOString();
+      const to = new Date().toISOString();
+      const allLogs: MedicationLog[] = [];
+      for (const patientId of patientIds) {
+        const logs = await listMedicationLogs(patientId, { from, to });
+        allLogs.push(
+          ...(logs as MedicationLog[]).filter((l) => l.user_id === patientId)
+        );
+      }
+      return allLogs.filter((l) => l.status === "missed");
+    },
+    enabled: enabled && patientIds.length > 0,
+    refetchInterval: 60 * 1000,
+    staleTime: 30 * 1000,
+  });
+
   useEffect(() => {
-    if (!enabled || patientInfoList.length === 0) return;
-
-    const patientIds = patientInfoList.map((p) => p.patient_user_id);
-
-    const channel = supabase
-      .channel("missed-dose-alerts")
-      .on(
-        "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "medication_logs",
-        },
-        (payload: RealtimePostgresChangesPayload<MedicationLog>) => {
-          const newRecord = payload.new as MedicationLog;
-          const oldRecord = payload.old as Partial<MedicationLog>;
-
-          // Check if this is a status change to "missed"
-          if (
-            newRecord.status === "missed" &&
-            oldRecord.status !== "missed" &&
-            patientIds.includes(newRecord.user_id)
-          ) {
-            const patient = patientMapRef.current.get(newRecord.user_id);
-            if (patient) {
-              const medicationName =
-                patient.medications.get(newRecord.medication_id) ||
-                "a medication";
-
-              toast({
-                variant: "destructive",
-                title: "⚠️ Missed Dose Alert",
-                description: `${patient.patient_name} missed ${medicationName}`,
-                duration: 10000,
-              });
-            }
-          }
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [enabled, patientInfoList, toast]);
+    if (!missedLogs?.length) return;
+    const patientMap = patientMapRef.current;
+    for (const log of missedLogs) {
+      const key = `${log.id}-${log.status}`;
+      if (notifiedMissedRef.current.has(key)) continue;
+      notifiedMissedRef.current.add(key);
+      const patient = patientMap.get(log.user_id);
+      if (patient) {
+        const medicationName =
+          patient.medications.get(log.medication_id) || "a medication";
+        toast({
+          variant: "destructive",
+          title: "⚠️ Missed Dose Alert",
+          description: `${patient.patient_name} missed ${medicationName}`,
+          duration: 10000,
+        });
+      }
+    }
+  }, [missedLogs, toast]);
 }

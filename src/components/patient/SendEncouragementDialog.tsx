@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { createCaregiverMessage } from "@/integrations/azure/data";
+import { apiInvoke } from "@/integrations/azure/client";
 import { useNotificationSettings } from "@/hooks/useNotificationSettings";
 import { toast } from "@/hooks/use-toast";
 import {
@@ -52,27 +53,20 @@ export function SendEncouragementDialog({
     mutationFn: async (messageText: string) => {
       if (!user) throw new Error("Not authenticated");
 
-      // Insert the message into the database
-      const { error } = await supabase.from("caregiver_messages").insert({
+      await createCaregiverMessage({
         caregiver_user_id: user.id,
         patient_user_id: patientUserId,
         message: messageText.trim(),
       });
 
-      if (error) throw error;
-
-      // Send email notification (fire and forget - don't fail if email fails)
       try {
-        await supabase.functions.invoke("send-encouragement-email", {
-          body: {
-            patient_user_id: patientUserId,
-            caregiver_name: caregiverName,
-            message: messageText.trim(),
-          },
+        await apiInvoke("send-encouragement-email", {
+          patient_user_id: patientUserId,
+          caregiver_name: caregiverName,
+          message: messageText.trim(),
         });
       } catch (emailError) {
         console.error("Failed to send email notification:", emailError);
-        // Don't throw - the message was saved, email is optional
       }
     },
     onSuccess: () => {

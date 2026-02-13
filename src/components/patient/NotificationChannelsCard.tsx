@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
+import { getPatientNotificationPreferences, getProfileByUserId } from "@/integrations/azure/data";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -33,29 +33,21 @@ export function NotificationChannelsCard() {
     if (!user) return;
 
     try {
-      // Fetch notification preferences
-      const { data: prefs, error: prefsError } = await supabase
-        .from("patient_notification_preferences")
-        .select("email_reminders, sms_reminders, whatsapp_reminders, in_app_reminders, push_clinician_messages")
-        .eq("user_id", user.id)
-        .maybeSingle();
+      const [prefs, profile] = await Promise.all([
+        getPatientNotificationPreferences(user.id),
+        getProfileByUserId(user.id),
+      ]);
 
-      if (prefsError) {
-        console.error("Error fetching preferences:", prefsError);
-      }
+      setHasPhone(!!(profile as { phone?: string } | null)?.phone);
 
-      // Check if user has a phone number configured
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("phone")
-        .eq("user_id", user.id)
-        .maybeSingle();
-
-      setHasPhone(!!profile?.phone);
-
-      // If no preferences exist, use defaults (all enabled)
-      if (prefs) {
-        setPreferences(prefs);
+      if (prefs && typeof prefs === "object") {
+        setPreferences({
+          email_reminders: (prefs.email_reminders as boolean) ?? true,
+          sms_reminders: (prefs.sms_reminders as boolean) ?? true,
+          whatsapp_reminders: (prefs.whatsapp_reminders as boolean) ?? true,
+          in_app_reminders: (prefs.in_app_reminders as boolean) ?? true,
+          push_clinician_messages: (prefs.push_clinician_messages as boolean) ?? true,
+        });
       } else {
         setPreferences({
           email_reminders: true,

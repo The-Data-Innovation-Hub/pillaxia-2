@@ -1,6 +1,11 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import {
+  listProfiles,
+  listUserRoles,
+  addUserRole,
+  removeUserRole,
+} from "@/integrations/azure/data";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -31,9 +36,7 @@ import {
 import { Search, User, Shield, Stethoscope, Pill, Plus, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
-import type { Database } from "@/integrations/supabase/types";
-
-type AppRole = Database["public"]["Enums"]["app_role"];
+import type { AppRole } from "@/types/app-enums";
 
 interface UserWithRoles {
   user_id: string;
@@ -56,23 +59,16 @@ export function UserManagementPage() {
   const { data: users, isLoading } = useQuery({
     queryKey: ["admin-users"],
     queryFn: async () => {
-      // Get all profiles
-      const { data: profiles, error } = await supabase
-        .from("profiles")
-        .select("*")
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-
-      // Get all user roles
-      const { data: allRoles } = await supabase.from("user_roles").select("*");
-
-      // Map users with their roles
-      const usersWithRoles: UserWithRoles[] = (profiles || []).map((profile) => {
-        const userRoles = allRoles
-          ?.filter((r) => r.user_id === profile.user_id)
-          .map((r) => r.role) || [];
-
+      const [profilesList, allRoles] = await Promise.all([listProfiles(), listUserRoles()]);
+      const profiles = [...(profilesList || [])].sort(
+        (a, b) =>
+          new Date((b.created_at as string) || 0).getTime() -
+          new Date((a.created_at as string) || 0).getTime()
+      );
+      return profiles.map((profile) => {
+        const userRoles = (allRoles || [])
+          .filter((r: Record<string, unknown>) => r.user_id === profile.user_id)
+          .map((r: Record<string, unknown>) => r.role as AppRole);
         return {
           user_id: profile.user_id,
           first_name: profile.first_name,
@@ -83,19 +79,13 @@ export function UserManagementPage() {
           created_at: profile.created_at,
           roles: userRoles,
         };
-      });
-
-      return usersWithRoles;
+      }) as UserWithRoles[];
     },
   });
 
   const addRoleMutation = useMutation({
     mutationFn: async ({ userId, role }: { userId: string; role: AppRole }) => {
-      const { error } = await supabase.from("user_roles").insert({
-        user_id: userId,
-        role: role,
-      });
-      if (error) throw error;
+      await addUserRole({ user_id: userId, role });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-users"] });
@@ -111,12 +101,7 @@ export function UserManagementPage() {
 
   const removeRoleMutation = useMutation({
     mutationFn: async ({ userId, role }: { userId: string; role: AppRole }) => {
-      const { error } = await supabase
-        .from("user_roles")
-        .delete()
-        .eq("user_id", userId)
-        .eq("role", role);
-      if (error) throw error;
+      await removeUserRole(userId, role);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-users"] });

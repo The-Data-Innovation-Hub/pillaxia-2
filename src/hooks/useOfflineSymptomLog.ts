@@ -1,10 +1,12 @@
 import { useCallback } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import { useOfflineStatus } from "./useOfflineStatus";
 import { offlineQueue } from "@/lib/offlineQueue";
 import { symptomCache } from "@/lib/cache";
 import { toast } from "sonner";
 import { useLanguage } from "@/i18n/LanguageContext";
+import { useAuth } from "@/contexts/AuthContext";
+import { getApiBaseUrl } from "@/integrations/azure/client";
+import { createSymptomEntry } from "@/integrations/azure/data";
 
 interface SymptomEntryParams {
   userId: string;
@@ -17,6 +19,7 @@ interface SymptomEntryParams {
 export function useOfflineSymptomLog() {
   const { isOnline } = useOfflineStatus();
   const { t } = useLanguage();
+  const { session } = useAuth();
 
   const logSymptom = useCallback(
     async (params: SymptomEntryParams): Promise<{ id: string } | null> => {
@@ -29,44 +32,36 @@ export function useOfflineSymptomLog() {
       };
 
       if (isOnline) {
-        // Online: Direct insert
         try {
-          const { data, error } = await supabase
-            .from("symptom_entries")
-            .insert(insertData)
-            .select("id")
-            .single();
-
-          if (error) throw error;
-          return data;
+          const data = await createSymptomEntry(insertData);
+          const id = (data as { id?: string })?.id;
+          return id ? { id } : null;
         } catch (error) {
           console.error("[useOfflineSymptomLog] Online insert failed:", error);
           toast.error(t.offline.updateFailed);
           return null;
         }
       } else {
-        // Offline: Queue the action AND add to local cache
         try {
-          const session = await supabase.auth.getSession();
-          const accessToken = session.data.session?.access_token;
-
+          const accessToken = session?.access_token;
           if (!accessToken) {
             toast.error(t.offline.notAuthenticated);
             return null;
           }
-
+          const base = getApiBaseUrl();
+          if (!base) {
+            toast.error(t.offline.updateFailed);
+            return null;
+          }
           const localId = `pending-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
-          // Add to offline queue for sync later
           await offlineQueue.addAction({
             type: "symptom_entry",
-            url: `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/symptom_entries`,
+            url: `${base}/api/symptom-entries`,
             method: "POST",
             headers: {
               "Content-Type": "application/json",
-              apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
               Authorization: `Bearer ${accessToken}`,
-              Prefer: "return=minimal",
             },
             body: insertData,
           });
@@ -89,7 +84,7 @@ export function useOfflineSymptomLog() {
         }
       }
     },
-    [isOnline, t]
+    [isOnline, t, session?.access_token]
   );
 
   return {

@@ -1,9 +1,11 @@
 import { useCallback } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import { useOfflineStatus } from "./useOfflineStatus";
 import { offlineQueue } from "@/lib/offlineQueue";
 import { toast } from "sonner";
 import { useLanguage } from "@/i18n/LanguageContext";
+import { useAuth } from "@/contexts/AuthContext";
+import { getApiBaseUrl } from "@/integrations/azure/client";
+import { updateMedicationLog } from "@/integrations/azure/data";
 
 interface LogMedicationParams {
   logId: string;
@@ -14,6 +16,7 @@ interface LogMedicationParams {
 export function useOfflineMedicationLog() {
   const { isOnline } = useOfflineStatus();
   const { t } = useLanguage();
+  const { session } = useAuth();
 
   const logMedication = useCallback(
     async ({ logId, status, takenAt }: LogMedicationParams): Promise<boolean> => {
@@ -23,14 +26,8 @@ export function useOfflineMedicationLog() {
       };
 
       if (isOnline) {
-        // Online: Direct update
         try {
-          const { error } = await supabase
-            .from("medication_logs")
-            .update(updateData)
-            .eq("id", logId);
-
-          if (error) throw error;
+          await updateMedicationLog(logId, updateData);
           return true;
         } catch (error) {
           console.error("[useOfflineMedicationLog] Online update failed:", error);
@@ -38,25 +35,24 @@ export function useOfflineMedicationLog() {
           return false;
         }
       } else {
-        // Offline: Queue the action
         try {
-          const session = await supabase.auth.getSession();
-          const accessToken = session.data.session?.access_token;
-
+          const accessToken = session?.access_token;
           if (!accessToken) {
             toast.error(t.offline.notAuthenticated);
             return false;
           }
-
+          const base = getApiBaseUrl();
+          if (!base) {
+            toast.error(t.offline.updateFailed);
+            return false;
+          }
           await offlineQueue.addAction({
             type: "medication_log",
-            url: `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/medication_logs?id=eq.${logId}`,
+            url: `${base}/api/medication-logs/${logId}`,
             method: "PATCH",
             headers: {
               "Content-Type": "application/json",
-              apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
               Authorization: `Bearer ${accessToken}`,
-              Prefer: "return=minimal",
             },
             body: updateData,
           });
@@ -70,7 +66,7 @@ export function useOfflineMedicationLog() {
         }
       }
     },
-    [isOnline, t]
+    [isOnline, t, session?.access_token]
   );
 
   return {

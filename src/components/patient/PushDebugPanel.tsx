@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { listPushSubscriptions } from "@/integrations/azure/data";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "@/hooks/use-toast";
@@ -57,14 +57,13 @@ export function PushDebugPanel(props: {
         ? await registration.pushManager.getSubscription()
         : null;
 
-      const { data, error, count } = await supabase
-        .from("push_subscriptions")
-        .select("endpoint", { count: "exact" })
-        .eq("user_id", userId)
-        .order("updated_at", { ascending: false })
-        .limit(3);
-
-      if (error) throw error;
+      const data = await listPushSubscriptions(userId);
+      const sorted = (data || []).sort(
+        (a, b) =>
+          new Date((b.updated_at as string) || 0).getTime() -
+          new Date((a.updated_at as string) || 0).getTime()
+      );
+      const top3 = sorted.slice(0, 3);
 
       setDiag({
         permission,
@@ -72,8 +71,8 @@ export function PushDebugPanel(props: {
         serviceWorkerScriptUrl: registration?.active?.scriptURL,
         hasBrowserSubscription: !!subscription,
         browserEndpoint: subscription?.endpoint,
-        backendCount: count ?? (data?.length ?? 0),
-        backendEndpoints: (data ?? []).map((r) => r.endpoint),
+        backendCount: data?.length ?? 0,
+        backendEndpoints: top3.map((r) => r.endpoint as string),
       });
     } catch (e) {
       const msg = formatUnknownError(e);

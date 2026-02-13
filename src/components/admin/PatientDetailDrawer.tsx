@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { listPatientEngagementScores } from "@/integrations/azure/data";
 import {
   Sheet,
   SheetContent,
@@ -84,18 +84,16 @@ export function PatientDetailDrawer({ patient, open, onOpenChange }: PatientDeta
     queryKey: ["patient-engagement-history", patient?.user_id],
     queryFn: async () => {
       if (!patient?.user_id) return [];
-      
       const startDate = subDays(new Date(), 30);
-      const { data, error } = await supabase
-        .from("patient_engagement_scores")
-        .select("score_date, overall_score, adherence_score, app_usage_score, notification_score")
-        .eq("user_id", patient.user_id)
-        .gte("score_date", format(startDate, "yyyy-MM-dd"))
-        .order("score_date", { ascending: true });
-
-      if (error) throw error;
-
-      return data.map((s) => ({
+      const list = await listPatientEngagementScores(patient.user_id, {
+        from_date: format(startDate, "yyyy-MM-dd"),
+      });
+      const sorted = [...list].sort(
+        (a, b) =>
+          new Date((a.score_date as string) || 0).getTime() -
+          new Date((b.score_date as string) || 0).getTime()
+      );
+      return sorted.map((s) => ({
         date: s.score_date,
         overall: Number(s.overall_score),
         adherence: Number(s.adherence_score),

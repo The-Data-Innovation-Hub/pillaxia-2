@@ -1,7 +1,17 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import {
+  listPatientPreferredPharmacies,
+  listPharmacyLocations,
+  listMedicationAvailabilityAlerts,
+  createPatientPreferredPharmacy,
+  deletePatientPreferredPharmacy,
+  updatePatientPreferredPharmacy,
+  createMedicationAvailabilityAlert,
+  updateMedicationAvailabilityAlert,
+  deleteMedicationAvailabilityAlert,
+} from "@/integrations/azure/data";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -71,23 +81,23 @@ export function PharmacyPreferencesCard() {
   const [searchQuery, setSearchQuery] = useState("");
   const [newAlertName, setNewAlertName] = useState("");
 
-  // Fetch preferred pharmacies
+  // Fetch preferred pharmacies (merge with pharmacy_locations)
   const { data: preferredPharmacies, isLoading: loadingPreferred } = useQuery({
     queryKey: ["patient-preferred-pharmacies", user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("patient_preferred_pharmacies")
-        .select(`
-          id,
-          pharmacy_id,
-          is_primary,
-          pharmacy_locations (
-            id, name, address_line1, city, state, phone
-          )
-        `)
-        .eq("patient_user_id", user?.id);
-      if (error) throw error;
-      return data as unknown as PreferredPharmacy[];
+      const [prefs, locations] = await Promise.all([
+        listPatientPreferredPharmacies(user!.id),
+        listPharmacyLocations({ is_active: true }),
+      ]);
+      const locMap = new Map(
+        (locations || []).map((l) => [(l.id as string), l as PharmacyLocation])
+      );
+      return (prefs || []).map((p) => ({
+        id: p.id,
+        pharmacy_id: p.pharmacy_id,
+        is_primary: p.is_primary,
+        pharmacy_locations: locMap.get(p.pharmacy_id as string) ?? (p.pharmacy_locations as PharmacyLocation),
+      })) as PreferredPharmacy[];
     },
     enabled: !!user?.id,
   });
@@ -96,13 +106,10 @@ export function PharmacyPreferencesCard() {
   const { data: allPharmacies, isLoading: loadingPharmacies } = useQuery({
     queryKey: ["all-pharmacies"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("pharmacy_locations")
-        .select("id, name, address_line1, city, state, phone")
-        .eq("is_active", true)
-        .order("name");
-      if (error) throw error;
-      return data as PharmacyLocation[];
+      const data = await listPharmacyLocations({ is_active: true });
+      return (data || []).sort((a, b) =>
+        String(a.name).localeCompare(String(b.name))
+      ) as PharmacyLocation[];
     },
     enabled: !!user?.id,
   });
@@ -117,13 +124,10 @@ export function PharmacyPreferencesCard() {
   const { data: medicationAlerts, isLoading: loadingAlerts } = useQuery({
     queryKey: ["medication-alerts", user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("medication_availability_alerts")
-        .select("*")
-        .eq("patient_user_id", user?.id)
-        .order("medication_name");
-      if (error) throw error;
-      return data as MedicationAlert[];
+      const data = await listMedicationAvailabilityAlerts(user!.id);
+      return (data || []).sort((a, b) =>
+        String(a.medication_name).localeCompare(String(b.medication_name))
+      ) as MedicationAlert[];
     },
     enabled: !!user?.id,
   });
@@ -131,12 +135,11 @@ export function PharmacyPreferencesCard() {
   // Add preferred pharmacy
   const addPreferredMutation = useMutation({
     mutationFn: async (pharmacyId: string) => {
-      const { error } = await supabase.from("patient_preferred_pharmacies").insert({
+      await createPatientPreferredPharmacy({
         patient_user_id: user?.id,
         pharmacy_id: pharmacyId,
-        is_primary: !preferredPharmacies?.length, // First one is primary
+        is_primary: !preferredPharmacies?.length,
       });
-      if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["patient-preferred-pharmacies"] });
@@ -154,11 +157,7 @@ export function PharmacyPreferencesCard() {
   // Remove preferred pharmacy
   const removePreferredMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from("patient_preferred_pharmacies")
-        .delete()
-        .eq("id", id);
-      if (error) throw error;
+      await deletePatientPreferredPharmacy(id);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["patient-preferred-pharmacies"] });
@@ -172,18 +171,11 @@ export function PharmacyPreferencesCard() {
   // Set primary pharmacy
   const setPrimaryMutation = useMutation({
     mutationFn: async (id: string) => {
-      // First, unset all primaries
-      await supabase
-        .from("patient_preferred_pharmacies")
-        .update({ is_primary: false })
-        .eq("patient_user_id", user?.id);
-      
-      // Then set the new primary
-      const { error } = await supabase
-        .from("patient_preferred_pharmacies")
-        .update({ is_primary: true })
-        .eq("id", id);
-      if (error) throw error;
+      const prefs = preferredPharmacies ?? [];
+      await Promise.all([
+        ...prefs.filter((p) => p.id !== id).map((p) => updatePatientPreferredPharmacy(p.id, { is_primary: false })),
+        updatePatientPreferredPharmacy(id, { is_primary: true }),
+      ]);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["patient-preferred-pharmacies"] });
@@ -197,11 +189,10 @@ export function PharmacyPreferencesCard() {
   // Add medication alert
   const addAlertMutation = useMutation({
     mutationFn: async (medicationName: string) => {
-      const { error } = await supabase.from("medication_availability_alerts").insert({
+      await createMedicationAvailabilityAlert({
         patient_user_id: user?.id,
         medication_name: medicationName,
       });
-      if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["medication-alerts"] });
@@ -216,11 +207,7 @@ export function PharmacyPreferencesCard() {
   // Toggle alert
   const toggleAlertMutation = useMutation({
     mutationFn: async ({ id, isActive }: { id: string; isActive: boolean }) => {
-      const { error } = await supabase
-        .from("medication_availability_alerts")
-        .update({ is_active: isActive })
-        .eq("id", id);
-      if (error) throw error;
+      await updateMedicationAvailabilityAlert(id, { is_active: isActive });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["medication-alerts"] });
@@ -233,11 +220,7 @@ export function PharmacyPreferencesCard() {
   // Delete alert
   const deleteAlertMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from("medication_availability_alerts")
-        .delete()
-        .eq("id", id);
-      if (error) throw error;
+      await deleteMedicationAvailabilityAlert(id);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["medication-alerts"] });

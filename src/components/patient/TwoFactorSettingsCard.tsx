@@ -1,6 +1,12 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import {
+  listMfaRecoveryCodes,
+  createMfaRecoveryCodes,
+  deleteMfaRecoveryCodes,
+  verifyMfaRecoveryCode,
+} from "@/integrations/azure/data";
 import { toast } from "@/hooks/use-toast";
 import {
   Card,
@@ -111,13 +117,8 @@ export function TwoFactorSettingsCard() {
       ];
       setFactors(allFactors);
 
-      const { count } = await supabase
-        .from("mfa_recovery_codes")
-        .select("*", { count: "exact", head: true })
-        .eq("user_id", user.id)
-        .is("used_at", null);
-      
-      setHasRecoveryCodes((count || 0) > 0);
+      const unused = await listMfaRecoveryCodes(user.id, { unused_only: true });
+      setHasRecoveryCodes(unused.length > 0);
     } catch (error) {
       console.error("Error fetching MFA factors:", error);
     } finally {
@@ -140,7 +141,7 @@ export function TwoFactorSettingsCard() {
       codes.push(generateRecoveryCode());
     }
 
-    await supabase.from("mfa_recovery_codes").delete().eq("user_id", user.id);
+    await deleteMfaRecoveryCodes(user.id);
 
     const hashedCodes = await Promise.all(
       codes.map(async (code) => ({
@@ -149,12 +150,7 @@ export function TwoFactorSettingsCard() {
       }))
     );
 
-    const { error } = await supabase.from("mfa_recovery_codes").insert(hashedCodes);
-
-    if (error) {
-      console.error("Error storing recovery codes:", error);
-      throw error;
-    }
+    await createMfaRecoveryCodes(hashedCodes);
 
     return codes;
   };
@@ -335,7 +331,7 @@ export function TwoFactorSettingsCard() {
       ];
 
       if (verified.length === 0 && user) {
-        await supabase.from("mfa_recovery_codes").delete().eq("user_id", user.id);
+        await deleteMfaRecoveryCodes(user.id);
       }
 
       toast({
@@ -414,26 +410,10 @@ export function TwoFactorSettingsCard() {
       const normalizedCode = suspendRecoveryCode.replace(/-/g, "").toUpperCase();
       const codeHash = await hashCode(normalizedCode);
 
-      // Verify the recovery code exists and is unused
-      const { data: recoveryCodeRecord, error: fetchError } = await supabase
-        .from("mfa_recovery_codes")
-        .select("id")
-        .eq("user_id", user.id)
-        .eq("code_hash", codeHash)
-        .is("used_at", null)
-        .maybeSingle();
-
-      if (fetchError) throw fetchError;
-
-      if (!recoveryCodeRecord) {
+      const valid = await verifyMfaRecoveryCode(user.id, codeHash);
+      if (!valid) {
         throw new Error("Invalid or already used recovery code");
       }
-
-      // Mark the recovery code as used
-      await supabase
-        .from("mfa_recovery_codes")
-        .update({ used_at: new Date().toISOString() })
-        .eq("id", recoveryCodeRecord.id);
 
       // Unenroll all MFA factors
       for (const factor of enabledFactors) {
@@ -446,7 +426,7 @@ export function TwoFactorSettingsCard() {
       }
 
       // Delete remaining recovery codes
-      await supabase.from("mfa_recovery_codes").delete().eq("user_id", user.id);
+      await deleteMfaRecoveryCodes(user.id);
 
       toast({
         title: "Two-factor authentication suspended",

@@ -1,5 +1,5 @@
 import { Suspense, useEffect, useState } from "react";
-import { Toaster } from "@/components/ui/toaster";
+import { Toaster } from "@/components/ui/toaster.tsx";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -17,6 +17,7 @@ import { SentryErrorBoundary } from "@/components/SentryErrorBoundary";
 import { useServerVerifiedRoles } from "@/hooks/useServerVerifiedRoles";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
+import AuthCallback from "./pages/AuthCallback";
 import NotFound from "./pages/NotFound";
 
 // Layout components (not lazy - needed immediately)
@@ -111,6 +112,7 @@ function AppRoutes() {
     <Routes>
       <Route path="/" element={<Index />} />
       <Route path="/auth" element={<Auth />} />
+      <Route path="/auth/callback" element={<AuthCallback />} />
     
       {/* Protected Dashboard Routes */}
       <Route

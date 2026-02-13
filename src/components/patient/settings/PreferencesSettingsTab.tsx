@@ -1,7 +1,7 @@
 import { useState, useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { listMedications, listMedicationLogs, listSymptomEntries } from "@/integrations/azure/data";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { toast } from "@/hooks/use-toast";
 import { useOfflineStatus } from "@/hooks/useOfflineStatus";
@@ -69,67 +69,30 @@ export function PreferencesSettingsTab() {
     let symptomsCount = 0;
 
     try {
-      // Sync medications
-      const { data: medications, error: medError } = await supabase
-        .from("medications")
-        .select(`
-          *,
-          medication_schedules (time_of_day, quantity)
-        `)
-        .eq("user_id", user.id)
-        .eq("is_active", true)
-        .order("created_at", { ascending: false });
+      const [medications, logs, symptoms] = await Promise.all([
+        listMedications(user.id),
+        listMedicationLogs(user.id, {
+          from: new Date(new Date().setHours(0, 0, 0, 0)).toISOString(),
+          to: new Date(new Date().setHours(23, 59, 59, 999)).toISOString(),
+        }),
+        listSymptomEntries(user.id),
+      ]);
 
-      if (medError) throw medError;
-      
-      if (medications) {
-        await medicationCache.saveMedications(user.id, medications as any);
-        medicationsCount = medications.length;
+      const activeMeds = (medications || []).filter((m) => m.is_active !== false);
+      if (activeMeds.length > 0) {
+        await medicationCache.saveMedications(user.id, activeMeds as any);
+        medicationsCount = activeMeds.length;
       }
 
-      // Sync today's schedule
-      const today = new Date();
-      const startOfDay = new Date(today.setHours(0, 0, 0, 0)).toISOString();
-      const endOfDay = new Date(today.setHours(23, 59, 59, 999)).toISOString();
-
-      const { data: logs, error: logError } = await supabase
-        .from("medication_logs")
-        .select(`
-          id,
-          scheduled_time,
-          status,
-          taken_at,
-          medications (name, dosage, dosage_unit, form),
-          medication_schedules (quantity, with_food)
-        `)
-        .eq("user_id", user.id)
-        .gte("scheduled_time", startOfDay)
-        .lte("scheduled_time", endOfDay)
-        .order("scheduled_time", { ascending: true });
-
-      if (logError) throw logError;
-
-      if (logs) {
+      if (logs && logs.length > 0) {
         await scheduleCache.saveTodaysSchedule(user.id, logs as any);
         scheduleCount = logs.length;
       }
 
-      // Sync symptoms
-      const { data: symptoms, error: symptomError } = await supabase
-        .from("symptom_entries")
-        .select(`
-          *,
-          medications (name)
-        `)
-        .eq("user_id", user.id)
-        .order("recorded_at", { ascending: false })
-        .limit(50);
-
-      if (symptomError) throw symptomError;
-
-      if (symptoms) {
-        await symptomCache.saveSymptoms(user.id, symptoms as any);
-        symptomsCount = symptoms.length;
+      const symptomsList = (symptoms || []).slice(0, 50);
+      if (symptomsList.length > 0) {
+        await symptomCache.saveSymptoms(user.id, symptomsList as any);
+        symptomsCount = symptomsList.length;
       }
 
       setLastSyncResult({

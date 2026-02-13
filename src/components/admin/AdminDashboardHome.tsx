@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { getAdminDashboardStats } from "@/integrations/azure/data";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Users, Pill, Activity, Shield, FileText, Building2 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -13,55 +13,7 @@ export function AdminDashboardHome() {
 
   const { data: stats, isLoading } = useQuery({
     queryKey: ["admin-stats"],
-    queryFn: async () => {
-      // Get total users
-      const { count: totalUsers } = await supabase
-        .from("profiles")
-        .select("*", { count: "exact", head: true });
-
-      // Get user role counts
-      const { data: roles } = await supabase
-        .from("user_roles")
-        .select("role");
-
-      const roleCounts = {
-        patient: 0,
-        clinician: 0,
-        pharmacist: 0,
-        admin: 0,
-      };
-
-      roles?.forEach((r) => {
-        if (r.role in roleCounts) {
-          roleCounts[r.role as keyof typeof roleCounts]++;
-        }
-      });
-
-      // Get total medications
-      const { count: totalMedications } = await supabase
-        .from("medications")
-        .select("*", { count: "exact", head: true });
-
-      // Get total organizations
-      const { count: totalOrganizations } = await supabase
-        .from("organizations")
-        .select("*", { count: "exact", head: true });
-
-      // Get recent audit logs count (last 24h)
-      const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-      const { count: recentAuditLogs } = await supabase
-        .from("audit_log")
-        .select("*", { count: "exact", head: true })
-        .gte("created_at", oneDayAgo);
-
-      return {
-        totalUsers: totalUsers || 0,
-        roleCounts,
-        totalMedications: totalMedications || 0,
-        totalOrganizations: totalOrganizations || 0,
-        recentAuditLogs: recentAuditLogs || 0,
-      };
-    },
+    queryFn: () => getAdminDashboardStats(),
   });
 
   const statCards = [

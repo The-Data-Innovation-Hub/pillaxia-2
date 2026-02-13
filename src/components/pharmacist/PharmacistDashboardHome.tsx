@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { getPharmacistDashboardStats } from "@/integrations/azure/data";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { FileText, Package, RefreshCw, AlertTriangle } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -13,33 +13,7 @@ export function PharmacistDashboardHome() {
 
   const { data: stats, isLoading } = useQuery({
     queryKey: ["pharmacist-stats"],
-    queryFn: async () => {
-      // Get total active medications (prescriptions) in the system
-      const { count: totalPrescriptions } = await supabase
-        .from("medications")
-        .select("*", { count: "exact", head: true })
-        .eq("is_active", true);
-
-      // Get medications with low refills (simulating inventory alerts)
-      const { data: lowRefillMeds } = await supabase
-        .from("medications")
-        .select("id, refills_remaining")
-        .eq("is_active", true)
-        .lte("refills_remaining", 2);
-
-      // Get pending refill requests (medications where refills are 0)
-      const { count: pendingRefills } = await supabase
-        .from("medications")
-        .select("*", { count: "exact", head: true })
-        .eq("is_active", true)
-        .eq("refills_remaining", 0);
-
-      return {
-        totalPrescriptions: totalPrescriptions || 0,
-        lowStockAlerts: lowRefillMeds?.length || 0,
-        pendingRefills: pendingRefills || 0,
-      };
-    },
+    queryFn: () => getPharmacistDashboardStats(),
   });
 
   const statCards = [

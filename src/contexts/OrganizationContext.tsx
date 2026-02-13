@@ -1,6 +1,13 @@
 import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./AuthContext";
+import {
+  getProfileByUserId,
+  listOrganizationMembersByUser,
+  getOrganization,
+  getOrganizationBranding,
+  upsertOrganizationBranding,
+  updateProfile,
+} from "@/integrations/azure/data";
 
 export interface Organization {
   id: string;
@@ -51,16 +58,26 @@ export interface OrganizationMember {
   joined_at: string | null;
 }
 
+/** Minimal org info for switcher (multi-tenant) */
+export interface AvailableOrganization {
+  id: string;
+  name: string;
+}
+
 interface OrganizationContextType {
   organization: Organization | null;
   branding: OrganizationBranding | null;
   membership: OrganizationMember | null;
+  /** All orgs the user is a member of (for multi-tenant switcher) */
+  availableOrganizations: AvailableOrganization[];
   isLoading: boolean;
   error: Error | null;
   isOrgAdmin: boolean;
   isOrgOwner: boolean;
   refreshOrganization: () => Promise<void>;
   updateBranding: (updates: Partial<OrganizationBranding>) => Promise<void>;
+  /** Switch current organization (multi-tenant); updates profile and refreshes context */
+  switchOrganization: (orgId: string) => Promise<void>;
 }
 
 const OrganizationContext = createContext<OrganizationContextType | undefined>(undefined);
@@ -89,6 +106,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
   const [organization, setOrganization] = useState<Organization | null>(null);
   const [branding, setBranding] = useState<OrganizationBranding | null>(null);
   const [membership, setMembership] = useState<OrganizationMember | null>(null);
+  const [availableOrganizations, setAvailableOrganizations] = useState<AvailableOrganization[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
@@ -97,6 +115,7 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
       setOrganization(null);
       setBranding(null);
       setMembership(null);
+      setAvailableOrganizations([]);
       setIsLoading(false);
       return;
     }
@@ -105,64 +124,43 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     setError(null);
 
     try {
-      // First, get the user's profile to check for a preferred organization
-      const { data: profileData } = await supabase
-        .from("profiles")
-        .select("organization_id")
-        .eq("user_id", user.id)
-        .maybeSingle();
+      const profileData = await getProfileByUserId(user.id);
+      const memberDataList = await listOrganizationMembersByUser(user.id);
+      const activeMembers = (memberDataList as OrganizationMember[]).filter((m) => m.is_active);
+      const sorted = [...activeMembers].sort((a, b) => {
+        const aAt = a.joined_at ? new Date(a.joined_at).getTime() : 0;
+        const bAt = b.joined_at ? new Date(b.joined_at).getTime() : 0;
+        return bAt - aAt;
+      });
 
-      // Get the user's organization memberships
-      const { data: memberDataList, error: memberError } = await supabase
-        .from("organization_members")
-        .select("*")
-        .eq("user_id", user.id)
-        .eq("is_active", true)
-        .order("joined_at", { ascending: false });
-
-      if (memberError) throw memberError;
-
-      if (!memberDataList || memberDataList.length === 0) {
-        // User is not part of any organization
+      if (!sorted.length) {
         setOrganization(null);
         setBranding(null);
         setMembership(null);
+        setAvailableOrganizations([]);
         setIsLoading(false);
         return;
       }
 
-      // Prefer the organization set in the user's profile, otherwise use the first/most recent membership
-      let memberData = memberDataList[0];
-      if (profileData?.organization_id) {
-        const preferredMembership = memberDataList.find(
-          (m) => m.organization_id === profileData.organization_id
-        );
-        if (preferredMembership) {
-          memberData = preferredMembership;
-        }
+      const profileOrgId = (profileData as { organization_id?: string } | null)?.organization_id;
+      let memberData = sorted[0];
+      if (profileOrgId) {
+        const preferred = sorted.find((m) => m.organization_id === profileOrgId);
+        if (preferred) memberData = preferred;
       }
 
-      setMembership(memberData as OrganizationMember);
+      setMembership(memberData);
 
-      // Fetch organization details
-      const { data: orgData, error: orgError } = await supabase
-        .from("organizations")
-        .select("*")
-        .eq("id", memberData.organization_id)
-        .single();
-
-      if (orgError) throw orgError;
+      const orgData = await getOrganization(memberData.organization_id);
       setOrganization(orgData as Organization);
 
-      // Fetch branding
-      const { data: brandingData, error: brandingError } = await supabase
-        .from("organization_branding")
-        .select("*")
-        .eq("organization_id", memberData.organization_id)
-        .maybeSingle();
-
-      if (brandingError) throw brandingError;
+      const brandingData = await getOrganizationBranding(memberData.organization_id);
       setBranding(brandingData as OrganizationBranding | null);
+
+      const orgs = await Promise.all(
+        sorted.map((m) => getOrganization(m.organization_id).then((o) => ({ id: (o as Organization).id, name: (o as Organization).name })))
+      );
+      setAvailableOrganizations(orgs);
     } catch (err) {
       console.error("Error fetching organization data:", err);
       setError(err as Error);
@@ -214,18 +212,18 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
   const updateBranding = useCallback(async (updates: Partial<OrganizationBranding>) => {
     if (!organization?.id) throw new Error("No organization to update");
 
-    const { error } = await supabase
-      .from("organization_branding")
-      .upsert({
-        organization_id: organization.id,
-        ...updates,
-      }, { onConflict: 'organization_id' });
-
-    if (error) throw error;
-
-    // Refresh branding
+    await upsertOrganizationBranding({ organization_id: organization.id, ...updates });
     await fetchOrganizationData();
   }, [organization?.id, fetchOrganizationData]);
+
+  const switchOrganization = useCallback(
+    async (orgId: string) => {
+      if (!user?.id) return;
+      await updateProfile(user.id, { organization_id: orgId });
+      await fetchOrganizationData();
+    },
+    [user?.id, fetchOrganizationData]
+  );
 
   const isOrgAdmin = membership?.org_role === "admin" || membership?.org_role === "owner";
   const isOrgOwner = membership?.org_role === "owner";
@@ -234,12 +232,14 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
     organization,
     branding,
     membership,
+    availableOrganizations,
     isLoading,
     error,
     isOrgAdmin,
     isOrgOwner,
     refreshOrganization: fetchOrganizationData,
     updateBranding,
+    switchOrganization,
   };
 
   return (

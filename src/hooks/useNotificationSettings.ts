@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
+import { listNotificationSettings, updateNotificationSetting } from "@/integrations/azure/data";
 
 export interface NotificationSetting {
   id: string;
@@ -11,9 +11,9 @@ export interface NotificationSetting {
   updated_at: string;
 }
 
-export type NotificationSettingKey = 
-  | "medication_reminders" 
-  | "missed_dose_alerts" 
+export type NotificationSettingKey =
+  | "medication_reminders"
+  | "missed_dose_alerts"
   | "encouragement_messages";
 
 export function useNotificationSettings() {
@@ -23,31 +23,26 @@ export function useNotificationSettings() {
   const { data: settings, isLoading, error } = useQuery({
     queryKey: ["notification-settings"],
     queryFn: async (): Promise<NotificationSetting[]> => {
-      const { data, error } = await supabase
-        .from("notification_settings")
-        .select("*")
-        .order("setting_key");
-      
-      if (error) throw error;
-      return data as NotificationSetting[];
+      const data = await listNotificationSettings();
+      return (data || []).sort((a, b) =>
+        String(a.setting_key).localeCompare(String(b.setting_key))
+      ) as NotificationSetting[];
     },
-    enabled: isAdmin, // Only fetch if user is admin
+    enabled: isAdmin,
   });
 
   const updateSetting = useMutation({
-    mutationFn: async ({ 
-      settingKey, 
-      isEnabled 
-    }: { 
-      settingKey: NotificationSettingKey; 
+    mutationFn: async ({
+      settingKey,
+      isEnabled,
+    }: {
+      settingKey: NotificationSettingKey;
       isEnabled: boolean;
     }) => {
-      const { error } = await supabase
-        .from("notification_settings")
-        .update({ is_enabled: isEnabled, updated_by: user?.id })
-        .eq("setting_key", settingKey);
-      
-      if (error) throw error;
+      await updateNotificationSetting(settingKey, {
+        is_enabled: isEnabled,
+        updated_by: user?.id,
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["notification-settings"] });
@@ -59,12 +54,12 @@ export function useNotificationSettings() {
   });
 
   const isEnabled = (key: NotificationSettingKey): boolean => {
-    const setting = settings?.find(s => s.setting_key === key);
-    return setting?.is_enabled ?? true; // Default to enabled if not found
+    const setting = settings?.find((s) => s.setting_key === key);
+    return setting?.is_enabled ?? true;
   };
 
   const getSetting = (key: NotificationSettingKey): NotificationSetting | undefined => {
-    return settings?.find(s => s.setting_key === key);
+    return settings?.find((s) => s.setting_key === key);
   };
 
   return {

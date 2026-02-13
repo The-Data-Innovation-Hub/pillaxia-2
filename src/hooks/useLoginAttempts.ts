@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { checkAccountLocked as apiCheckAccountLocked, recordLoginAttempt as apiRecordLoginAttempt } from "@/integrations/azure/data";
 
 interface LockoutStatus {
   locked: boolean;
@@ -18,21 +18,8 @@ interface LoginAttemptResult {
 
 export function useLoginAttempts() {
   const checkAccountLocked = useCallback(async (email: string): Promise<LockoutStatus> => {
-    try {
-      const { data, error } = await supabase.rpc("check_account_locked", {
-        p_email: email,
-      });
-
-      if (error) {
-        console.error("Error checking account lock status:", error);
-        return { locked: false };
-      }
-
-      return data as unknown as LockoutStatus;
-    } catch (error) {
-      console.error("Error checking account lock status:", error);
-      return { locked: false };
-    }
+    const data = await apiCheckAccountLocked(email);
+    return data as LockoutStatus;
   }, []);
 
   const recordLoginAttempt = useCallback(
@@ -41,26 +28,17 @@ export function useLoginAttempts() {
       success: boolean,
       ipAddress?: string
     ): Promise<LoginAttemptResult> => {
-      try {
-        const userAgent = navigator.userAgent;
-
-        const { data, error } = await supabase.rpc("record_login_attempt", {
-          p_email: email,
-          p_success: success,
-          p_ip_address: ipAddress || null,
-          p_user_agent: userAgent,
-        });
-
-        if (error) {
-          console.error("Error recording login attempt:", error);
-          return { locked: false, message: "Error recording attempt" };
-        }
-
-        return data as unknown as LoginAttemptResult;
-      } catch (error) {
-        console.error("Error recording login attempt:", error);
-        return { locked: false, message: "Error recording attempt" };
-      }
+      const data = await apiRecordLoginAttempt(email, success, {
+        ipAddress,
+        userAgent: typeof navigator !== "undefined" ? navigator.userAgent : undefined,
+      });
+      return {
+        locked: data?.locked ?? false,
+        locked_until: data?.locked_until,
+        failed_attempts: data?.failed_attempts,
+        remaining_attempts: data?.remaining_attempts,
+        message: (data as { message?: string })?.message ?? "",
+      } as LoginAttemptResult;
     },
     []
   );

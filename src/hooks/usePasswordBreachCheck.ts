@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { apiInvoke } from "@/integrations/azure/data";
 
 interface BreachCheckResult {
   breached: boolean;
@@ -13,7 +13,6 @@ export function usePasswordBreachCheck() {
   const [breachResult, setBreachResult] = useState<BreachCheckResult | null>(null);
 
   const checkPassword = useCallback(async (password: string): Promise<BreachCheckResult> => {
-    // Skip check for very short passwords (will fail validation anyway)
     if (!password || password.length < 6) {
       return { breached: false, count: 0 };
     }
@@ -22,13 +21,15 @@ export function usePasswordBreachCheck() {
     setBreachResult(null);
 
     try {
-      const { data, error } = await supabase.functions.invoke('check-password-breach', {
-        body: { password },
-      });
+      const { data, error } = await apiInvoke<{
+        breached?: boolean;
+        count?: number;
+        message?: string;
+        apiError?: boolean;
+      }>("check-password-breach", { password });
 
       if (error) {
-        console.error('Password breach check error:', error);
-        // Fail open on error
+        console.error("Password breach check error:", error);
         return { breached: false, count: 0, apiError: true };
       }
 
@@ -41,9 +42,8 @@ export function usePasswordBreachCheck() {
 
       setBreachResult(result);
       return result;
-
     } catch (error) {
-      console.error('Password breach check failed:', error);
+      console.error("Password breach check failed:", error);
       return { breached: false, count: 0, apiError: true };
     } finally {
       setIsChecking(false);

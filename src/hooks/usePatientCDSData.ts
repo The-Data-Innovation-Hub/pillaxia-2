@@ -1,14 +1,17 @@
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import {
+  getProfileByUserId,
+  listPatientHealthTable,
+  listSymptomEntries,
+  listMedications,
+  listLabResults,
+} from "@/integrations/azure/data";
+import { subDays } from "date-fns";
 
 interface PatientCDSData {
   id: string;
   name: string;
-  symptoms?: Array<{
-    name: string;
-    severity: number;
-    notes?: string;
-  }>;
+  symptoms?: Array<{ name: string; severity: number; notes?: string }>;
   vitals?: {
     blood_pressure_systolic?: number;
     blood_pressure_diastolic?: number;
@@ -23,11 +26,7 @@ interface PatientCDSData {
     reference_range?: string;
     is_abnormal?: boolean;
   }>;
-  medications?: Array<{
-    name: string;
-    dosage: string;
-    form: string;
-  }>;
+  medications?: Array<{ name: string; dosage: string; form: string }>;
   healthProfile?: {
     conditions?: string[];
     allergies?: Array<{ allergen: string }>;
@@ -40,85 +39,74 @@ export function usePatientCDSData(patientId: string | null) {
     queryFn: async (): Promise<PatientCDSData | null> => {
       if (!patientId) return null;
 
-      // Fetch patient profile
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("first_name, last_name")
-        .eq("user_id", patientId)
-        .single();
+      const [profile, conditions, allergies, symptoms, vitalsRows, labResults, medications] =
+        await Promise.all([
+          getProfileByUserId(patientId),
+          listPatientHealthTable("patient_chronic_conditions", patientId),
+          listPatientHealthTable("patient_allergies", patientId),
+          listSymptomEntries(patientId),
+          listPatientHealthTable("patient_vitals", patientId),
+          listLabResults(patientId),
+          listMedications(patientId),
+        ]);
 
-      // Fetch chronic conditions
-      const { data: conditions } = await supabase
-        .from("patient_chronic_conditions")
-        .select("condition_name")
-        .eq("user_id", patientId)
-        .eq("is_active", true);
+      const thirtyDaysAgo = subDays(new Date(), 30).toISOString();
+      const recentSymptoms = (symptoms || [])
+        .filter((s) => (s.recorded_at as string) >= thirtyDaysAgo)
+        .sort(
+          (a, b) =>
+            new Date((b.recorded_at as string) || 0).getTime() -
+            new Date((a.recorded_at as string) || 0).getTime()
+        )
+        .slice(0, 20);
 
-      // Fetch allergies
-      const { data: allergies } = await supabase
-        .from("patient_allergies")
-        .select("allergen")
-        .eq("user_id", patientId);
+      const latestVitals = (vitalsRows || []).sort(
+        (a, b) =>
+          new Date((b.recorded_at as string) || 0).getTime() -
+          new Date((a.recorded_at as string) || 0).getTime()
+      )[0];
 
-      // Fetch recent symptoms (last 30 days)
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      const activeConditions = (conditions || []).filter((c) => c.is_active !== false);
+      const activeMeds = (medications || []).filter((m) => m.is_active !== false);
 
-      const { data: symptoms } = await supabase
-        .from("symptom_entries")
-        .select("symptom_type, severity, description")
-        .eq("user_id", patientId)
-        .gte("recorded_at", thirtyDaysAgo.toISOString())
-        .order("recorded_at", { ascending: false })
-        .limit(20);
-
-      // Fetch latest vitals
-      const { data: vitals } = await supabase
-        .from("patient_vitals")
-        .select("blood_pressure_systolic, blood_pressure_diastolic, heart_rate, temperature, respiratory_rate, oxygen_saturation")
-        .eq("user_id", patientId)
-        .order("recorded_at", { ascending: false })
-        .limit(1)
-        .single();
-
-      // Fetch recent lab results
-      const { data: labResults } = await supabase
-        .from("lab_results")
-        .select("test_name, result_value, reference_range, is_abnormal")
-        .eq("user_id", patientId)
-        .order("resulted_at", { ascending: false })
-        .limit(20);
-
-      // Fetch active medications
-      const { data: medications } = await supabase
-        .from("medications")
-        .select("name, dosage, form")
-        .eq("user_id", patientId)
-        .eq("is_active", true);
+      const firstName = (profile as Record<string, unknown>)?.first_name as string | undefined;
+      const lastName = (profile as Record<string, unknown>)?.last_name as string | undefined;
+      const name = `${firstName || ""} ${lastName || ""}`.trim() || "Patient";
 
       return {
         id: patientId,
-        name: `${profile?.first_name || ""} ${profile?.last_name || ""}`.trim() || "Patient",
-        symptoms: symptoms?.map((s) => ({
-          name: s.symptom_type,
-          severity: s.severity,
-          notes: s.description || undefined,
+        name,
+        symptoms: recentSymptoms.map((s) => ({
+          name: (s.symptom_type as string) || "",
+          severity: (s.severity as number) ?? 0,
+          notes: (s.description as string) || undefined,
         })),
-        vitals: vitals || undefined,
-        labResults: labResults?.map((l) => ({
-          test_name: l.test_name,
-          result_value: l.result_value,
-          reference_range: l.reference_range || undefined,
-          is_abnormal: l.is_abnormal || undefined,
-        })),
-        medications: medications?.map((m) => ({
-          name: m.name,
-          dosage: m.dosage,
-          form: m.form,
+        vitals: latestVitals
+          ? {
+              blood_pressure_systolic: latestVitals.blood_pressure_systolic as number | undefined,
+              blood_pressure_diastolic: latestVitals.blood_pressure_diastolic as number | undefined,
+              heart_rate: latestVitals.heart_rate as number | undefined,
+              temperature: latestVitals.temperature as number | undefined,
+              respiratory_rate: latestVitals.respiratory_rate as number | undefined,
+              oxygen_saturation: latestVitals.oxygen_saturation as number | undefined,
+            }
+          : undefined,
+        labResults: (labResults || [])
+          .slice(0, 20)
+          .map((l) => ({
+            test_name: (l.test_name as string) || "",
+            result_value: (l.result_value as string) || "",
+            reference_range: (l.reference_range as string) || undefined,
+            is_abnormal: l.is_abnormal as boolean | undefined,
+          })),
+        medications: activeMeds.map((m) => ({
+          name: (m.name as string) || "",
+          dosage: (m.dosage as string) || "",
+          form: (m.form as string) || "",
         })),
         healthProfile: {
-          conditions: conditions?.map((c) => c.condition_name) || [],
-          allergies: allergies?.map((a) => ({ allergen: a.allergen })),
+          conditions: activeConditions.map((c) => (c.condition_name as string) || ""),
+          allergies: (allergies || []).map((a) => ({ allergen: (a.allergen as string) || "" })),
         },
       };
     },

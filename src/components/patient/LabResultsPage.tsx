@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { listLabResults } from "@/integrations/azure/data";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -42,14 +42,12 @@ export default function LabResultsPage() {
   const { data: labResults, isLoading } = useQuery({
     queryKey: ["lab-results", user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("lab_results")
-        .select("*")
-        .eq("user_id", user?.id)
-        .order("ordered_at", { ascending: false });
-      
-      if (error) throw error;
-      return data as LabResult[];
+      const data = await listLabResults(user!.id);
+      return (data || []).sort(
+        (a, b) =>
+          new Date((b.ordered_at as string) || 0).getTime() -
+          new Date((a.ordered_at as string) || 0).getTime()
+      ) as LabResult[];
     },
     enabled: !!user?.id,
   });

@@ -1,7 +1,13 @@
 import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  listCaregiverInvitations,
+  createCaregiverInvitation,
+  updateCaregiverInvitation,
+  deleteCaregiverInvitation,
+  listProfilesByUserIds,
+} from "@/integrations/azure/data";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -66,48 +72,40 @@ export function CaregiversPage() {
     view_symptoms: false,
   });
 
-  // Fetch caregiver invitations
   const { data: invitations, isLoading } = useQuery({
     queryKey: ["caregiver-invitations", user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("caregiver_invitations")
-        .select("*")
-        .eq("patient_user_id", user!.id)
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-
-      // Fetch caregiver profiles for accepted invitations
-      const invitationsWithProfiles = await Promise.all(
-        (data || []).map(async (inv) => {
-          if (inv.caregiver_user_id) {
-            const { data: profile } = await supabase
-              .from("profiles")
-              .select("first_name, last_name")
-              .eq("user_id", inv.caregiver_user_id)
-              .maybeSingle();
-            return { ...inv, caregiver_profile: profile };
-          }
-          return { ...inv, caregiver_profile: null };
-        })
+      const data = await listCaregiverInvitations({ patient_user_id: user!.id });
+      const sorted = (data || []).sort(
+        (a, b) =>
+          new Date((b.created_at as string) || 0).getTime() -
+          new Date((a.created_at as string) || 0).getTime()
       );
-
-      return invitationsWithProfiles as unknown as CaregiverInvitation[];
+      const caregiverIds = sorted
+        .map((inv) => inv.caregiver_user_id as string)
+        .filter(Boolean);
+      const profiles = caregiverIds.length
+        ? await listProfilesByUserIds(caregiverIds)
+        : [];
+      const profileMap = new Map(profiles.map((p) => [p.user_id as string, p]));
+      return sorted.map((inv) => ({
+        ...inv,
+        caregiver_profile: inv.caregiver_user_id
+          ? profileMap.get(inv.caregiver_user_id as string) ?? null
+          : null,
+      })) as CaregiverInvitation[];
     },
     enabled: !!user,
   });
 
-  // Send invitation mutation
   const sendInvitationMutation = useMutation({
     mutationFn: async ({ email, perms }: { email: string; perms: typeof permissions }) => {
-      const { error } = await supabase.from("caregiver_invitations").insert({
+      await createCaregiverInvitation({
         patient_user_id: user!.id,
         caregiver_email: email.toLowerCase().trim(),
         permissions: perms,
         status: "pending",
       });
-      if (error) throw error;
     },
     onSuccess: () => {
       toast.success("Invitation sent successfully!");
@@ -126,14 +124,9 @@ export function CaregiversPage() {
     },
   });
 
-  // Delete invitation mutation
   const deleteInvitationMutation = useMutation({
     mutationFn: async (invitationId: string) => {
-      const { error } = await supabase
-        .from("caregiver_invitations")
-        .delete()
-        .eq("id", invitationId);
-      if (error) throw error;
+      await deleteCaregiverInvitation(invitationId);
     },
     onSuccess: () => {
       toast.success("Invitation removed");
@@ -146,14 +139,9 @@ export function CaregiversPage() {
     },
   });
 
-  // Update permissions mutation
   const updatePermissionsMutation = useMutation({
     mutationFn: async ({ id, perms }: { id: string; perms: typeof permissions }) => {
-      const { error } = await supabase
-        .from("caregiver_invitations")
-        .update({ permissions: perms })
-        .eq("id", id);
-      if (error) throw error;
+      await updateCaregiverInvitation(id, { permissions: perms });
     },
     onSuccess: () => {
       toast.success("Permissions updated");

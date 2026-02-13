@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { deleteMedication } from "@/integrations/azure/data";
 import { Button } from "@/components/ui/button";
 import { Plus, Loader2, CloudOff, RefreshCw, Camera } from "lucide-react";
 import { MedicationCard } from "./MedicationCard";
@@ -45,12 +45,7 @@ export function MedicationsPage() {
     if (!deleteId) return;
 
     try {
-      const { error } = await supabase
-        .from("medications")
-        .delete()
-        .eq("id", deleteId);
-
-      if (error) throw error;
+      await deleteMedication(deleteId);
       toast.success(t.medications.deletedSuccess);
       refetch();
     } catch (error) {

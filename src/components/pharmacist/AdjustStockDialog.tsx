@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { supabase } from "@/integrations/supabase/client";
+import { createControlledDrugAdjustment } from "@/integrations/azure/data";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { TrendingUp, TrendingDown } from "lucide-react";
@@ -100,7 +100,7 @@ export function AdjustStockDialog({
     try {
       const adjustedQuantity = isAddition ? values.quantity : -values.quantity;
       
-      const { error } = await supabase.from("controlled_drug_adjustments").insert({
+      await createControlledDrugAdjustment({
         controlled_drug_id: drug.id,
         adjustment_type: values.adjustment_type,
         quantity: adjustedQuantity,
@@ -111,8 +111,6 @@ export function AdjustStockDialog({
         reason: values.reason,
         performed_by: user.id,
       });
-
-      if (error) throw error;
 
       toast.success(`Stock adjusted: ${drug.name} now has ${newStock} ${drug.unit_of_measure}`);
       form.reset();

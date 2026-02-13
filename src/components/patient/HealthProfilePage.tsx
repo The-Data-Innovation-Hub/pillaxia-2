@@ -1,6 +1,13 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
+import {
+  getProfileByUserId,
+  listPatientHealthTable,
+  updateProfile,
+  createPatientHealthRow,
+  updatePatientHealthRow,
+  deletePatientHealthRow,
+} from "@/integrations/azure/data";
 import { toast } from "sonner";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -141,19 +148,28 @@ export function HealthProfilePage() {
     if (!user) return;
     setLoading(true);
     try {
-      const [conditionsRes, allergiesRes, contactsRes, profileRes] = await Promise.all([
-        supabase.from("patient_chronic_conditions").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
-        supabase.from("patient_allergies").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
-        supabase.from("patient_emergency_contacts").select("*").eq("user_id", user.id).order("is_primary", { ascending: false }),
-        supabase.from("profiles").select("phone").eq("user_id", user.id).maybeSingle(),
+      const [conditionsList, allergiesList, contactsList, profile] = await Promise.all([
+        listPatientHealthTable("patient_chronic_conditions", user.id),
+        listPatientHealthTable("patient_allergies", user.id),
+        listPatientHealthTable("patient_emergency_contacts", user.id),
+        getProfileByUserId(user.id),
       ]);
-
-      if (conditionsRes.data) setConditions(conditionsRes.data);
-      if (allergiesRes.data) setAllergies(allergiesRes.data);
-      if (contactsRes.data) setContacts(contactsRes.data);
-      if (profileRes.data?.phone) {
-        setPhoneNumber(profileRes.data.phone);
-        setTempPhone(profileRes.data.phone);
+      const cond = (conditionsList || []).sort(
+        (a, b) => new Date((b.created_at as string) || 0).getTime() - new Date((a.created_at as string) || 0).getTime()
+      ) as ChronicCondition[];
+      const all = (allergiesList || []).sort(
+        (a, b) => new Date((b.created_at as string) || 0).getTime() - new Date((a.created_at as string) || 0).getTime()
+      ) as Allergy[];
+      const cont = (contactsList || []).sort(
+        (a, b) => ((b.is_primary as boolean) ? 1 : 0) - ((a.is_primary as boolean) ? 1 : 0)
+      ) as EmergencyContact[];
+      setConditions(cond);
+      setAllergies(all);
+      setContacts(cont);
+      const phone = (profile as { phone?: string } | null)?.phone;
+      if (phone) {
+        setPhoneNumber(phone);
+        setTempPhone(phone);
       }
     } catch (error) {
       console.error("Error fetching health profile:", error);
@@ -175,13 +191,7 @@ export function HealthProfilePage() {
 
     setSavingPhone(true);
     try {
-      const { error: dbError } = await supabase
-        .from("profiles")
-        .update({ phone: formatted || null })
-        .eq("user_id", user.id);
-
-      if (dbError) throw dbError;
-      
+      await updateProfile(user.id, { phone: formatted || null });
       setPhoneNumber(formatted);
       setTempPhone(formatted);
       setEditingPhone(false);
@@ -204,8 +214,7 @@ export function HealthProfilePage() {
         : "patient_emergency_contacts";
 
     try {
-      const { error } = await supabase.from(table).delete().eq("id", deleteId.id);
-      if (error) throw error;
+      await deletePatientHealthRow(table, deleteId.id);
       toast.success("Deleted successfully");
       fetchAll();
     } catch (error) {
@@ -558,12 +567,10 @@ function ConditionDialog({ open, onOpenChange, editing, onSuccess }: {
       };
 
       if (editing) {
-        const { error } = await supabase.from("patient_chronic_conditions").update(data).eq("id", editing.id);
-        if (error) throw error;
+        await updatePatientHealthRow("patient_chronic_conditions", editing.id, data);
         toast.success("Condition updated");
       } else {
-        const { error } = await supabase.from("patient_chronic_conditions").insert(data);
-        if (error) throw error;
+        await createPatientHealthRow("patient_chronic_conditions", data);
         toast.success("Condition added");
       }
       onSuccess();
@@ -655,12 +662,10 @@ function AllergyDialog({ open, onOpenChange, editing, onSuccess }: {
       };
 
       if (editing) {
-        const { error } = await supabase.from("patient_allergies").update(data).eq("id", editing.id);
-        if (error) throw error;
+        await updatePatientHealthRow("patient_allergies", editing.id, data);
         toast.success("Allergy updated");
       } else {
-        const { error } = await supabase.from("patient_allergies").insert(data);
-        if (error) throw error;
+        await createPatientHealthRow("patient_allergies", data);
         toast.success("Allergy added");
       }
       onSuccess();
@@ -766,12 +771,10 @@ function ContactDialog({ open, onOpenChange, editing, onSuccess }: {
       };
 
       if (editing) {
-        const { error } = await supabase.from("patient_emergency_contacts").update(data).eq("id", editing.id);
-        if (error) throw error;
+        await updatePatientHealthRow("patient_emergency_contacts", editing.id, data);
         toast.success("Contact updated");
       } else {
-        const { error } = await supabase.from("patient_emergency_contacts").insert(data);
-        if (error) throw error;
+        await createPatientHealthRow("patient_emergency_contacts", data);
         toast.success("Contact added");
       }
       onSuccess();

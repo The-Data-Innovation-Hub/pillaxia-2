@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { listClinicianPatientAssignments, listProfilesByUserIds } from "@/integrations/azure/data";
 import { format } from "date-fns";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
@@ -80,34 +80,22 @@ export function CreateAppointmentDialog({
     },
   });
 
-  // Fetch assigned patients
   const { data: patients } = useQuery({
     queryKey: ["assigned-patients", user?.id],
     queryFn: async () => {
-      const { data: assignments, error } = await supabase
-        .from("clinician_patient_assignments")
-        .select("patient_user_id")
-        .eq("clinician_user_id", user!.id);
-
-      if (error) throw error;
-
-      const patientIds = assignments.map((a) => a.patient_user_id);
+      const assignments = await listClinicianPatientAssignments(user!.id);
+      const patientIds = (assignments || []).map((a) => a.patient_user_id as string);
       if (patientIds.length === 0) return [];
-
-      const { data: profiles, error: profileError } = await supabase
-        .from("profiles")
-        .select("user_id, first_name, last_name, email")
-        .in("user_id", patientIds);
-
-      if (profileError) throw profileError;
-      return profiles;
+      const profiles = await listProfilesByUserIds(patientIds);
+      return profiles ?? [];
     },
     enabled: !!user && open,
   });
 
   const createMutation = useMutation({
     mutationFn: async (data: AppointmentFormData) => {
-      const { error } = await supabase.from("appointments").insert({
+      const { createAppointment: apiCreateAppointment } = await import("@/integrations/azure/data");
+      await apiCreateAppointment({
         clinician_user_id: user!.id,
         patient_user_id: data.patient_user_id,
         title: data.title,
@@ -119,8 +107,6 @@ export function CreateAppointmentDialog({
         is_video_call: data.is_video_call,
         status: "scheduled",
       });
-
-      if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["clinician-appointments"] });

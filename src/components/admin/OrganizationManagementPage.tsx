@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { Building2, Palette, Users, Settings, Plus, Upload, Save, Loader2, Pencil, Trash2, CreditCard } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -14,15 +14,560 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useOrganizationMembers, type OrganizationMemberWithProfile } from "@/hooks/useOrganizationMembers";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
+import {
+  listOrganizations,
+  listOrganizationMembersByUser,
+  createOrganization,
+  addOrganizationMember,
+  upsertOrganizationBranding,
+  updateOrganization,
+  deleteOrganization,
+  updateProfile,
+  uploadOrganizationLogo,
+} from "@/integrations/azure/data";
 import { toast } from "sonner";
 import { OrganizationBillingTab } from "./OrganizationBillingTab";
 import { useSearchParams } from "react-router-dom";
+import type { Organization } from "@/contexts/OrganizationContext";
+import { isMultiTenant } from "@/lib/environment";
+
+/** Slug from name: lowercase, replace non-alphanumeric with hyphens */
+function slugFromName(name: string): string {
+  return name
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+function AdminOrganizationSetup({
+  onOrganizationSelected,
+  isAdmin,
+  authLoading = false,
+}: {
+  onOrganizationSelected: () => Promise<void>;
+  isAdmin: boolean;
+  authLoading?: boolean;
+}) {
+  const { user } = useAuth();
+  const [organizations, setOrganizations] = useState<Organization[]>([]);
+  const [myMemberOrgIds, setMyMemberOrgIds] = useState<Set<string>>(new Set());
+  const [loading, setLoading] = useState(true);
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [createSubmitting, setCreateSubmitting] = useState(false);
+  const [switchSubmitting, setSwitchSubmitting] = useState<string | null>(null);
+  const [createForm, setCreateForm] = useState({
+    name: "",
+    slug: "",
+    description: "",
+    contact_email: "",
+    status: "active" as const,
+  });
+  const [editOrg, setEditOrg] = useState<Organization | null>(null);
+  const [editForm, setEditForm] = useState({ name: "", slug: "", description: "", contact_email: "", status: "active" as const });
+  const [editSubmitting, setEditSubmitting] = useState(false);
+  const [deleteOrg, setDeleteOrg] = useState<Organization | null>(null);
+  const [deleteSubmitting, setDeleteSubmitting] = useState(false);
+  const [linkAllSubmitting, setLinkAllSubmitting] = useState(false);
+
+  const fetchOrganizations = useCallback(async () => {
+    if (!user?.id) return;
+    try {
+      const [orgsList, membersList] = await Promise.all([
+        listOrganizations(),
+        listOrganizationMembersByUser(user.id),
+      ]);
+      const orgs = (orgsList as Organization[]).sort((a, b) => a.name.localeCompare(b.name));
+      const activeMembers = (membersList as { organization_id: string }[]).filter((m) => (m as { is_active?: boolean }).is_active !== false);
+      setOrganizations(orgs);
+      setMyMemberOrgIds(new Set(activeMembers.map((m) => m.organization_id)));
+    } catch (e) {
+      console.error(e);
+      toast.error("Failed to load organizations");
+    }
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (!isAdmin || !user?.id) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    fetchOrganizations().finally(() => setLoading(false));
+  }, [isAdmin, user?.id, fetchOrganizations]);
+
+  const handleCreateOrganization = async () => {
+    if (!user?.id || !createForm.name.trim()) return;
+    const slug = createForm.slug.trim() || slugFromName(createForm.name);
+    if (!slug) {
+      toast.error("Name or slug is required");
+      return;
+    }
+    setCreateSubmitting(true);
+    try {
+      const org = await createOrganization({
+        name: createForm.name.trim(),
+        slug,
+        description: createForm.description.trim() || null,
+        contact_email: createForm.contact_email.trim() || null,
+        status: createForm.status,
+      });
+      const orgId = (org as { id: string }).id;
+      if (!orgId) throw new Error("Organization not created");
+
+      await addOrganizationMember({
+        organization_id: orgId,
+        user_id: user.id,
+        org_role: "owner",
+        is_active: true,
+      });
+      await upsertOrganizationBranding({
+        organization_id: orgId,
+        app_name: createForm.name.trim(),
+      });
+
+      toast.success("Organization created. You are set as owner.");
+      setIsCreateOpen(false);
+      setCreateForm({ name: "", slug: "", description: "", contact_email: "", status: "active" });
+      await onOrganizationSelected();
+    } catch (e: unknown) {
+      const msg = e && typeof e === "object" && "message" in e ? String((e as { message: string }).message) : "Failed to create organization";
+      toast.error(msg);
+    } finally {
+      setCreateSubmitting(false);
+    }
+  };
+
+  const handleUseOrganization = async (org: Organization) => {
+    if (!user?.id) return;
+    setSwitchSubmitting(org.id);
+    try {
+      const isMember = myMemberOrgIds.has(org.id);
+      if (!isMember) {
+        await addOrganizationMember({
+          organization_id: org.id,
+          user_id: user.id,
+          org_role: "owner",
+          is_active: true,
+        });
+      }
+      await updateProfile(user.id, { organization_id: org.id });
+      toast.success(`Switched to ${org.name}`);
+      await onOrganizationSelected();
+    } catch (e) {
+      toast.error("Failed to switch organization");
+    } finally {
+      setSwitchSubmitting(null);
+    }
+  };
+
+  const openEdit = (org: Organization) => {
+    setEditOrg(org);
+    setEditForm({
+      name: org.name,
+      slug: org.slug,
+      description: org.description || "",
+      contact_email: org.contact_email || "",
+      status: org.status,
+    });
+  };
+
+  const handleEditOrganization = async () => {
+    if (!editOrg) return;
+    setEditSubmitting(true);
+    try {
+      await updateOrganization(editOrg.id, {
+        name: editForm.name.trim(),
+        slug: editForm.slug.trim(),
+        description: editForm.description.trim() || null,
+        contact_email: editForm.contact_email.trim() || null,
+        status: editForm.status,
+      });
+      toast.success("Organization updated");
+      setEditOrg(null);
+      await fetchOrganizations();
+    } catch (e) {
+      toast.error("Failed to update organization");
+    } finally {
+      setEditSubmitting(false);
+    }
+  };
+
+  const handleDeleteOrganization = async () => {
+    if (!deleteOrg) return;
+    setDeleteSubmitting(true);
+    try {
+      await deleteOrganization(deleteOrg.id);
+      toast.success("Organization deleted");
+      setDeleteOrg(null);
+      await fetchOrganizations();
+    } catch (e) {
+      toast.error("Failed to delete organization");
+    } finally {
+      setDeleteSubmitting(false);
+    }
+  };
+
+  const handleLinkToAllOrganizations = async () => {
+    if (!user?.id) return;
+    const toLink = organizations.filter((org) => !myMemberOrgIds.has(org.id));
+    if (toLink.length === 0) {
+      toast.info("You are already linked to all organizations");
+      return;
+    }
+    setLinkAllSubmitting(true);
+    try {
+      for (const org of toLink) {
+        await addOrganizationMember({
+          organization_id: org.id,
+          user_id: user.id,
+          org_role: "owner",
+          is_active: true,
+        });
+      }
+      toast.success(`Added you as owner to ${toLink.length} organization(s)`);
+      await fetchOrganizations();
+    } catch (e) {
+      toast.error("Failed to link to some organizations");
+    } finally {
+      setLinkAllSubmitting(false);
+    }
+  };
+
+  if (authLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center gap-3">
+          <Building2 className="h-6 w-6 text-primary" />
+          <div>
+            <h1 className="text-2xl font-bold">Organization Management</h1>
+            <p className="text-muted-foreground">Loading…</p>
+          </div>
+        </div>
+        <Card>
+          <CardContent className="py-12 flex items-center justify-center">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (!isAdmin) {
+    if (isMultiTenant()) {
+      return (
+        <div className="space-y-6">
+          <div className="flex items-center gap-3">
+            <Building2 className="h-6 w-6 text-primary" />
+            <div>
+              <h1 className="text-2xl font-bold">Organization</h1>
+              <p className="text-muted-foreground">Your current organization</p>
+            </div>
+          </div>
+          <Card>
+            <CardContent className="py-12 text-center">
+              <Building2 className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+              <h3 className="text-lg font-semibold mb-2">No organization assigned</h3>
+              <p className="text-muted-foreground">
+                You are not assigned to an organization yet. Contact your platform administrator to be added to an organization.
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      );
+    }
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center gap-3">
+          <Building2 className="h-6 w-6 text-primary" />
+          <div>
+            <h1 className="text-2xl font-bold">Organization Management</h1>
+            <p className="text-muted-foreground">No organization configured</p>
+          </div>
+        </div>
+        <Card>
+          <CardContent className="py-12 text-center">
+            <Building2 className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+            <h3 className="text-lg font-semibold mb-2">No Organization Set Up</h3>
+            <p className="text-muted-foreground mb-4">
+              This platform is running in single-tenant mode. Contact a platform administrator to set up multi-tenancy.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <Building2 className="h-6 w-6 text-primary" />
+          <div>
+            <h1 className="text-2xl font-bold">Organization Management</h1>
+            <p className="text-muted-foreground">
+              Set up or switch organizations (platform admin)
+            </p>
+          </div>
+        </div>
+        <Button onClick={() => setIsCreateOpen(true)}>
+          <Plus className="h-4 w-4 mr-2" />
+          Create organisation
+        </Button>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Organizations</CardTitle>
+          <CardDescription>
+            Create a new organization, edit or delete existing ones, or switch to an organization. You can link yourself as owner to any org.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            </div>
+          ) : organizations.length === 0 ? (
+            <p className="text-muted-foreground py-6 text-center">
+              No organizations yet. Create one to get started.
+            </p>
+          ) : (
+            <>
+              {organizations.some((org) => !myMemberOrgIds.has(org.id)) && (
+                <div className="mb-4">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleLinkToAllOrganizations}
+                    disabled={linkAllSubmitting}
+                  >
+                    {linkAllSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                    Link me to all organizations as owner
+                  </Button>
+                </div>
+              )}
+              <ul className="space-y-3">
+                {organizations.map((org) => (
+                  <li key={org.id} className="flex items-center justify-between gap-4 rounded-lg border p-4">
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium">{org.name}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {org.slug} · {org.status}
+                        {org.contact_email ? ` · ${org.contact_email}` : ""}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => handleUseOrganization(org)}
+                        disabled={switchSubmitting !== null}
+                      >
+                        {switchSubmitting === org.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : myMemberOrgIds.has(org.id) ? (
+                          "Switch to"
+                        ) : (
+                          "Add me as owner & switch"
+                        )}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={() => openEdit(org)}
+                        title="Edit organization"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={() => setDeleteOrg(org)}
+                        title="Delete organization"
+                        className="text-destructive hover:text-destructive"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      <Dialog open={!!editOrg} onOpenChange={(open) => !open && setEditOrg(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit organization</DialogTitle>
+            <DialogDescription>Update organization details.</DialogDescription>
+          </DialogHeader>
+          {editOrg && (
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label htmlFor="edit-name">Name</Label>
+                <Input
+                  id="edit-name"
+                  value={editForm.name}
+                  onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))}
+                  placeholder="Organization name"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="edit-slug">Slug</Label>
+                <Input
+                  id="edit-slug"
+                  value={editForm.slug}
+                  onChange={(e) => setEditForm((f) => ({ ...f, slug: e.target.value }))}
+                  placeholder="url-slug"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="edit-description">Description (optional)</Label>
+                <Textarea
+                  id="edit-description"
+                  value={editForm.description}
+                  onChange={(e) => setEditForm((f) => ({ ...f, description: e.target.value }))}
+                  rows={2}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="edit-email">Contact email (optional)</Label>
+                <Input
+                  id="edit-email"
+                  type="email"
+                  value={editForm.contact_email}
+                  onChange={(e) => setEditForm((f) => ({ ...f, contact_email: e.target.value }))}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label>Status</Label>
+                <Select
+                  value={editForm.status}
+                  onValueChange={(v) => setEditForm((f) => ({ ...f, status: v as "active" | "suspended" | "trial" | "cancelled" }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="active">Active</SelectItem>
+                    <SelectItem value="trial">Trial</SelectItem>
+                    <SelectItem value="suspended">Suspended</SelectItem>
+                    <SelectItem value="cancelled">Cancelled</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditOrg(null)}>
+              Cancel
+            </Button>
+            <Button onClick={handleEditOrganization} disabled={editSubmitting || !editForm.name.trim() || !editForm.slug.trim()}>
+              {editSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={!!deleteOrg} onOpenChange={(open) => !open && setDeleteOrg(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete organization</AlertDialogTitle>
+            <AlertDialogDescription>
+              Delete &quot;{deleteOrg?.name}&quot;? This will remove the organization and all its members and branding. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteOrganization}
+              disabled={deleteSubmitting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleteSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Create organisation</DialogTitle>
+            <DialogDescription>
+              Add a new organisation. You will be set as owner.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="create-name">Name</Label>
+              <Input
+                id="create-name"
+                value={createForm.name}
+                onChange={(e) =>
+                  setCreateForm((f) => ({
+                    ...f,
+                    name: e.target.value,
+                    slug: f.slug || slugFromName(e.target.value),
+                  }))
+                }
+                placeholder="e.g. Acme Clinic"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="create-slug">Slug (optional)</Label>
+              <Input
+                id="create-slug"
+                value={createForm.slug}
+                onChange={(e) => setCreateForm((f) => ({ ...f, slug: e.target.value }))}
+                placeholder="e.g. acme-clinic"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="create-description">Description (optional)</Label>
+              <Textarea
+                id="create-description"
+                value={createForm.description}
+                onChange={(e) => setCreateForm((f) => ({ ...f, description: e.target.value }))}
+                placeholder="Short description"
+                rows={2}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="create-email">Contact email (optional)</Label>
+              <Input
+                id="create-email"
+                type="email"
+                value={createForm.contact_email}
+                onChange={(e) => setCreateForm((f) => ({ ...f, contact_email: e.target.value }))}
+                placeholder="admin@acme.example.com"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsCreateOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleCreateOrganization} disabled={createSubmitting || !createForm.name.trim()}>
+              {createSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Create
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
 
 export function OrganizationManagementPage() {
   const { organization, branding, isOrgAdmin, updateBranding, refreshOrganization } = useOrganization();
   const { members, isLoading: membersLoading, updateMemberRole, removeMember, refetchMembers } = useOrganizationMembers();
-  const { isManager } = useAuth();
+  const { isManager, isAdmin, user, loading: authLoading } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   
   // Managers can also edit organization data
@@ -108,27 +653,11 @@ export function OrganizationManagementPage() {
 
   if (!organization) {
     return (
-      <div className="space-y-6">
-        <div className="flex items-center gap-3">
-          <Building2 className="h-6 w-6 text-primary" />
-          <div>
-            <h1 className="text-2xl font-bold">Organization Management</h1>
-            <p className="text-muted-foreground">
-              No organization configured
-            </p>
-          </div>
-        </div>
-        
-        <Card>
-          <CardContent className="py-12 text-center">
-            <Building2 className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold mb-2">No Organization Set Up</h3>
-            <p className="text-muted-foreground mb-4">
-              This platform is running in single-tenant mode. Contact a platform administrator to set up multi-tenancy.
-            </p>
-          </CardContent>
-        </Card>
-      </div>
+      <AdminOrganizationSetup
+        onOrganizationSelected={refreshOrganization}
+        isAdmin={!!isAdmin}
+        authLoading={authLoading}
+      />
     );
   }
 
@@ -147,12 +676,7 @@ export function OrganizationManagementPage() {
   const handleSaveOrganization = async () => {
     setIsSaving(true);
     try {
-      const { error } = await supabase
-        .from("organizations")
-        .update(orgForm)
-        .eq("id", organization.id);
-      
-      if (error) throw error;
+      await updateOrganization(organization.id, orgForm);
       await refreshOrganization();
       toast.success("Organization details updated");
     } catch (error) {
@@ -180,29 +704,10 @@ export function OrganizationManagementPage() {
 
     setIsUploadingLogo(true);
     try {
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${organization.id}/logo-${Date.now()}.${fileExt}`;
-
-      // Upload to avatars bucket (reusing existing bucket)
-      const { error: uploadError } = await supabase.storage
-        .from('avatars')
-        .upload(fileName, file, { upsert: true });
-
-      if (uploadError) throw uploadError;
-
-      // Get public URL
-      const { data: { publicUrl } } = supabase.storage
-        .from('avatars')
-        .getPublicUrl(fileName);
-
-      // Update organization branding with new logo URL
-      const { error: updateError } = await supabase
-        .from('organization_branding')
-        .update({ logo_url: publicUrl })
-        .eq('organization_id', organization.id);
-
-      if (updateError) throw updateError;
-
+      const logoUrl = await uploadOrganizationLogo(organization.id, file);
+      if (logoUrl) {
+        await upsertOrganizationBranding({ organization_id: organization.id, logo_url: logoUrl });
+      }
       await refreshOrganization();
       toast.success("Logo uploaded successfully");
     } catch (error) {
@@ -794,15 +1299,10 @@ export function OrganizationManagementPage() {
                     editLastName !== (selectedMember.profile?.last_name || "");
                   
                   if (nameChanged) {
-                    const { error: profileError } = await supabase
-                      .from("profiles")
-                      .update({ 
-                        first_name: editFirstName, 
-                        last_name: editLastName 
-                      })
-                      .eq("user_id", selectedMember.user_id);
-                    
-                    if (profileError) throw profileError;
+                    await updateProfile(selectedMember.user_id, {
+                      first_name: editFirstName,
+                      last_name: editLastName,
+                    });
                   }
 
                   // Update role if changed (and not owner)

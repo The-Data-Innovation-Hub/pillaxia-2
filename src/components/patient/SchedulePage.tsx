@@ -1,6 +1,10 @@
 import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
+import {
+  listMedicationLogs,
+  insertMedicationLogs,
+  listMedicationSchedules,
+} from "@/integrations/azure/data";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Loader2, RefreshCw, Calendar } from "lucide-react";
@@ -45,20 +49,13 @@ export function SchedulePage() {
       const start = startOfDay(today).toISOString();
       const end = endOfDay(today).toISOString();
 
-      const { data, error } = await supabase
-        .from("medication_logs")
-        .select(`
-          *,
-          medications (name, dosage, dosage_unit, form),
-          medication_schedules (quantity, with_food)
-        `)
-        .eq("user_id", user.id)
-        .gte("scheduled_time", start)
-        .lte("scheduled_time", end)
-        .order("scheduled_time", { ascending: true });
-
-      if (error) throw error;
-      setLogs(data || []);
+      const data = await listMedicationLogs(user.id, { from: start, to: end });
+      const sorted = (data || []).sort(
+        (a, b) =>
+          new Date((a.scheduled_time as string) || 0).getTime() -
+          new Date((b.scheduled_time as string) || 0).getTime()
+      );
+      setLogs(sorted as MedicationLog[]);
     } catch (error) {
       console.error("Error fetching logs:", error);
     } finally {
@@ -79,29 +76,23 @@ export function SchedulePage() {
 
     setGenerating(true);
     try {
-      // Get all active schedules
-      const { data: schedules, error: schedError } = await supabase
-        .from("medication_schedules")
-        .select(`
-          *,
-          medications!inner (id, name, is_active)
-        `)
-        .eq("user_id", user.id)
-        .eq("is_active", true);
-
-      if (schedError) throw schedError;
+      const schedulesRaw = await listMedicationSchedules(undefined, user.id);
+      const schedules = (schedulesRaw || []).filter(
+        (s: Record<string, unknown>) => s.is_active !== false
+      );
 
       const today = new Date();
       const dayOfWeek = today.getDay();
 
-      // Filter schedules for today
-      const todaysSchedules = schedules?.filter((s) => 
-        s.days_of_week?.includes(dayOfWeek) && s.medications?.is_active
-      ) || [];
+      const todaysSchedules = schedules.filter((s: Record<string, unknown>) => {
+        const days = s.days_of_week as number[] | undefined;
+        const med = s.medications as { is_active?: boolean } | undefined;
+        return days?.includes(dayOfWeek) && (med?.is_active !== false);
+      });
 
       // Create logs for each schedule
-      const logsToCreate = todaysSchedules.map((schedule) => {
-        const [hours, minutes] = schedule.time_of_day.split(":");
+      const logsToCreate = todaysSchedules.map((schedule: Record<string, unknown>) => {
+        const [hours, minutes] = (schedule.time_of_day as string || "09:00").split(":");
         const scheduledTime = new Date(today);
         scheduledTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
 
@@ -112,19 +103,15 @@ export function SchedulePage() {
           scheduled_time: scheduledTime.toISOString(),
           status: "pending",
         };
-      });
+      }) as Array<Record<string, unknown>>;
 
       if (logsToCreate.length > 0) {
-        // Check for existing logs to avoid duplicates
-        const { data: existingLogs } = await supabase
-          .from("medication_logs")
-          .select("schedule_id, scheduled_time")
-          .eq("user_id", user.id)
-          .gte("scheduled_time", startOfDay(today).toISOString())
-          .lte("scheduled_time", endOfDay(today).toISOString());
-
+        const existingLogs = await listMedicationLogs(user.id, {
+          from: startOfDay(today).toISOString(),
+          to: endOfDay(today).toISOString(),
+        });
         const existingKeys = new Set(
-          existingLogs?.map((l) => `${l.schedule_id}-${l.scheduled_time}`) || []
+          existingLogs.map((l: Record<string, unknown>) => `${l.schedule_id}-${l.scheduled_time}`)
         );
 
         const newLogs = logsToCreate.filter(
@@ -132,8 +119,7 @@ export function SchedulePage() {
         );
 
         if (newLogs.length > 0) {
-          const { error } = await supabase.from("medication_logs").insert(newLogs);
-          if (error) throw error;
+          await insertMedicationLogs(newLogs);
           toast.success(`Generated ${newLogs.length} dose reminders for today`);
         } else {
           toast.info("Today's schedule is already up to date");

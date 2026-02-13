@@ -1,6 +1,13 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import {
+  listEmailAbTests,
+  createEmailAbTest,
+  updateEmailAbTest,
+  deleteEmailAbTest,
+  listEmailAbAssignments,
+  deleteEmailAbAssignmentsByTestId,
+} from "@/integrations/azure/data";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import {
@@ -172,37 +179,30 @@ export function ABTestingPage() {
   const { data: tests, isLoading } = useQuery({
     queryKey: ["ab-tests"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("email_ab_tests" as any)
-        .select("*")
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-      return (data || []) as unknown as ABTest[];
+      const data = await listEmailAbTests();
+      return data.sort(
+        (a, b) =>
+          new Date((b.created_at as string) ?? 0).getTime() -
+          new Date((a.created_at as string) ?? 0).getTime()
+      ) as ABTest[];
     },
   });
 
-  // Fetch test results/stats
+  // Fetch test results/stats from assignments (sent counts; opened/clicked from backend if joined)
   const { data: testResults } = useQuery({
     queryKey: ["ab-test-results"],
     queryFn: async () => {
-      const { data: assignments, error } = await supabase
-        .from("email_ab_assignments" as any)
-        .select(`
-          test_id,
-          variant,
-          notification_id,
-          notification_history(status, opened_at, clicked_at)
-        `);
-
-      if (error) throw error;
-
+      const assignments = await listEmailAbAssignments();
       const results: Record<string, ABTestResults> = {};
-      
-      for (const assignment of (assignments || []) as any[]) {
-        if (!results[assignment.test_id]) {
-          results[assignment.test_id] = {
-            test_id: assignment.test_id,
+
+      for (const a of assignments) {
+        const testId = a.test_id as string;
+        const variant = (a.variant as string) ?? "A";
+        const history = a.notification_history as { opened_at?: string; clicked_at?: string } | undefined;
+
+        if (!results[testId]) {
+          results[testId] = {
+            test_id: testId,
             variant_a_sent: 0,
             variant_a_opened: 0,
             variant_a_clicked: 0,
@@ -211,11 +211,8 @@ export function ABTestingPage() {
             variant_b_clicked: 0,
           };
         }
-
-        const r = results[assignment.test_id];
-        const history = assignment.notification_history;
-        
-        if (assignment.variant === "A") {
+        const r = results[testId];
+        if (variant === "A") {
           r.variant_a_sent++;
           if (history?.opened_at) r.variant_a_opened++;
           if (history?.clicked_at) r.variant_a_clicked++;
@@ -225,7 +222,6 @@ export function ABTestingPage() {
           if (history?.clicked_at) r.variant_b_clicked++;
         }
       }
-
       return Object.values(results);
     },
     enabled: !!tests?.length,
@@ -234,20 +230,16 @@ export function ABTestingPage() {
   // Create new test
   const createTestMutation = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase
-        .from("email_ab_tests" as any)
-        .insert({
-          test_name: newTest.test_name,
-          notification_type: newTest.notification_type,
-          variant_a_subject: newTest.variant_a_subject,
-          variant_a_preview: newTest.variant_a_preview || null,
-          variant_b_subject: newTest.variant_b_subject,
-          variant_b_preview: newTest.variant_b_preview || null,
-          end_date: newTest.end_date ? new Date(newTest.end_date).toISOString() : null,
-          is_active: true,
-        } as any);
-
-      if (error) throw error;
+      await createEmailAbTest({
+        test_name: newTest.test_name,
+        notification_type: newTest.notification_type,
+        variant_a_subject: newTest.variant_a_subject,
+        variant_a_preview: newTest.variant_a_preview || null,
+        variant_b_subject: newTest.variant_b_subject,
+        variant_b_preview: newTest.variant_b_preview || null,
+        end_date: newTest.end_date ? new Date(newTest.end_date).toISOString() : null,
+        is_active: true,
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["ab-tests"] });
@@ -272,20 +264,15 @@ export function ABTestingPage() {
   // Update test
   const updateTestMutation = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase
-        .from("email_ab_tests" as any)
-        .update({
-          test_name: editTest.test_name,
-          notification_type: editTest.notification_type,
-          variant_a_subject: editTest.variant_a_subject,
-          variant_a_preview: editTest.variant_a_preview || null,
-          variant_b_subject: editTest.variant_b_subject,
-          variant_b_preview: editTest.variant_b_preview || null,
-          end_date: editTest.end_date ? new Date(editTest.end_date).toISOString() : null,
-        } as any)
-        .eq("id", editTest.id);
-
-      if (error) throw error;
+      await updateEmailAbTest(editTest.id, {
+        test_name: editTest.test_name,
+        notification_type: editTest.notification_type,
+        variant_a_subject: editTest.variant_a_subject,
+        variant_a_preview: editTest.variant_a_preview || null,
+        variant_b_subject: editTest.variant_b_subject,
+        variant_b_preview: editTest.variant_b_preview || null,
+        end_date: editTest.end_date ? new Date(editTest.end_date).toISOString() : null,
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["ab-tests"] });
@@ -301,19 +288,8 @@ export function ABTestingPage() {
   // Delete test
   const deleteTestMutation = useMutation({
     mutationFn: async (testId: string) => {
-      // First delete assignments
-      await supabase
-        .from("email_ab_assignments" as any)
-        .delete()
-        .eq("test_id", testId);
-
-      // Then delete the test
-      const { error } = await supabase
-        .from("email_ab_tests" as any)
-        .delete()
-        .eq("id", testId);
-
-      if (error) throw error;
+      await deleteEmailAbAssignmentsByTestId(testId);
+      await deleteEmailAbTest(testId);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["ab-tests"] });
@@ -331,19 +307,15 @@ export function ABTestingPage() {
   // Duplicate test
   const duplicateTestMutation = useMutation({
     mutationFn: async (test: ABTest) => {
-      const { error } = await supabase
-        .from("email_ab_tests" as any)
-        .insert({
-          test_name: `${test.test_name} (Copy)`,
-          notification_type: test.notification_type,
-          variant_a_subject: test.variant_a_subject,
-          variant_a_preview: test.variant_a_preview,
-          variant_b_subject: test.variant_b_subject,
-          variant_b_preview: test.variant_b_preview,
-          is_active: false,
-        } as any);
-
-      if (error) throw error;
+      await createEmailAbTest({
+        test_name: `${test.test_name} (Copy)`,
+        notification_type: test.notification_type,
+        variant_a_subject: test.variant_a_subject,
+        variant_a_preview: test.variant_a_preview ?? null,
+        variant_b_subject: test.variant_b_subject,
+        variant_b_preview: test.variant_b_preview ?? null,
+        is_active: false,
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["ab-tests"] });
@@ -358,12 +330,7 @@ export function ABTestingPage() {
   // Toggle test active status
   const toggleTestMutation = useMutation({
     mutationFn: async ({ id, is_active }: { id: string; is_active: boolean }) => {
-      const { error } = await supabase
-        .from("email_ab_tests" as any)
-        .update({ is_active } as any)
-        .eq("id", id);
-
-      if (error) throw error;
+      await updateEmailAbTest(id, { is_active });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["ab-tests"] });

@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import {
   Dialog,
   DialogContent,
@@ -47,14 +46,13 @@ export function RequestRefillDialog({
 
     setIsSubmitting(true);
     try {
-      const { error } = await supabase.from("refill_requests").insert({
+      const { createRefillRequest } = await import("@/integrations/azure/data");
+      await createRefillRequest({
         patient_user_id: user.id,
         medication_id: medication.id,
         patient_notes: notes.trim() || null,
         status: "pending",
       });
-
-      if (error) throw error;
 
       toast.success("Refill request submitted", {
         description: "Your pharmacy will review your request shortly.",

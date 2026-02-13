@@ -17,8 +17,8 @@ declare const __BUILD_DATE__: string;
 declare const __BUILD_NUMBER__: string;
 
 // Base version - update manually for major/minor releases
-const MAJOR_VERSION = 1;
-const MINOR_VERSION = 36;
+const MAJOR_VERSION = 2;
+const MINOR_VERSION = 0;
 
 // Build-time values (injected by Vite at build time)
 const buildTimestamp = typeof __BUILD_TIMESTAMP__ !== 'undefined' 

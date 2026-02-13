@@ -1,22 +1,10 @@
-import { supabase } from "@/integrations/supabase/client";
+import { getActiveEmailAbTest, getEmailAbAssignment } from "@/integrations/azure/data";
 
 interface ABTestResult {
   testId: string;
   variant: "A" | "B";
   subject: string;
   preview: string | null;
-}
-
-interface ABTestRecord {
-  id: string;
-  variant_a_subject: string;
-  variant_b_subject: string;
-  variant_a_preview: string | null;
-  variant_b_preview: string | null;
-}
-
-interface ABAssignmentRecord {
-  variant: string;
 }
 
 /**
@@ -28,47 +16,27 @@ export async function getABTestVariant(
   notificationType: string
 ): Promise<ABTestResult | null> {
   try {
-    // Get active test for this notification type
-    const { data: testData, error: testError } = await supabase
-      .from("email_ab_tests" as any)
-      .select("*")
-      .eq("notification_type", notificationType)
-      .eq("is_active", true)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    const test = await getActiveEmailAbTest(notificationType);
+    if (!test || !test.id) return null;
 
-    if (testError || !testData) {
-      return null;
-    }
-
-    const test = testData as unknown as ABTestRecord;
-
-    // Check if user already has an assignment for this test
-    const { data: assignmentData } = await supabase
-      .from("email_ab_assignments" as any)
-      .select("variant")
-      .eq("test_id", test.id)
-      .eq("user_id", userId)
-      .maybeSingle();
+    const assignment = await getEmailAbAssignment(test.id as string, userId);
 
     let variant: "A" | "B";
-
-    if (assignmentData) {
-      const assignment = assignmentData as unknown as ABAssignmentRecord;
+    if (assignment?.variant) {
       variant = assignment.variant as "A" | "B";
     } else {
-      // Assign based on user ID hash for consistent assignment
-      // Simple hash: sum of char codes mod 2
       const hash = userId.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0);
       variant = hash % 2 === 0 ? "A" : "B";
     }
 
     return {
-      testId: test.id,
+      testId: test.id as string,
       variant,
-      subject: variant === "A" ? test.variant_a_subject : test.variant_b_subject,
-      preview: variant === "A" ? test.variant_a_preview : test.variant_b_preview,
+      subject:
+        (variant === "A" ? test.variant_a_subject : test.variant_b_subject) as string,
+      preview: (variant === "A"
+        ? test.variant_a_preview
+        : test.variant_b_preview) as string | null,
     };
   } catch (error) {
     console.error("Error getting A/B test variant:", error);
@@ -86,12 +54,13 @@ export async function recordABTestAssignment(
   notificationId: string
 ): Promise<void> {
   try {
-    await supabase.from("email_ab_assignments" as any).insert({
+    const { insertEmailAbAssignment } = await import("@/integrations/azure/data");
+    await insertEmailAbAssignment({
       test_id: testId,
       user_id: userId,
       variant,
       notification_id: notificationId,
-    } as any);
+    });
   } catch (error) {
     console.error("Error recording A/B test assignment:", error);
   }

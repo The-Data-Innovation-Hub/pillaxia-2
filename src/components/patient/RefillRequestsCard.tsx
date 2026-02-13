@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { listRefillRequests } from "@/integrations/azure/data";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -28,24 +28,13 @@ export function RefillRequestsCard() {
   const { data: requests, isLoading } = useQuery({
     queryKey: ["patient-refill-requests", user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("refill_requests")
-        .select(`
-          id,
-          status,
-          patient_notes,
-          pharmacist_notes,
-          refills_granted,
-          created_at,
-          resolved_at,
-          medications (name, dosage, dosage_unit)
-        `)
-        .eq("patient_user_id", user!.id)
-        .order("created_at", { ascending: false })
-        .limit(5);
-
-      if (error) throw error;
-      return data as RefillRequest[];
+      const data = await listRefillRequests({ patient_user_id: user!.id });
+      const sorted = (data || []).sort(
+        (a, b) =>
+          new Date((b.created_at as string) || 0).getTime() -
+          new Date((a.created_at as string) || 0).getTime()
+      );
+      return sorted.slice(0, 5) as RefillRequest[];
     },
     enabled: !!user?.id,
   });

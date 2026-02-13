@@ -1,6 +1,11 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import {
+  listMedicationsForPharmacist,
+  listProfilesByUserIds,
+  updateMedication,
+  apiInvoke,
+} from "@/integrations/azure/data";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -62,22 +67,17 @@ export function PrescriptionsPage() {
   const { data: prescriptions, isLoading } = useQuery({
     queryKey: ["all-prescriptions"],
     queryFn: async () => {
-      const { data: medications, error } = await supabase
-        .from("medications")
-        .select("*")
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-
-      const userIds = [...new Set(medications?.map((m) => m.user_id) || [])];
-
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("user_id, first_name, last_name, email")
-        .in("user_id", userIds);
-
-      const prescriptionsWithPatients: Prescription[] = (medications || []).map((med) => {
-        const profile = profiles?.find((p) => p.user_id === med.user_id);
+      const medications = await listMedicationsForPharmacist();
+      const sorted = [...medications].sort(
+        (a, b) =>
+          new Date((b.created_at as string) || 0).getTime() -
+          new Date((a.created_at as string) || 0).getTime()
+      );
+      const userIds = [...new Set(sorted.map((m) => m.user_id as string))];
+      const profilesList = userIds.length ? await listProfilesByUserIds(userIds) : [];
+      const profiles = Array.isArray(profilesList) ? profilesList : [];
+      return sorted.map((med) => {
+        const profile = profiles.find((p: Record<string, unknown>) => p.user_id === med.user_id);
         return {
           ...med,
           prescription_status: (med.prescription_status || "pending") as PrescriptionStatus,
@@ -89,39 +89,28 @@ export function PrescriptionsPage() {
               }
             : null,
         };
-      });
-
-      return prescriptionsWithPatients;
+      }) as Prescription[];
     },
   });
 
   const updateStatusMutation = useMutation({
-    mutationFn: async ({ id, status, patientUserId, medicationName, pharmacy }: { 
-      id: string; 
+    mutationFn: async ({ id, status, patientUserId, medicationName, pharmacy }: {
+      id: string;
       status: PrescriptionStatus;
       patientUserId: string;
       medicationName: string;
       pharmacy?: string;
     }) => {
-      const { error } = await supabase
-        .from("medications")
-        .update({ prescription_status: status })
-        .eq("id", id);
-      if (error) throw error;
-
-      // Send notification to patient
+      await updateMedication(id, { prescription_status: status });
       try {
-        await supabase.functions.invoke("send-prescription-status-notification", {
-          body: {
-            patient_user_id: patientUserId,
-            medication_name: medicationName,
-            new_status: status,
-            pharmacy: pharmacy,
-          },
+        await apiInvoke("send-prescription-status-notification", {
+          patient_user_id: patientUserId,
+          medication_name: medicationName,
+          new_status: status,
+          pharmacy: pharmacy,
         });
       } catch (notifError) {
         console.error("Failed to send notification:", notifError);
-        // Don't throw - status update succeeded, notification is secondary
       }
     },
     onSuccess: () => {

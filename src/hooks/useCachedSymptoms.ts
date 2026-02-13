@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
+import { listSymptomEntries } from "@/integrations/azure/data";
 import { symptomCache, type CachedSymptomEntry } from "@/lib/cache";
 import { useOfflineStatus } from "./useOfflineStatus";
 
@@ -30,7 +30,7 @@ export function useCachedSymptoms(): UseCachedSymptomsResult {
       if (cachedSymptoms.length > 0) {
         setSymptoms(cachedSymptoms);
         setIsFromCache(true);
-        setHasPending(cachedSymptoms.some(s => s._pending));
+        setHasPending(cachedSymptoms.some((s) => s._pending));
         const timestamp = await symptomCache.getCacheTimestamp(user.id);
         if (timestamp) {
           setLastUpdated(new Date(timestamp));
@@ -47,21 +47,15 @@ export function useCachedSymptoms(): UseCachedSymptomsResult {
     if (!user) return;
 
     try {
-      const { data, error } = await supabase
-        .from("symptom_entries")
-        .select(`
-          *,
-          medications (name)
-        `)
-        .eq("user_id", user.id)
-        .order("recorded_at", { ascending: false })
-        .limit(50);
+      const data = await listSymptomEntries(user.id);
+      const typedSymptoms = (data || [])
+        .sort(
+          (a, b) =>
+            new Date((b.recorded_at as string) || 0).getTime() -
+            new Date((a.recorded_at as string) || 0).getTime()
+        )
+        .slice(0, 50) as CachedSymptomEntry[];
 
-      if (error) throw error;
-
-      const typedSymptoms = (data || []) as CachedSymptomEntry[];
-
-      // Cache should never block rendering network data.
       let pendingSymptoms: CachedSymptomEntry[] = [];
       try {
         pendingSymptoms = await symptomCache.getPendingSymptoms(user.id);
@@ -69,10 +63,10 @@ export function useCachedSymptoms(): UseCachedSymptomsResult {
         console.warn("Symptom cache unavailable (pending symptoms):", cacheError);
       }
 
-      // Merge: pending first, then synced
       const mergedSymptoms = [...pendingSymptoms, ...typedSymptoms];
       mergedSymptoms.sort(
-        (a, b) => new Date(b.recorded_at).getTime() - new Date(a.recorded_at).getTime()
+        (a, b) =>
+          new Date(b.recorded_at).getTime() - new Date(a.recorded_at).getTime()
       );
 
       setSymptoms(mergedSymptoms);
@@ -80,7 +74,6 @@ export function useCachedSymptoms(): UseCachedSymptomsResult {
       setLastUpdated(new Date());
       setHasPending(pendingSymptoms.length > 0);
 
-      // Save to cache for offline access (only synced entries)
       try {
         await symptomCache.saveSymptoms(user.id, typedSymptoms);
       } catch (cacheError) {
@@ -93,21 +86,19 @@ export function useCachedSymptoms(): UseCachedSymptomsResult {
 
   const refresh = useCallback(async () => {
     if (!user) return;
-    
-    // Clear current state to force re-render
+
     setSymptoms([]);
     setLoading(true);
-    
+
     if (isOnline) {
       await fetchFromNetwork();
     } else {
       await loadFromCache();
     }
-    
+
     setLoading(false);
   }, [user, isOnline, fetchFromNetwork, loadFromCache]);
 
-  // Initial load: cache first, then network
   useEffect(() => {
     const initialize = async () => {
       if (!user) {
@@ -115,17 +106,15 @@ export function useCachedSymptoms(): UseCachedSymptomsResult {
         return;
       }
 
-      // First, try to load from cache for instant display
       const hasCached = await loadFromCache();
       if (hasCached) {
         setLoading(false);
       }
 
-      // Then fetch fresh data from network if online
       if (isOnline) {
         await fetchFromNetwork();
       }
-      
+
       setLoading(false);
     };
 

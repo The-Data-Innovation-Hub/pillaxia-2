@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { listCaregiverMessages, listProfilesByUserIds } from "@/integrations/azure/data";
 import {
   Card,
   CardContent,
@@ -34,79 +34,52 @@ export function PatientMessagesCard() {
     queryFn: async () => {
       if (!user) return [];
 
-      // Get all messages for this patient
-      const { data, error } = await supabase
-        .from("caregiver_messages")
-        .select("id, message, is_read, created_at, caregiver_user_id, sender_type")
-        .eq("patient_user_id", user.id)
-        .order("created_at", { ascending: false });
+      const data = await listCaregiverMessages({ patient_user_id: user.id });
+      const sorted = (data || []).sort(
+        (a, b) =>
+          new Date((b.created_at as string) || 0).getTime() -
+          new Date((a.created_at as string) || 0).getTime()
+      );
+      if (sorted.length === 0) return [];
 
-      if (error) throw error;
-      if (!data || data.length === 0) return [];
-
-      // Group by caregiver
-      const caregiverIds = [...new Set(data.map((m) => m.caregiver_user_id))];
-      
-      // Fetch caregiver profiles
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("user_id, first_name, last_name")
-        .in("user_id", caregiverIds);
-
+      const caregiverIds = [...new Set(sorted.map((m) => m.caregiver_user_id as string))];
+      const profiles = await listProfilesByUserIds(caregiverIds);
       const profileMap = new Map(
-        profiles?.map((p) => [p.user_id, p]) || []
+        (profiles || []).map((p) => [(p.user_id as string) ?? (p as { user_id?: string }).user_id!, p])
       );
 
-      // Build conversation summaries
       const convMap = new Map<string, Conversation>();
-      for (const msg of data) {
-        if (!convMap.has(msg.caregiver_user_id)) {
-          const profile = profileMap.get(msg.caregiver_user_id);
-          convMap.set(msg.caregiver_user_id, {
-            caregiver_user_id: msg.caregiver_user_id,
-            caregiver_name: profile?.first_name 
+      for (const msg of sorted) {
+        const cid = msg.caregiver_user_id as string;
+        if (!convMap.has(cid)) {
+          const profile = profileMap.get(cid) as { first_name?: string; last_name?: string } | undefined;
+          convMap.set(cid, {
+            caregiver_user_id: cid,
+            caregiver_name: profile?.first_name
               ? `${profile.first_name} ${profile.last_name || ""}`.trim()
               : "Caregiver",
-            last_message: msg.message,
-            last_message_time: msg.created_at,
+            last_message: msg.message as string,
+            last_message_time: msg.created_at as string,
             unread_count: 0,
           });
         }
-        // Count unread messages from caregiver
         if (!msg.is_read && msg.sender_type === "caregiver") {
-          const conv = convMap.get(msg.caregiver_user_id)!;
+          const conv = convMap.get(cid)!;
           conv.unread_count++;
         }
       }
-
       return Array.from(convMap.values());
     },
     enabled: !!user,
   });
 
-  // Subscribe to realtime updates
+  // Poll for new messages (realtime removed)
   useEffect(() => {
     if (!user) return;
-
-    const channel = supabase
-      .channel("patient-messages-realtime")
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "caregiver_messages",
-          filter: `patient_user_id=eq.${user.id}`,
-        },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ["patient-messages"] });
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    const interval = setInterval(() => {
+      queryClient.invalidateQueries({ queryKey: ["patient-messages"] });
+    }, 15000);
+    return () => clearInterval(interval);
   }, [user, queryClient]);
 
   const totalUnread = conversations?.reduce((acc, c) => acc + c.unread_count, 0) || 0;

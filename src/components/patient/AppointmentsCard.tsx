@@ -1,7 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { listAppointments, listProfilesByUserIds, updateAppointment } from "@/integrations/azure/data";
 import { format, parseISO, isBefore, startOfToday, isToday } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -47,27 +47,17 @@ export function AppointmentsCard() {
   const { data: appointments, isLoading } = useQuery({
     queryKey: ["patient-appointments", user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("appointments")
-        .select("*")
-        .eq("patient_user_id", user!.id)
-        .order("appointment_date", { ascending: true })
-        .order("appointment_time", { ascending: true });
-
-      if (error) throw error;
-
-      // Fetch clinician profiles
-      const clinicianIds = [...new Set(data.map((a) => a.clinician_user_id))];
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("user_id, first_name, last_name")
-        .in("user_id", clinicianIds);
-
-      const profileMap = new Map(profiles?.map((p) => [p.user_id, p]));
-
-      return data.map((appointment) => ({
+      const data = await listAppointments({ patient_user_id: user!.id });
+      const sorted = (data || []).sort((a, b) => {
+        const d = (a.appointment_date as string).localeCompare(b.appointment_date as string);
+        return d !== 0 ? d : (a.appointment_time as string).localeCompare(b.appointment_time as string);
+      });
+      const clinicianIds = [...new Set(sorted.map((a) => a.clinician_user_id as string))];
+      const profiles = await listProfilesByUserIds(clinicianIds);
+      const profileMap = new Map((profiles || []).map((p) => [(p.user_id as string) ?? (p as { user_id?: string }).user_id!, p]));
+      return sorted.map((appointment) => ({
         ...appointment,
-        clinician: profileMap.get(appointment.clinician_user_id),
+        clinician: profileMap.get(appointment.clinician_user_id as string),
       })) as Appointment[];
     },
     enabled: !!user,
@@ -75,11 +65,7 @@ export function AppointmentsCard() {
 
   const updateStatusMutation = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
-      const { error } = await supabase
-        .from("appointments")
-        .update({ status })
-        .eq("id", id);
-      if (error) throw error;
+      await updateAppointment(id, { status });
     },
     onSuccess: (_, { status }) => {
       queryClient.invalidateQueries({ queryKey: ["patient-appointments"] });

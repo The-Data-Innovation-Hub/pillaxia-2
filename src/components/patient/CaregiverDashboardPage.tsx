@@ -1,7 +1,13 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import {
+  listCaregiverInvitations,
+  getProfileByUserId,
+  listMedications,
+  listMedicationLogs,
+  listSymptomEntries,
+} from "@/integrations/azure/data";
 import { useMissedDoseAlerts } from "@/hooks/useMissedDoseAlerts";
 import {
   Card,
@@ -78,50 +84,37 @@ export function CaregiverDashboardPage() {
     queryFn: async () => {
       if (!user) return [];
 
-      // Get all accepted invitations for this caregiver
-      const { data: invitations, error: invError } = await supabase
-        .from("caregiver_invitations")
-        .select("*")
-        .eq("caregiver_user_id", user.id)
-        .eq("status", "accepted");
-
-      if (invError) throw invError;
+      const invitations = await listCaregiverInvitations({
+        caregiver_user_id: user.id,
+        status: "accepted",
+      });
       if (!invitations || invitations.length === 0) return [];
 
-      // Fetch data for each patient
       const patientsWithData = await Promise.all(
         invitations.map(async (inv) => {
           const permissions = (inv.permissions as CaregiverPermissions) || {};
+          const patientId = inv.patient_user_id as string;
 
-          // Fetch patient profile
-          const { data: profile } = await supabase
-            .from("profiles")
-            .select("first_name, last_name, email")
-            .eq("user_id", inv.patient_user_id)
-            .maybeSingle();
+          const profile = await getProfileByUserId(patientId);
+          const p = profile as { first_name?: string; last_name?: string; email?: string } | null;
 
-          // Fetch medications if permitted
           let medications: PatientWithData["medications"] = [];
           if (permissions.view_medications) {
-            const { data: meds } = await supabase
-              .from("medications")
-              .select("id, name, dosage, dosage_unit, is_active")
-              .eq("user_id", inv.patient_user_id)
-              .eq("is_active", true);
-            medications = meds || [];
+            const meds = await listMedications(patientId);
+            medications = (meds || []).filter((m) => m.is_active !== false).map((m) => ({
+              id: m.id,
+              name: m.name,
+              dosage: m.dosage,
+              dosage_unit: m.dosage_unit,
+              is_active: m.is_active,
+            })) as PatientWithData["medications"];
           }
 
-          // Fetch adherence stats (last 7 days) if permitted
           let adherenceStats = { total: 0, taken: 0, missed: 0, pending: 0, percentage: 0 };
           if (permissions.view_adherence) {
             const sevenDaysAgo = subDays(new Date(), 7);
-            const { data: logs } = await supabase
-              .from("medication_logs")
-              .select("status")
-              .eq("user_id", inv.patient_user_id)
-              .gte("scheduled_time", sevenDaysAgo.toISOString());
-
-            if (logs) {
+            const logs = await listMedicationLogs(patientId, { from: sevenDaysAgo.toISOString() });
+            if (logs && logs.length > 0) {
               adherenceStats.total = logs.length;
               adherenceStats.taken = logs.filter((l) => l.status === "taken").length;
               adherenceStats.missed = logs.filter((l) => l.status === "missed").length;
@@ -133,24 +126,31 @@ export function CaregiverDashboardPage() {
             }
           }
 
-          // Fetch recent symptoms (last 7 days) if permitted
           let recentSymptoms: PatientWithData["recentSymptoms"] = [];
           if (permissions.view_symptoms) {
             const sevenDaysAgo = subDays(new Date(), 7);
-            const { data: symptoms } = await supabase
-              .from("symptom_entries")
-              .select("id, symptom_type, severity, recorded_at, description")
-              .eq("user_id", inv.patient_user_id)
-              .gte("recorded_at", sevenDaysAgo.toISOString())
-              .order("recorded_at", { ascending: false })
-              .limit(10);
-            recentSymptoms = symptoms || [];
+            const symptoms = await listSymptomEntries(patientId);
+            recentSymptoms = (symptoms || [])
+              .filter((s) => new Date((s.recorded_at as string) || 0) >= sevenDaysAgo)
+              .sort(
+                (a, b) =>
+                  new Date((b.recorded_at as string) || 0).getTime() -
+                  new Date((a.recorded_at as string) || 0).getTime()
+              )
+              .slice(0, 10)
+              .map((s) => ({
+                id: s.id,
+                symptom_type: s.symptom_type,
+                severity: s.severity,
+                recorded_at: s.recorded_at,
+                description: s.description,
+              })) as PatientWithData["recentSymptoms"];
           }
 
           return {
-            patient_user_id: inv.patient_user_id,
+            patient_user_id: patientId,
             permissions,
-            patient_profile: profile,
+            patient_profile: p ? { first_name: p.first_name ?? null, last_name: p.last_name ?? null, email: p.email ?? null } : null,
             medications,
             adherenceStats,
             recentSymptoms,

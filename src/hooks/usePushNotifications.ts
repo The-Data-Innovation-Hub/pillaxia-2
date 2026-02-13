@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Capacitor } from "@capacitor/core";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { upsertPushSubscription, deletePushSubscription } from "@/integrations/azure/data";
 import { toast } from "@/hooks/use-toast";
 import { getVapidPublicKey } from "@/lib/push/getVapidPublicKey";
 
@@ -149,18 +149,12 @@ export function usePushNotifications() {
         throw new Error("Failed to get subscription keys");
       }
 
-      // Save subscription to database
-      const { error } = await supabase.from("push_subscriptions").upsert(
-        {
-          user_id: user.id,
-          endpoint: subscription.endpoint,
-          p256dh: keys.p256dh,
-          auth: keys.auth,
-        },
-        { onConflict: "user_id,endpoint" }
-      );
-
-      if (error) throw error;
+      await upsertPushSubscription({
+        user_id: user.id,
+        endpoint: subscription.endpoint,
+        p256dh: keys.p256dh,
+        auth: keys.auth,
+      });
 
       setState((prev) => ({
         ...prev,
@@ -200,12 +194,7 @@ export function usePushNotifications() {
         // Unsubscribe from push manager
         await subscription.unsubscribe();
 
-        // Remove from database
-        await supabase
-          .from("push_subscriptions")
-          .delete()
-          .eq("user_id", user.id)
-          .eq("endpoint", subscription.endpoint);
+        await deletePushSubscription(user.id, { endpoint: subscription.endpoint });
       }
 
       setState((prev) => ({

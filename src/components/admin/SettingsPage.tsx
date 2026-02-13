@@ -1,6 +1,10 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import {
+  apiInvoke,
+  listNotificationSettings,
+  updateNotificationSetting,
+} from "@/integrations/azure/data";
 import {
   Card,
   CardContent,
@@ -90,7 +94,7 @@ export function SettingsPage() {
   const [shouldThrowError, setShouldThrowError] = useState(false);
   const [seedingUsers, setSeedingUsers] = useState(false);
   const queryClient = useQueryClient();
-  const { user, isManager, isAdmin } = useAuth();
+  const { user, session, isManager, isAdmin } = useAuth();
 
   // Load onboarding preference - default is OFF (disabled)
   useEffect(() => {
@@ -113,61 +117,49 @@ export function SettingsPage() {
     toast.success(enabled ? "Progressive onboarding enabled" : "Progressive onboarding disabled");
   };
 
-  // Check integration status by calling a test endpoint
   const { data: integrationStatus, isLoading, refetch } = useQuery({
     queryKey: ["integration-status"],
     queryFn: async (): Promise<IntegrationStatus> => {
-      // Test WhatsApp configuration
       let whatsappConfigured = false;
       try {
-        const { data } = await supabase.functions.invoke("send-whatsapp-notification", {
-          body: { recipientId: "test", senderName: "test", message: "test" },
+        const { data } = await apiInvoke("send-whatsapp-notification", {
+          recipientId: "test",
+          senderName: "test",
+          message: "test",
         });
-        // If it returns "not_configured", it's not set up
-        whatsappConfigured = data?.reason !== "not_configured";
+        whatsappConfigured = (data as { reason?: string })?.reason !== "not_configured";
       } catch {
         whatsappConfigured = false;
       }
-
-      // Test Resend configuration
       let resendConfigured = false;
       try {
-        const { data } = await supabase.functions.invoke("send-encouragement-email", {
-          body: { patientEmail: "test@test.com", patientName: "Test", caregiverName: "Test", message: "test" },
+        const { data } = await apiInvoke("send-encouragement-email", {
+          patientEmail: "test@test.com",
+          patientName: "Test",
+          caregiverName: "Test",
+          message: "test",
         });
-        // If it doesn't error with missing API key, it's configured
-        resendConfigured = !data?.error?.includes("RESEND_API_KEY");
+        resendConfigured = !(data as { error?: string })?.error?.includes("RESEND_API_KEY");
       } catch {
-        resendConfigured = true; // Assume configured if other error
+        resendConfigured = true;
       }
-
       return { whatsapp: whatsappConfigured, resend: resendConfigured };
     },
   });
 
-  // Fetch notification settings
   const { data: notificationSettings, isLoading: loadingSettings } = useQuery({
     queryKey: ["notification-settings"],
     queryFn: async (): Promise<NotificationSetting[]> => {
-      const { data, error } = await supabase
-        .from("notification_settings")
-        .select("*")
-        .order("setting_key");
-      
-      if (error) throw error;
-      return data as NotificationSetting[];
+      const list = await listNotificationSettings();
+      return [...list].sort((a, b) =>
+        ((a.setting_key as string) || "").localeCompare((b.setting_key as string) || "")
+      ) as NotificationSetting[];
     },
   });
 
-  // Update notification setting mutation
   const updateSettingMutation = useMutation({
     mutationFn: async ({ settingKey, isEnabled }: { settingKey: string; isEnabled: boolean }) => {
-      const { error } = await supabase
-        .from("notification_settings")
-        .update({ is_enabled: isEnabled, updated_by: user?.id })
-        .eq("setting_key", settingKey);
-      
-      if (error) throw error;
+      await updateNotificationSetting(settingKey, { is_enabled: isEnabled, updated_by: user?.id });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["notification-settings"] });
@@ -181,25 +173,22 @@ export function SettingsPage() {
   const handleTestWhatsApp = async () => {
     setTestingWhatsApp(true);
     try {
-      const { data, error } = await supabase.functions.invoke("send-whatsapp-notification", {
-        body: { 
-          recipientId: "test", 
-          senderName: "Pillaxia Admin", 
-          message: "This is a test message from Pillaxia." 
-        },
+      const { data, error } = await apiInvoke("send-whatsapp-notification", {
+        recipientId: "test",
+        senderName: "Pillaxia Admin",
+        message: "This is a test message from Pillaxia.",
       });
-      
       if (error) throw error;
-      
-      if (data?.reason === "not_configured") {
+      const d = data as { reason?: string; success?: boolean };
+      if (d?.reason === "not_configured") {
         toast.error("WhatsApp API is not configured", {
           description: "Please add the required secrets to enable WhatsApp notifications.",
         });
-      } else if (data?.reason === "no_phone") {
+      } else if (d?.reason === "no_phone") {
         toast.info("No phone number", {
           description: "The test user has no phone number configured.",
         });
-      } else if (data?.success) {
+      } else if (d?.success) {
         toast.success("WhatsApp test successful!", {
           description: "A test message was sent successfully.",
         });
@@ -227,24 +216,19 @@ export function SettingsPage() {
   const handleSeedDemoUsers = async () => {
     setSeedingUsers(true);
     try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      if (!sessionData?.session?.access_token) {
+      if (!session?.access_token) {
         toast.error("Authentication required", {
           description: "Please log in to seed demo users.",
         });
         return;
       }
 
-      const { data, error } = await supabase.functions.invoke("seed-demo-users", {
-        headers: {
-          Authorization: `Bearer ${sessionData.session.access_token}`,
-        },
-      });
+      const { data, error } = await apiInvoke<{ success?: boolean; results?: Array<{ status: string }>; error?: string }>("seed-demo-users", {});
 
       if (error) throw error;
 
       if (data?.success) {
-        const created = data.results?.filter((r: { status: string }) => r.status === "created").length || 0;
+        const created = data.results?.filter((r) => r.status === "created").length || 0;
         const reset = data.results?.filter((r: { status: string }) => r.status === "password reset").length || 0;
         const errors = data.results?.filter((r: { status: string }) => r.status === "error").length || 0;
 
@@ -274,20 +258,16 @@ export function SettingsPage() {
 
     setTestingPush(true);
     try {
-      const { data, error } = await supabase.functions.invoke("send-push-notification", {
-        body: {
-          user_ids: [targetUserId],
-          payload: {
-            title: "🔔 Test Push Notification",
-            body: "This is a test push notification from Pillaxia Admin!",
-            tag: "admin-test",
-            data: { url: "/dashboard" },
-          },
+      const { data, error } = await apiInvoke<{ sent?: number }>("send-push-notification", {
+        user_ids: [targetUserId],
+        payload: {
+          title: "🔔 Test Push Notification",
+          body: "This is a test push notification from Pillaxia Admin!",
+          tag: "admin-test",
+          data: { url: "/dashboard" },
         },
       });
-
       if (error) throw error;
-
       if (data?.sent === 0) {
         toast.info("No subscriptions found", {
           description: "The user hasn't enabled push notifications yet. They need to enable it in their Settings page.",
@@ -884,13 +864,10 @@ function GracePeriodCard({ notificationSettings, queryClient, userId }: GracePer
 
     setIsSaving(true);
     try {
-      const { error } = await supabase
-        .from("notification_settings")
-        .update({ description: value.toString(), updated_by: userId })
-        .eq("setting_key", "missed_dose_grace_period");
-
-      if (error) throw error;
-      
+      await updateNotificationSetting("missed_dose_grace_period", {
+        description: value.toString(),
+        updated_by: userId,
+      });
       queryClient.invalidateQueries({ queryKey: ["notification-settings"] });
       toast.success("Grace period updated successfully");
     } catch (error: unknown) {

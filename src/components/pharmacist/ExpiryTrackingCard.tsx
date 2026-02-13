@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { listControlledDrugs } from "@/integrations/azure/data";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -21,19 +21,30 @@ export function ExpiryTrackingCard() {
   const { data: expiringDrugs, isLoading } = useQuery({
     queryKey: ["expiring-controlled-drugs"],
     queryFn: async () => {
+      const list = await listControlledDrugs();
       const thirtyDaysFromNow = new Date();
       thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
-
-      const { data, error } = await supabase
-        .from("controlled_drugs")
-        .select("id, name, strength, form, expiry_date, current_stock, lot_number")
-        .eq("is_active", true)
-        .not("expiry_date", "is", null)
-        .lte("expiry_date", thirtyDaysFromNow.toISOString().split("T")[0])
-        .order("expiry_date", { ascending: true });
-
-      if (error) throw error;
-      return data as ExpiringDrug[];
+      const cutoff = thirtyDaysFromNow.toISOString().split("T")[0];
+      const filtered = list
+        .filter(
+          (d: Record<string, unknown>) =>
+            d.is_active !== false && d.expiry_date != null && String(d.expiry_date).slice(0, 10) <= cutoff
+        )
+        .sort(
+          (a, b) =>
+            new Date((a.expiry_date as string) || 0).getTime() -
+            new Date((b.expiry_date as string) || 0).getTime()
+        )
+        .map((d) => ({
+          id: d.id,
+          name: d.name,
+          strength: d.strength,
+          form: d.form,
+          expiry_date: d.expiry_date,
+          current_stock: d.current_stock,
+          lot_number: d.lot_number,
+        }));
+      return filtered as ExpiringDrug[];
     },
   });
 

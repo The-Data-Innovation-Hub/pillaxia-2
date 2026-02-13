@@ -1,6 +1,10 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import {
+  listClinicianPatientAssignments,
+  listProfilesByUserIds,
+  listMedicationLogs,
+} from "@/integrations/azure/data";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -38,46 +42,30 @@ export function AdherenceMonitorPage() {
   const { data, isLoading } = useQuery({
     queryKey: ["clinician-adherence", user?.id, timeRange],
     queryFn: async () => {
-      // Get assignments
-      const { data: assignments } = await supabase
-        .from("clinician_patient_assignments")
-        .select("patient_user_id")
-        .eq("clinician_user_id", user!.id);
-
-      if (!assignments?.length) return [];
-
-      const patientIds = assignments.map((a) => a.patient_user_id);
-
-      // Get profiles
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("user_id, first_name, last_name")
-        .in("user_id", patientIds);
+      const assignments = await listClinicianPatientAssignments(user!.id);
+      const patientIds = assignments.map((a) => a.patient_user_id as string);
+      if (!patientIds.length) return [];
 
       const days = parseInt(timeRange);
       const currentStart = subDays(new Date(), days);
       const previousStart = subDays(currentStart, days);
 
-      // Get current period logs
-      const { data: currentLogs } = await supabase
-        .from("medication_logs")
-        .select("user_id, status")
-        .in("user_id", patientIds)
-        .gte("scheduled_time", currentStart.toISOString());
+      const [profilesList, ...currentAndPrevious] = await Promise.all([
+        listProfilesByUserIds(patientIds),
+        ...patientIds.flatMap((patientId) => [
+          listMedicationLogs(patientId, { from: currentStart.toISOString() }),
+          listMedicationLogs(patientId, {
+            from: previousStart.toISOString(),
+            to: currentStart.toISOString(),
+          }),
+        ]),
+      ]);
+      const profiles = Array.isArray(profilesList) ? profilesList : [];
 
-      // Get previous period logs
-      const { data: previousLogs } = await supabase
-        .from("medication_logs")
-        .select("user_id, status")
-        .in("user_id", patientIds)
-        .gte("scheduled_time", previousStart.toISOString())
-        .lt("scheduled_time", currentStart.toISOString());
-
-      // Calculate adherence per patient
-      const patientAdherence: PatientAdherence[] = patientIds.map((patientId) => {
-        const profile = profiles?.find((p) => p.user_id === patientId);
-        const currentPatientLogs = currentLogs?.filter((l) => l.user_id === patientId) || [];
-        const previousPatientLogs = previousLogs?.filter((l) => l.user_id === patientId) || [];
+      const patientAdherence: PatientAdherence[] = patientIds.map((patientId, i) => {
+        const profile = profiles.find((p: Record<string, unknown>) => p.user_id === patientId);
+        const currentPatientLogs = (currentAndPrevious[i * 2] as Array<Record<string, unknown>>) || [];
+        const previousPatientLogs = (currentAndPrevious[i * 2 + 1] as Array<Record<string, unknown>>) || [];
 
         const currentTaken = currentPatientLogs.filter((l) => l.status === "taken").length;
         const currentTotal = currentPatientLogs.length;
@@ -93,7 +81,7 @@ export function AdherenceMonitorPage() {
 
         return {
           patientId,
-          patientName: `${profile?.first_name || ""} ${profile?.last_name || ""}`.trim() || "Unknown",
+          patientName: `${(profile?.first_name as string) || ""} ${(profile?.last_name as string) || ""}`.trim() || "Unknown",
           current7Day,
           previous7Day,
           trend,
@@ -104,7 +92,6 @@ export function AdherenceMonitorPage() {
         };
       });
 
-      // Sort by adherence (lowest first for alerts)
       return patientAdherence.sort((a, b) => a.current7Day - b.current7Day);
     },
     enabled: !!user,

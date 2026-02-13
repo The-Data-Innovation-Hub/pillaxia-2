@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
+import { listNotificationHistory } from "@/integrations/azure/data";
+import { apiInvoke } from "@/integrations/azure/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -68,39 +69,26 @@ export function NotificationHistoryPage() {
   const fetchNotifications = async () => {
     if (!user) return;
     setIsLoading(true);
-
-    let query = supabase
-      .from("notification_history")
-      .select("*")
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: false })
-      .limit(100);
-
-    if (channelFilter !== "all") {
-      query = query.eq("channel", channelFilter);
-    }
-
-    const { data, error } = await query;
-
-    if (error) {
+    try {
+      const data = await listNotificationHistory(user.id, channelFilter !== "all" ? { channel: channelFilter } : undefined);
+      const sorted = (data || []).sort(
+        (a, b) => new Date((b.created_at as string) || 0).getTime() - new Date((a.created_at as string) || 0).getTime()
+      );
+      setNotifications(sorted.slice(0, 100) as NotificationRecord[]);
+    } catch (error) {
       console.error("Error fetching notification history:", error);
-    } else {
-      setNotifications((data as NotificationRecord[]) || []);
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false);
   };
 
   const handleRetry = async (notificationId: string) => {
     setRetryingIds(prev => new Set(prev).add(notificationId));
 
     try {
-      const { data, error } = await supabase.functions.invoke("retry-notification", {
-        body: { notification_id: notificationId },
+      const data = await apiInvoke<{ success?: boolean; error?: string }>("retry-notification", {
+        notification_id: notificationId,
       });
-
-      if (error) {
-        throw error;
-      }
 
       if (data?.success) {
         toast({

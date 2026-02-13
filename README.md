@@ -97,6 +97,20 @@ The following environment variables are automatically configured in Lovable Clou
 | `VITE_SUPABASE_PUBLISHABLE_KEY` | Supabase anon key |
 | `VITE_SUPABASE_PROJECT_ID` | Supabase project ID |
 
+For **local dev with Azure/Entra sign-in**, copy `.env.example` to `.env` and set:
+
+| Variable | Description |
+|----------|-------------|
+| `VITE_ENTRA_CLIENT_ID` | Entra app registration (client) ID |
+| `VITE_ENTRA_TENANT_ID` | Entra directory (tenant) ID |
+| `VITE_ENTRA_EXTERNAL_ID_AUTHORITY` | Authority URL, e.g. `https://login.microsoftonline.com/{tenant-id}/` |
+| `VITE_ENTRA_REDIRECT_URI` | Web: `http://localhost:5173/auth/callback` (must match app registration) |
+| `VITE_AZURE_FUNCTIONS_URL` | Azure Functions base URL (for `/api/me` and `/api/auth-exchange-native`) |
+
+See `.env.example` for the full list and optional overrides.
+
+**Why it works remotely but not locally:** The deployed app at Azure Static Web Apps (e.g. `https://ashy-bush-075a67503.1.azurestaticapps.net/`) receives `VITE_ENTRA_*` and `VITE_AZURE_FUNCTIONS_URL` from the pipeline (GitHub Actions secrets). Locally, Vite only reads from your `.env` file. If those variables are empty locally, sign-in will fail (missing client ID/authority) or you’ll get no profile/roles (missing `VITE_AZURE_FUNCTIONS_URL`). **Fix:** Copy the same values you use in production into your local `.env` (client ID, tenant, authority, and Azure Functions URL). For redirect URI keep `http://localhost:5173/auth/callback` and add that exact URI in the Entra app registration under **Authentication → Redirect URIs** so Microsoft can redirect back to your dev server.
+
 ## 🧪 Testing
 
 ### Unit Tests (Vitest)

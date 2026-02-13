@@ -43,7 +43,7 @@ import { PrescriptionDetailsDialog } from "./PrescriptionDetailsDialog";
 import { EditPrescriptionDialog } from "./EditPrescriptionDialog";
 import { format } from "date-fns";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { listClinicianPatientAssignments, listProfilesByUserIds } from "@/integrations/azure/data";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   AlertDialog,
@@ -94,18 +94,14 @@ export function EPrescribingPage() {
   const { data: patients } = useQuery({
     queryKey: ["assigned-patients", user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("clinician_patient_assignments")
-        .select(`
-          patient_user_id,
-          patient_profile:profiles!clinician_patient_assignments_patient_user_id_fkey(
-            user_id, first_name, last_name, email
-          )
-        `)
-        .eq("clinician_user_id", user?.id);
-
-      if (error) throw error;
-      return data;
+      const assignments = await listClinicianPatientAssignments(user!.id);
+      const patientIds = assignments.map((a) => a.patient_user_id as string);
+      const profilesList = patientIds.length ? await listProfilesByUserIds(patientIds) : [];
+      const profiles = Array.isArray(profilesList) ? profilesList : [];
+      return assignments.map((a) => ({
+        patient_user_id: a.patient_user_id,
+        patient_profile: profiles.find((p: Record<string, unknown>) => p.user_id === a.patient_user_id) ?? null,
+      }));
     },
     enabled: !!user,
   });

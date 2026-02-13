@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { listSecuritySettings, updateSecuritySetting } from "@/integrations/azure/data";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,13 +23,13 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
-import type { Json } from "@/integrations/supabase/types";
+import type { Json } from "@/types/app-enums";
 
 interface SecuritySetting {
-  id: string;
+  id?: string;
   setting_key: string;
   setting_value: Json;
-  description: string | null;
+  description?: string | null;
 }
 
 export function SecuritySettingsPage() {
@@ -40,29 +40,20 @@ export function SecuritySettingsPage() {
   const { data: settings, isLoading } = useQuery({
     queryKey: ["security-settings"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("security_settings")
-        .select("*")
-        .order("setting_key");
-
-      if (error) throw error;
-      return data as SecuritySetting[];
+      const list = await listSecuritySettings();
+      return [...list].sort((a, b) =>
+        (a.setting_key || "").localeCompare(b.setting_key || "")
+      ) as SecuritySetting[];
     },
   });
 
   const updateMutation = useMutation({
     mutationFn: async (updates: { key: string; value: number | boolean }[]) => {
       for (const update of updates) {
-        const { error } = await supabase
-          .from("security_settings")
-          .update({
-            setting_value: { value: update.value },
-            updated_by: user?.id,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("setting_key", update.key);
-
-        if (error) throw error;
+        await updateSecuritySetting(update.key, {
+          setting_value: { value: update.value },
+          updated_by: user?.id,
+        });
       }
     },
     onSuccess: () => {

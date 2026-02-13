@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { listAuditLogs, listProfilesByUserIds } from "@/integrations/azure/data";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -55,26 +55,18 @@ export function AuditLogPage() {
   const { data: logs, isLoading } = useQuery({
     queryKey: ["audit-logs"],
     queryFn: async () => {
-      const { data: auditLogs, error } = await supabase
-        .from("audit_log")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(500);
+      const auditLogs = await listAuditLogs({ limit: 500 });
+      const sorted = [...auditLogs].sort(
+        (a, b) =>
+          new Date((b.created_at as string) || 0).getTime() -
+          new Date((a.created_at as string) || 0).getTime()
+      );
+      const userIds = [...new Set(sorted.map((l) => l.user_id as string).filter(Boolean))];
+      const profilesList = userIds.length ? await listProfilesByUserIds(userIds) : [];
+      const profiles = Array.isArray(profilesList) ? profilesList : [];
 
-      if (error) throw error;
-
-      // Get unique user IDs
-      const userIds = [...new Set(auditLogs?.map((l) => l.user_id).filter(Boolean))] as string[];
-
-      // Fetch profiles for users
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("user_id, first_name, last_name, email")
-        .in("user_id", userIds);
-
-      // Map logs with user info
-      const logsWithUsers: AuditLogEntry[] = (auditLogs || []).map((log) => {
-        const profile = profiles?.find((p) => p.user_id === log.user_id);
+      return sorted.map((log) => {
+        const profile = profiles.find((p: Record<string, unknown>) => p.user_id === log.user_id);
         return {
           ...log,
           user: profile
@@ -85,9 +77,7 @@ export function AuditLogPage() {
               }
             : undefined,
         };
-      });
-
-      return logsWithUsers;
+      }) as AuditLogEntry[];
     },
   });
 

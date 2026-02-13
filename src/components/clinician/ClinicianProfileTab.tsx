@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { getProfileByUserId, updateProfile } from "@/integrations/azure/data";
 import { toast } from "@/hooks/use-toast";
 import { useSecurityEvents } from "@/hooks/useSecurityEvents";
 import {
@@ -73,25 +74,19 @@ export function ClinicianProfileTab() {
     const loadFullProfile = async () => {
       if (!user) return;
       
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("user_id", user.id)
-        .maybeSingle();
-      
-      if (error) {
+      try {
+        const data = await getProfileByUserId(user.id) as Record<string, unknown> | null;
+        if (data) {
+          setProfileData({
+            first_name: (data.first_name as string) || "",
+            last_name: (data.last_name as string) || "",
+            organization: (data.organization as string) || "",
+            job_title: (data.job_title as string) || "",
+            avatar_url: (data.avatar_url as string) || "",
+          });
+        }
+      } catch (error) {
         console.error("Error loading profile:", error);
-        return;
-      }
-      
-      if (data) {
-        setProfileData({
-          first_name: data.first_name || "",
-          last_name: data.last_name || "",
-          organization: data.organization || "",
-          job_title: data.job_title || "",
-          avatar_url: data.avatar_url || "",
-        });
       }
     };
     
@@ -101,19 +96,13 @@ export function ClinicianProfileTab() {
   const updateProfileMutation = useMutation({
     mutationFn: async (data: Partial<ProfileData>) => {
       if (!user) throw new Error("Not authenticated");
-      
-      const { error } = await supabase
-        .from("profiles")
-        .update({
-          first_name: data.first_name,
-          last_name: data.last_name,
-          organization: data.organization,
-          job_title: data.job_title,
-          avatar_url: data.avatar_url,
-        })
-        .eq("user_id", user.id);
-      
-      if (error) throw error;
+      await updateProfile(user.id, {
+        first_name: data.first_name,
+        last_name: data.last_name,
+        organization: data.organization,
+        job_title: data.job_title,
+        avatar_url: data.avatar_url,
+      });
     },
     onSuccess: async () => {
       queryClient.invalidateQueries({ queryKey: ["profile"] });
@@ -187,12 +176,7 @@ export function ClinicianProfileTab() {
         .from('avatars')
         .getPublicUrl(fileName);
 
-      const { error: updateError } = await supabase
-        .from('profiles')
-        .update({ avatar_url: publicUrl })
-        .eq('user_id', user.id);
-
-      if (updateError) throw updateError;
+      await updateProfile(user.id, { avatar_url: publicUrl });
 
       setProfileData({ ...profileData, avatar_url: publicUrl });
       queryClient.invalidateQueries({ queryKey: ["profile"] });
@@ -229,12 +213,7 @@ export function ClinicianProfileTab() {
         }
       }
 
-      const { error } = await supabase
-        .from('profiles')
-        .update({ avatar_url: null })
-        .eq('user_id', user.id);
-
-      if (error) throw error;
+      await updateProfile(user.id, { avatar_url: null });
 
       setProfileData({ ...profileData, avatar_url: '' });
       queryClient.invalidateQueries({ queryKey: ["profile"] });

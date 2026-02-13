@@ -1,6 +1,11 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import {
+  listDrugRecalls,
+  createDrugRecall,
+  updateDrugRecall,
+  apiInvoke,
+} from "@/integrations/azure/data";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -68,18 +73,18 @@ export function DrugRecallsPage() {
   const { data: recalls, isLoading } = useQuery({
     queryKey: ["drug-recalls"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("drug_recalls")
-        .select("*")
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return data as DrugRecall[];
+      const list = await listDrugRecalls();
+      return [...list].sort(
+        (a, b) =>
+          new Date((b.created_at as string) || 0).getTime() -
+          new Date((a.created_at as string) || 0).getTime()
+      ) as DrugRecall[];
     },
   });
 
   const createRecallMutation = useMutation({
     mutationFn: async () => {
-      const { data, error } = await supabase.from("drug_recalls").insert({
+      const data = await createDrugRecall({
         drug_name: formData.drug_name,
         generic_name: formData.generic_name || null,
         lot_numbers: formData.lot_numbers.split(",").map((l) => l.trim()).filter(Boolean),
@@ -89,9 +94,8 @@ export function DrugRecallsPage() {
         instructions: formData.instructions || null,
         fda_reference: formData.fda_reference || null,
         created_by: user?.id,
-      }).select().single();
-      if (error) throw error;
-      return data;
+      });
+      return data as DrugRecall & { id: string };
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["drug-recalls"] });
@@ -121,15 +125,19 @@ export function DrugRecallsPage() {
 
   const sendAlertsMutation = useMutation({
     mutationFn: async (recallId: string) => {
-      const { data, error } = await supabase.functions.invoke("send-drug-recall-alert", {
-        body: { recall_id: recallId, notify_pharmacies: true, notify_patients: true },
+      const data = await apiInvoke("send-drug-recall-alert", {
+        recall_id: recallId,
+        notify_pharmacies: true,
+        notify_patients: true,
       });
-      if (error) throw error;
-      return data;
+      return data as { notifications_sent?: { pharmacies?: number; patients?: number } };
     },
     onSuccess: (data) => {
+      const sent = data?.notifications_sent;
       toast.success("Recall alerts sent", {
-        description: `Notified ${data.notifications_sent.pharmacies} pharmacies and ${data.notifications_sent.patients} patients`,
+        description: sent
+          ? `Notified ${sent.pharmacies ?? 0} pharmacies and ${sent.patients ?? 0} patients`
+          : undefined,
       });
     },
     onError: (error: Error) => {
@@ -139,11 +147,7 @@ export function DrugRecallsPage() {
 
   const toggleRecallMutation = useMutation({
     mutationFn: async ({ id, isActive }: { id: string; isActive: boolean }) => {
-      const { error } = await supabase
-        .from("drug_recalls")
-        .update({ is_active: isActive })
-        .eq("id", id);
-      if (error) throw error;
+      await updateDrugRecall(id, { is_active: isActive });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["drug-recalls"] });

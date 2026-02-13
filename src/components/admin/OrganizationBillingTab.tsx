@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useOrganization } from "@/contexts/OrganizationContext";
-import { supabase } from "@/integrations/supabase/client";
+import { apiInvoke, listOrganizationInvoices } from "@/integrations/azure/data";
 import { toast } from "sonner";
 import { format } from "date-fns";
 
@@ -74,14 +74,10 @@ export function OrganizationBillingTab() {
 
   const fetchSubscriptionData = async () => {
     if (!organization?.id) return;
-    
     try {
-      const { data, error } = await supabase.functions.invoke("check-org-subscription", {
-        body: { organizationId: organization.id },
-      });
-
+      const { data, error } = await apiInvoke<SubscriptionData>("check-org-subscription", { organizationId: organization.id });
       if (error) throw error;
-      setSubscription(data);
+      if (data) setSubscription(data);
     } catch (error) {
       console.error("Error fetching subscription:", error);
     } finally {
@@ -91,16 +87,16 @@ export function OrganizationBillingTab() {
 
   const fetchInvoices = async () => {
     if (!organization?.id) return;
-
-    const { data, error } = await supabase
-      .from("organization_invoices")
-      .select("*")
-      .eq("organization_id", organization.id)
-      .order("created_at", { ascending: false })
-      .limit(10);
-
-    if (!error && data) {
-      setInvoices(data as Invoice[]);
+    try {
+      const list = await listOrganizationInvoices(organization.id, 10);
+      const sorted = [...list].sort(
+        (a, b) =>
+          new Date((b.created_at as string) || 0).getTime() -
+          new Date((a.created_at as string) || 0).getTime()
+      );
+      setInvoices(sorted as Invoice[]);
+    } catch {
+      // ignore
     }
   };
 
@@ -110,19 +106,13 @@ export function OrganizationBillingTab() {
     setIsCheckoutLoading(tier);
     try {
       const tierConfig = PRICING_TIERS[tier as keyof typeof PRICING_TIERS];
-      const { data, error } = await supabase.functions.invoke("create-org-checkout", {
-        body: { 
-          organizationId: organization.id, 
-          tier,
-          seats: tierConfig.seats,
-        },
+      const { data, error } = await apiInvoke<{ url?: string }>("create-org-checkout", {
+        organizationId: organization.id,
+        tier,
+        seats: tierConfig.seats,
       });
-
       if (error) throw error;
-
-      if (data?.url) {
-        window.open(data.url, "_blank");
-      }
+      if (data?.url) window.open(data.url, "_blank");
     } catch (error) {
       console.error("Checkout error:", error);
       toast.error("Failed to start checkout");
@@ -136,15 +126,11 @@ export function OrganizationBillingTab() {
 
     setIsPortalLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke("org-customer-portal", {
-        body: { organizationId: organization.id },
+      const { data, error } = await apiInvoke<{ url?: string }>("org-customer-portal", {
+        organizationId: organization.id,
       });
-
       if (error) throw error;
-
-      if (data?.url) {
-        window.open(data.url, "_blank");
-      }
+      if (data?.url) window.open(data.url, "_blank");
     } catch (error) {
       console.error("Portal error:", error);
       toast.error("Failed to open billing portal");

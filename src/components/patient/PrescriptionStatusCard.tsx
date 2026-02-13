@@ -1,5 +1,5 @@
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
+import { listMedications } from "@/integrations/azure/data";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -34,15 +34,23 @@ export function PrescriptionStatusCard() {
     queryKey: ["patient-prescriptions", user?.id],
     queryFn: async () => {
       if (!user) return [];
-      const { data, error } = await supabase
-        .from("medications")
-        .select("id, name, dosage, dosage_unit, prescription_status, pharmacy, updated_at")
-        .eq("user_id", user.id)
-        .eq("is_active", true)
-        .order("updated_at", { ascending: false });
-
-      if (error) throw error;
-      return data as Medication[];
+      const data = await listMedications(user.id);
+      const active = (data || []).filter((m) => m.is_active !== false);
+      return active
+        .sort(
+          (a, b) =>
+            new Date((b.updated_at as string) || 0).getTime() -
+            new Date((a.updated_at as string) || 0).getTime()
+        )
+        .map((m) => ({
+          id: m.id,
+          name: m.name,
+          dosage: m.dosage,
+          dosage_unit: m.dosage_unit,
+          prescription_status: m.prescription_status,
+          pharmacy: m.pharmacy,
+          updated_at: m.updated_at,
+        })) as Medication[];
     },
     enabled: !!user,
   });

@@ -22,7 +22,7 @@ import {
   Send,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { listPrescriptionStatusHistory, listProfilesByUserIds } from "@/integrations/azure/data";
 import type { Prescription, PrescriptionStatus } from "@/hooks/usePrescriptions";
 
 interface PrescriptionDetailsDialogProps {
@@ -51,17 +51,23 @@ export function PrescriptionDetailsDialog({
   const { data: statusHistory, isLoading: historyLoading } = useQuery({
     queryKey: ["prescription-history", prescription.id],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("prescription_status_history")
-        .select(`
-          *,
-          changed_by_profile:profiles!prescription_status_history_changed_by_fkey(first_name, last_name)
-        `)
-        .eq("prescription_id", prescription.id)
-        .order("created_at", { ascending: false });
-      
-      if (error) throw error;
-      return data;
+      const rows = await listPrescriptionStatusHistory(prescription.id);
+      const sorted = [...rows].sort(
+        (a, b) =>
+          new Date((b.created_at as string) || 0).getTime() -
+          new Date((a.created_at as string) || 0).getTime()
+      );
+      const changedByIds = [...new Set(sorted.map((r) => r.changed_by as string).filter(Boolean))];
+      const profilesList = changedByIds.length
+        ? await listProfilesByUserIds(changedByIds)
+        : [];
+      const profiles = Array.isArray(profilesList) ? profilesList : [];
+      return sorted.map((entry) => ({
+        ...entry,
+        changed_by_profile: entry.changed_by
+          ? profiles.find((p: Record<string, unknown>) => p.user_id === entry.changed_by) ?? null
+          : null,
+      }));
     },
     enabled: open,
   });

@@ -1,6 +1,11 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import {
+  getProfileByUserId,
+  listAllNotificationHistory,
+  apiInvoke,
+} from "@/integrations/azure/data";
+import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
@@ -79,6 +84,7 @@ const CHANNEL_ICONS: Record<string, typeof Bell> = {
 type TimeRange = "7d" | "14d" | "30d";
 
 export function NotificationAnalyticsPage() {
+  const { user } = useAuth();
   const [timeRange, setTimeRange] = useState<TimeRange>("7d");
   const [isTestDialogOpen, setIsTestDialogOpen] = useState(false);
   const [testEmail, setTestEmail] = useState("");
@@ -90,34 +96,25 @@ export function NotificationAnalyticsPage() {
   const startDate = startOfDay(subDays(new Date(), days - 1));
   const endDate = endOfDay(new Date());
 
-  // Fetch current admin's email from their profile
   const { data: currentUserProfile } = useQuery({
-    queryKey: ["current-user-profile"],
-    queryFn: async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return null;
-      
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("email")
-        .eq("user_id", user.id)
-        .maybeSingle();
-      
-      return profile;
-    },
+    queryKey: ["current-user-profile", user?.id],
+    queryFn: async () => (user?.id ? getProfileByUserId(user.id) : null),
+    enabled: !!user?.id,
   });
 
   const { data: analytics, isLoading } = useQuery({
     queryKey: ["notification-analytics", timeRange],
     queryFn: async () => {
-      const { data: notifications, error } = await supabase
-        .from("notification_history")
-        .select("channel, status, notification_type, created_at, delivered_at, opened_at, clicked_at")
-        .gte("created_at", startDate.toISOString())
-        .lte("created_at", endDate.toISOString())
-        .order("created_at", { ascending: true });
-
-      if (error) throw error;
+      const notifications = await listAllNotificationHistory({
+        from_date: startDate.toISOString(),
+        to_date: endDate.toISOString(),
+        limit: 50000,
+      });
+      const sorted = [...notifications].sort(
+        (a, b) =>
+          new Date((a.created_at as string) || 0).getTime() -
+          new Date((b.created_at as string) || 0).getTime()
+      );
 
       // Initialize channel stats with engagement metrics
       const byChannel: Record<string, {
@@ -162,7 +159,7 @@ export function NotificationAnalyticsPage() {
       let totalOpened = 0;
       let totalClicked = 0;
 
-      notifications?.forEach((n) => {
+      sorted.forEach((n: Record<string, unknown>) => {
         const channel = n.channel;
         
         // Initialize channel if not exists
@@ -264,7 +261,7 @@ export function NotificationAnalyticsPage() {
           count,
         }));
 
-      const totalNotifications = notifications?.length || 0;
+      const totalNotifications = sorted.length;
       const totalSent = byStatus.sent + byStatus.delivered;
       const totalFailed = byStatus.failed;
       const overallSuccessRate = totalNotifications > 0 
@@ -300,32 +297,25 @@ export function NotificationAnalyticsPage() {
     },
   });
 
-  // Fetch failed notifications for the retry table
   const { data: failedNotifications, isLoading: isLoadingFailed } = useQuery({
     queryKey: ["failed-notifications"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("notification_history")
-        .select("id, channel, notification_type, title, body, error_message, created_at, retry_count, max_retries, next_retry_at, last_retry_at, user_id")
-        .eq("status", "failed")
-        .order("created_at", { ascending: false })
-        .limit(50);
-
-      if (error) throw error;
-      return data;
+      const list = await listAllNotificationHistory({ status: "failed", limit: 50 });
+      return [...list].sort(
+        (a, b) =>
+          new Date((b.created_at as string) || 0).getTime() -
+          new Date((a.created_at as string) || 0).getTime()
+      );
     },
   });
 
   const handleRetry = async (notificationId: string) => {
-    setRetryingIds(prev => new Set(prev).add(notificationId));
-
+    setRetryingIds((prev) => new Set(prev).add(notificationId));
     try {
-      const { data, error } = await supabase.functions.invoke("retry-notification", {
-        body: { notification_id: notificationId },
+      const { data, error } = await apiInvoke<{ success?: boolean; error?: string }>("retry-notification", {
+        notification_id: notificationId,
       });
-
       if (error) throw error;
-
       if (data?.success) {
         toast({
           title: "Notification Retried",
@@ -368,14 +358,10 @@ export function NotificationAnalyticsPage() {
 
     setIsSendingTest(true);
     try {
-      const { data, error } = await supabase.functions.invoke("test-email-webhook", {
-        body: { to: testEmail.trim() },
+      const { data, error } = await apiInvoke<{ error?: string; details?: string }>("test-email-webhook", {
+        to: testEmail.trim(),
       });
-
-      if (error) {
-        throw new Error(error.message || "Failed to connect to email service");
-      }
-
+      if (error) throw new Error(error.message || "Failed to connect to email service");
       if (data?.error) {
         const errorDetails = data.details || data.error;
         let userMessage = errorDetails;

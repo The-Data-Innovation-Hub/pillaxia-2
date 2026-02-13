@@ -1,7 +1,16 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
+import {
+  listPrescriptions,
+  listProfilesByUserIds,
+  getPrescription,
+  generatePrescriptionNumber,
+  createPrescription as apiCreatePrescription,
+  updatePrescription as apiUpdatePrescription,
+  deletePrescription as apiDeletePrescription,
+  insertPrescriptionStatusHistory,
+} from "@/integrations/azure/data";
 
 export interface Prescription {
   id: string;
@@ -32,7 +41,6 @@ export interface Prescription {
   dispensed_at: string | null;
   created_at: string;
   updated_at: string;
-  // Joined data
   patient_profile?: {
     first_name: string | null;
     last_name: string | null;
@@ -51,16 +59,16 @@ export interface Prescription {
   };
 }
 
-export type PrescriptionStatus = 
-  | 'draft' 
-  | 'pending' 
-  | 'sent' 
-  | 'received' 
-  | 'processing' 
-  | 'ready' 
-  | 'dispensed' 
-  | 'cancelled' 
-  | 'expired';
+export type PrescriptionStatus =
+  | "draft"
+  | "pending"
+  | "sent"
+  | "received"
+  | "processing"
+  | "ready"
+  | "dispensed"
+  | "cancelled"
+  | "expired";
 
 export interface CreatePrescriptionData {
   patient_user_id: string;
@@ -100,88 +108,63 @@ export interface UpdatePrescriptionData {
   diagnosis_description?: string | null;
 }
 
-async function generatePrescriptionNumber(): Promise<string> {
-  const { data, error } = await supabase.rpc('generate_prescription_number');
-  if (error) throw error;
-  return data as string;
-}
-
-export function usePrescriptions(options?: { 
-  patientId?: string; 
+export function usePrescriptions(options?: {
+  patientId?: string;
   pharmacyId?: string;
   pharmacyIds?: string[];
   status?: PrescriptionStatus[];
 }) {
-  const { user, isClinician, isPharmacist, isPatient } = useAuth();
+  const { user } = useAuth();
   const queryClient = useQueryClient();
 
-  const { data: prescriptions, isLoading, error } = useQuery({
+  const {
+    data: prescriptions,
+    isLoading,
+    error,
+  } = useQuery({
     queryKey: ["prescriptions", user?.id, options?.patientId, options?.pharmacyId, options?.pharmacyIds, options?.status],
     queryFn: async (): Promise<Prescription[]> => {
-      // First, fetch prescriptions with pharmacy data
-      let query = supabase
-        .from("prescriptions")
-        .select(`
-          *,
-          pharmacy:pharmacy_locations(name, phone, email)
-        `)
-        .order("created_at", { ascending: false });
+      const filters: Parameters<typeof listPrescriptions>[0] = {};
+      if (options?.patientId) filters.user_id = options.patientId;
+      if (options?.pharmacyId) filters.pharmacy_id = options.pharmacyId;
+      if (options?.pharmacyIds?.length) filters.pharmacy_ids = options.pharmacyIds;
+      if (options?.status?.length) filters.status = options.status;
 
-      if (options?.patientId) {
-        query = query.eq("patient_user_id", options.patientId);
-      }
+      const prescriptionsData = await listPrescriptions(filters);
+      if (!prescriptionsData || prescriptionsData.length === 0) return [];
 
-      if (options?.pharmacyId) {
-        query = query.eq("pharmacy_id", options.pharmacyId);
-      }
-
-      // Support multiple pharmacy IDs for pharmacists managing multiple locations
-      if (options?.pharmacyIds && options.pharmacyIds.length > 0) {
-        query = query.in("pharmacy_id", options.pharmacyIds);
-      }
-
-      if (options?.status && options.status.length > 0) {
-        query = query.in("status", options.status);
-      }
-
-      const { data: prescriptionsData, error: prescriptionsError } = await query;
-      if (prescriptionsError) throw prescriptionsError;
-
-      if (!prescriptionsData || prescriptionsData.length === 0) {
-        return [];
-      }
-
-      // Get unique user IDs for patients and clinicians
-      const patientIds = [...new Set(prescriptionsData.map(p => p.patient_user_id))];
-      const clinicianIds = [...new Set(prescriptionsData.map(p => p.clinician_user_id))];
+      const patientIds = [...new Set(prescriptionsData.map((p) => p.patient_user_id as string))];
+      const clinicianIds = [...new Set(prescriptionsData.map((p) => p.clinician_user_id as string))];
       const allUserIds = [...new Set([...patientIds, ...clinicianIds])];
+      const profiles = await listProfilesByUserIds(allUserIds);
+      const profilesMap = new Map(profiles.map((p) => [p.user_id as string, p]));
 
-      // Fetch profiles for all users in one query
-      const { data: profilesData } = await supabase
-        .from("profiles")
-        .select("user_id, first_name, last_name, email, phone, license_number")
-        .in("user_id", allUserIds);
+      const prescriptionsWithProfiles = prescriptionsData.map((rx) => {
+        const patient = profilesMap.get(rx.patient_user_id as string);
+        const clinician = profilesMap.get(rx.clinician_user_id as string);
+        return {
+          ...rx,
+          patient_profile: patient
+            ? {
+                first_name: (patient.first_name as string) ?? null,
+                last_name: (patient.last_name as string) ?? null,
+                email: (patient.email as string) ?? null,
+                phone: (patient.phone as string) ?? null,
+              }
+            : undefined,
+          clinician_profile: clinician
+            ? {
+                first_name: (clinician.first_name as string) ?? null,
+                last_name: (clinician.last_name as string) ?? null,
+                license_number: (clinician.license_number as string) ?? null,
+              }
+            : undefined,
+        };
+      }) as Prescription[];
 
-      // Create a map for quick lookup
-      const profilesMap = new Map(profilesData?.map(p => [p.user_id, p]) || []);
-
-      // Merge profiles into prescriptions
-      const prescriptionsWithProfiles = prescriptionsData.map(rx => ({
-        ...rx,
-        patient_profile: profilesMap.get(rx.patient_user_id) ? {
-          first_name: profilesMap.get(rx.patient_user_id)?.first_name || null,
-          last_name: profilesMap.get(rx.patient_user_id)?.last_name || null,
-          email: profilesMap.get(rx.patient_user_id)?.email || null,
-          phone: profilesMap.get(rx.patient_user_id)?.phone || null,
-        } : undefined,
-        clinician_profile: profilesMap.get(rx.clinician_user_id) ? {
-          first_name: profilesMap.get(rx.clinician_user_id)?.first_name || null,
-          last_name: profilesMap.get(rx.clinician_user_id)?.last_name || null,
-          license_number: profilesMap.get(rx.clinician_user_id)?.license_number || null,
-        } : undefined,
-      }));
-
-      return prescriptionsWithProfiles as Prescription[];
+      return prescriptionsWithProfiles.sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
     },
     enabled: !!user,
   });
@@ -191,26 +174,20 @@ export function usePrescriptions(options?: {
       if (!user) throw new Error("Not authenticated");
 
       const prescriptionNumber = await generatePrescriptionNumber();
-
-      const { data: prescription, error } = await supabase
-        .from("prescriptions")
-        .insert({
-          ...data,
-          prescription_number: prescriptionNumber,
-          clinician_user_id: user.id,
-          status: data.pharmacy_id ? 'pending' : 'draft',
-          refills_remaining: data.refills_authorized || 0,
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-      return prescription;
+      const payload = {
+        ...data,
+        prescription_number: prescriptionNumber,
+        clinician_user_id: user.id,
+        status: data.pharmacy_id ? "pending" : "draft",
+        refills_remaining: data.refills_authorized ?? 0,
+      };
+      const prescription = await apiCreatePrescription(payload);
+      return prescription as Prescription;
     },
     onSuccess: (prescription) => {
       queryClient.invalidateQueries({ queryKey: ["prescriptions"] });
       toast.success("Prescription created", {
-        description: `Rx #${prescription.prescription_number}`,
+        description: `Rx #${(prescription as Prescription).prescription_number}`,
       });
     },
     onError: (error: Error) => {
@@ -220,24 +197,17 @@ export function usePrescriptions(options?: {
 
   const sendPrescription = useMutation({
     mutationFn: async ({ prescriptionId, pharmacyId }: { prescriptionId: string; pharmacyId: string }) => {
-      const { error } = await supabase
-        .from("prescriptions")
-        .update({ 
-          pharmacy_id: pharmacyId, 
-          status: 'sent',
-          sent_at: new Date().toISOString(),
-        })
-        .eq("id", prescriptionId);
-
-      if (error) throw error;
-
-      // Log status change
-      await supabase.from("prescription_status_history").insert({
+      await apiUpdatePrescription(prescriptionId, {
+        pharmacy_id: pharmacyId,
+        status: "sent",
+        sent_at: new Date().toISOString(),
+      });
+      await insertPrescriptionStatusHistory({
         prescription_id: prescriptionId,
-        previous_status: 'pending',
-        new_status: 'sent',
+        previous_status: "pending",
+        new_status: "sent",
         changed_by: user?.id,
-        notes: 'Prescription sent to pharmacy',
+        notes: "Prescription sent to pharmacy",
       });
     },
     onSuccess: () => {
@@ -250,35 +220,22 @@ export function usePrescriptions(options?: {
   });
 
   const updatePrescriptionStatus = useMutation({
-    mutationFn: async ({ 
-      prescriptionId, 
-      status, 
-      notes 
-    }: { 
-      prescriptionId: string; 
-      status: PrescriptionStatus; 
+    mutationFn: async ({
+      prescriptionId,
+      status,
+      notes,
+    }: {
+      prescriptionId: string;
+      status: PrescriptionStatus;
       notes?: string;
     }) => {
-      // Get current status
-      const { data: current } = await supabase
-        .from("prescriptions")
-        .select("status")
-        .eq("id", prescriptionId)
-        .single();
+      const current = await getPrescription(prescriptionId);
+      const updates: Record<string, unknown> = { status };
+      if (status === "received") updates.received_at = new Date().toISOString();
+      if (status === "dispensed") updates.dispensed_at = new Date().toISOString();
 
-      const updates: Record<string, any> = { status };
-      if (status === 'received') updates.received_at = new Date().toISOString();
-      if (status === 'dispensed') updates.dispensed_at = new Date().toISOString();
-
-      const { error } = await supabase
-        .from("prescriptions")
-        .update(updates)
-        .eq("id", prescriptionId);
-
-      if (error) throw error;
-
-      // Log status change
-      await supabase.from("prescription_status_history").insert({
+      await apiUpdatePrescription(prescriptionId, updates);
+      await insertPrescriptionStatusHistory({
         prescription_id: prescriptionId,
         previous_status: current?.status,
         new_status: status,
@@ -297,23 +254,12 @@ export function usePrescriptions(options?: {
 
   const cancelPrescription = useMutation({
     mutationFn: async ({ prescriptionId, reason }: { prescriptionId: string; reason: string }) => {
-      const { data: current } = await supabase
-        .from("prescriptions")
-        .select("status")
-        .eq("id", prescriptionId)
-        .single();
-
-      const { error } = await supabase
-        .from("prescriptions")
-        .update({ status: 'cancelled' })
-        .eq("id", prescriptionId);
-
-      if (error) throw error;
-
-      await supabase.from("prescription_status_history").insert({
+      const current = await getPrescription(prescriptionId);
+      await apiUpdatePrescription(prescriptionId, { status: "cancelled" });
+      await insertPrescriptionStatusHistory({
         prescription_id: prescriptionId,
         previous_status: current?.status,
-        new_status: 'cancelled',
+        new_status: "cancelled",
         changed_by: user?.id,
         notes: reason,
       });
@@ -329,12 +275,7 @@ export function usePrescriptions(options?: {
 
   const updatePrescription = useMutation({
     mutationFn: async ({ prescriptionId, data }: { prescriptionId: string; data: UpdatePrescriptionData }) => {
-      const { error } = await supabase
-        .from("prescriptions")
-        .update(data)
-        .eq("id", prescriptionId);
-
-      if (error) throw error;
+      await apiUpdatePrescription(prescriptionId, data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["prescriptions"] });
@@ -347,18 +288,7 @@ export function usePrescriptions(options?: {
 
   const deletePrescription = useMutation({
     mutationFn: async (prescriptionId: string) => {
-      // First delete related history records
-      await supabase
-        .from("prescription_status_history")
-        .delete()
-        .eq("prescription_id", prescriptionId);
-
-      const { error } = await supabase
-        .from("prescriptions")
-        .delete()
-        .eq("id", prescriptionId);
-
-      if (error) throw error;
+      await apiDeletePrescription(prescriptionId);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["prescriptions"] });
@@ -370,7 +300,7 @@ export function usePrescriptions(options?: {
   });
 
   return {
-    prescriptions,
+    prescriptions: prescriptions ?? [],
     isLoading,
     error,
     createPrescription,

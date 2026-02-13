@@ -1,6 +1,10 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import {
+  listControlledDrugs,
+  listControlledDrugDispensing,
+  listControlledDrugAdjustments,
+} from "@/integrations/azure/data";
 import { useAuth } from "@/contexts/AuthContext";
 import { 
   Shield, 
@@ -92,47 +96,57 @@ export function ControlledDrugRegisterPage() {
   const [adjustOpen, setAdjustOpen] = useState(false);
   const [selectedDrug, setSelectedDrug] = useState<ControlledDrug | null>(null);
 
-  // Fetch controlled drugs inventory
   const { data: drugs = [], refetch: refetchDrugs } = useQuery({
     queryKey: ["controlled-drugs"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("controlled_drugs")
-        .select("*")
-        .order("name");
-      
-      if (error) throw error;
-      return data as ControlledDrug[];
+      const list = await listControlledDrugs();
+      return [...list].sort((a, b) => ((a.name as string) || "").localeCompare((b.name as string) || "")) as ControlledDrug[];
     },
   });
 
-  // Fetch dispensing records
   const { data: dispensingRecords = [], refetch: refetchDispensing } = useQuery({
     queryKey: ["controlled-drug-dispensing"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("controlled_drug_dispensing")
-        .select("*, controlled_drugs(name, schedule)")
-        .order("dispensed_at", { ascending: false })
-        .limit(100);
-      
-      if (error) throw error;
-      return data as DispensingRecord[];
+      const [drugList, list] = await Promise.all([
+        listControlledDrugs(),
+        listControlledDrugDispensing(100),
+      ]);
+      const drugMap = new Map(
+        drugList.map((d: Record<string, unknown>) => [d.id as string, { name: d.name, schedule: d.schedule }])
+      );
+      return [...list]
+        .sort(
+          (a, b) =>
+            new Date((b.dispensed_at as string) || 0).getTime() -
+            new Date((a.dispensed_at as string) || 0).getTime()
+        )
+        .map((r) => ({
+          ...r,
+          controlled_drugs: r.controlled_drug_id ? drugMap.get(r.controlled_drug_id as string) : undefined,
+        })) as DispensingRecord[];
     },
   });
 
-  // Fetch adjustment records
   const { data: adjustmentRecords = [], refetch: refetchAdjustments } = useQuery({
     queryKey: ["controlled-drug-adjustments"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("controlled_drug_adjustments")
-        .select("*, controlled_drugs(name)")
-        .order("created_at", { ascending: false })
-        .limit(100);
-      
-      if (error) throw error;
-      return data as AdjustmentRecord[];
+      const [drugList, list] = await Promise.all([
+        listControlledDrugs(),
+        listControlledDrugAdjustments(100),
+      ]);
+      const drugMap = new Map(
+        drugList.map((d: Record<string, unknown>) => [d.id as string, { name: d.name }])
+      );
+      return [...list]
+        .sort(
+          (a, b) =>
+            new Date((b.created_at as string) || 0).getTime() -
+            new Date((a.created_at as string) || 0).getTime()
+        )
+        .map((r) => ({
+          ...r,
+          controlled_drugs: r.controlled_drug_id ? drugMap.get(r.controlled_drug_id as string) : undefined,
+        })) as AdjustmentRecord[];
     },
   });
 

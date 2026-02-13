@@ -4,8 +4,13 @@
  */
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
+import {
+  getPatientNotificationPreferences,
+  listMedications,
+  listMedicationLogs,
+  listSymptomEntries,
+} from "@/integrations/azure/data";
 
 // Dashboard sub-components
 import { DashboardStats, QuickActions, WelcomeSection, SetupPrompt } from "./dashboard";
@@ -54,16 +59,12 @@ export function PatientDashboardHome() {
     queryKey: ["check-notification-preferences", user?.id],
     queryFn: async () => {
       if (!user) return true;
-      const { data, error } = await supabase
-        .from("patient_notification_preferences")
-        .select("id")
-        .eq("user_id", user.id)
-        .maybeSingle();
-      if (error) {
-        console.error("Error checking preferences:", error);
+      try {
+        const data = await getPatientNotificationPreferences(user.id);
+        return !!data;
+      } catch {
         return true;
       }
-      return !!data;
     },
     enabled: !!user,
   });
@@ -92,44 +93,32 @@ export function PatientDashboardHome() {
     if (!user) return;
 
     try {
-      // Get total active medications
-      const { count: medCount } = await supabase
-        .from("medications")
-        .select("*", { count: "exact", head: true })
-        .eq("user_id", user.id)
-        .eq("is_active", true);
+      const [meds, logs, symptoms] = await Promise.all([
+        listMedications(user.id),
+        listMedicationLogs(user.id, {
+          from: new Date(new Date().setHours(0, 0, 0, 0)).toISOString(),
+          to: new Date(new Date().setHours(23, 59, 59, 999)).toISOString(),
+        }),
+        listSymptomEntries(user.id),
+      ]);
 
-      // Get today's medication logs
-      const today = new Date();
-      const startOfDay = new Date(today.setHours(0, 0, 0, 0)).toISOString();
-      const endOfDay = new Date(today.setHours(23, 59, 59, 999)).toISOString();
+      const medCount = (meds || []).filter((m) => m.is_active !== false).length;
+      const todaysLogs = logs || [];
+      const todaysDoses = todaysLogs.length;
+      const takenDoses = todaysLogs.filter((l) => l.status === "taken").length;
 
-      const { data: todaysLogs } = await supabase
-        .from("medication_logs")
-        .select("status")
-        .eq("user_id", user.id)
-        .gte("scheduled_time", startOfDay)
-        .lte("scheduled_time", endOfDay);
-
-      const todaysDoses = todaysLogs?.length || 0;
-      const takenDoses = todaysLogs?.filter((l) => l.status === "taken").length || 0;
-
-      // Get recent symptoms (last 7 days)
       const weekAgo = new Date();
       weekAgo.setDate(weekAgo.getDate() - 7);
-
-      const { count: symptomCount } = await supabase
-        .from("symptom_entries")
-        .select("*", { count: "exact", head: true })
-        .eq("user_id", user.id)
-        .gte("recorded_at", weekAgo.toISOString());
+      const symptomCount = (symptoms || []).filter(
+        (s) => new Date((s.recorded_at as string) || 0) >= weekAgo
+      ).length;
 
       setStats({
-        totalMedications: medCount || 0,
+        totalMedications: medCount,
         todaysDoses,
         takenDoses,
         adherenceRate: todaysDoses > 0 ? Math.round((takenDoses / todaysDoses) * 100) : 100,
-        recentSymptoms: symptomCount || 0,
+        recentSymptoms: symptomCount,
       });
     } catch (error) {
       console.error("Error fetching stats:", error);

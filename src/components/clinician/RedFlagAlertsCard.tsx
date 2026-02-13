@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { listRedFlagAlerts, updateRedFlagAlert, listProfilesByUserIds } from "@/integrations/azure/data";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -35,81 +35,49 @@ export function RedFlagAlertsCard() {
   const queryClient = useQueryClient();
   const [patients, setPatients] = useState<Map<string, PatientProfile>>(new Map());
 
-  // Fetch red flag alerts
   const { data: alerts, isLoading } = useQuery({
     queryKey: ["red-flag-alerts", user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("red_flag_alerts")
-        .select("*")
-        .eq("clinician_user_id", user!.id)
-        .order("created_at", { ascending: false })
-        .limit(20);
-
-      if (error) throw error;
-      return data as RedFlagAlert[];
+      const data = await listRedFlagAlerts(user!.id);
+      return (data || [])
+        .sort(
+          (a, b) =>
+            new Date((b.created_at as string) || 0).getTime() -
+            new Date((a.created_at as string) || 0).getTime()
+        )
+        .slice(0, 20) as RedFlagAlert[];
     },
     enabled: !!user,
   });
 
-  // Fetch patient profiles
   useEffect(() => {
     if (alerts?.length) {
       const patientIds = [...new Set(alerts.map((a) => a.patient_user_id))];
-      
-      supabase
-        .from("profiles")
-        .select("user_id, first_name, last_name")
-        .in("user_id", patientIds)
-        .then(({ data }) => {
-          const map = new Map<string, PatientProfile>();
-          data?.forEach((p) => map.set(p.user_id, p));
-          setPatients(map);
-        });
+      listProfilesByUserIds(patientIds).then((profiles) => {
+        const map = new Map<string, PatientProfile>();
+        (profiles || []).forEach((p) =>
+          map.set((p.user_id as string) ?? (p as { user_id?: string }).user_id!, p as PatientProfile)
+        );
+        setPatients(map);
+      });
     }
   }, [alerts]);
 
-  // Subscribe to realtime alerts
   useEffect(() => {
     if (!user) return;
-
-    const channel = supabase
-      .channel("red-flag-alerts")
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "red_flag_alerts",
-          filter: `clinician_user_id=eq.${user.id}`,
-        },
-        (payload) => {
-          queryClient.invalidateQueries({ queryKey: ["red-flag-alerts"] });
-          toast.error("🚨 New red flag alert!", {
-            description: `Severe ${payload.new.symptom_type} reported`,
-          });
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    const interval = setInterval(() => {
+      queryClient.invalidateQueries({ queryKey: ["red-flag-alerts"] });
+    }, 15000);
+    return () => clearInterval(interval);
   }, [user, queryClient]);
 
-  // Acknowledge mutation
   const acknowledgeMutation = useMutation({
     mutationFn: async (alertId: string) => {
-      const { error } = await supabase
-        .from("red_flag_alerts")
-        .update({
-          is_acknowledged: true,
-          acknowledged_at: new Date().toISOString(),
-          acknowledged_by: user!.id,
-        })
-        .eq("id", alertId);
-
-      if (error) throw error;
+      await updateRedFlagAlert(alertId, {
+        is_acknowledged: true,
+        acknowledged_at: new Date().toISOString(),
+        acknowledged_by: user!.id,
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["red-flag-alerts"] });

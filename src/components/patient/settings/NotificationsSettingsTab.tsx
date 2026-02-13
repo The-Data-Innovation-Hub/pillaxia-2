@@ -1,8 +1,13 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import {
+  getPatientNotificationPreferences,
+  createPatientNotificationPreferences,
+  updatePatientNotificationPreferences,
+} from "@/integrations/azure/data";
+import { apiInvoke } from "@/integrations/azure/client";
 import { toast } from "@/hooks/use-toast";
 import { useUnifiedPushNotifications } from "@/hooks/useUnifiedPushNotifications";
 import { PushDebugPanel } from "@/components/patient/PushDebugPanel";
@@ -116,19 +121,15 @@ export function NotificationsSettingsTab() {
     
     setSendingTest(true);
     try {
-      const { data, error } = await supabase.functions.invoke("send-push-notification", {
-        body: {
-          user_ids: [user.id],
-          payload: {
-            title: "🎉 Test Notification",
-            body: "Push notifications are working! You'll receive medication reminders here.",
-            tag: "patient-test",
-            data: { url: "/dashboard/settings" },
-          },
+      const data = await apiInvoke<{ sent?: number }>("send-push-notification", {
+        user_ids: [user.id],
+        payload: {
+          title: "🎉 Test Notification",
+          body: "Push notifications are working! You'll receive medication reminders here.",
+          tag: "patient-test",
+          data: { url: "/dashboard/settings" },
         },
       });
-
-      if (error) throw error;
 
       if (data?.sent === 0) {
         setLastPushTest({
@@ -180,11 +181,9 @@ export function NotificationsSettingsTab() {
 
     setSendingAllChannelsTest(true);
     try {
-      const { data, error } = await supabase.functions.invoke("send-test-notifications", {
-        body: { user_id: user.id },
+      const data = await apiInvoke<{ results?: Array<{ channel: string; success: boolean; message: string; provider?: string }> }>("send-test-notifications", {
+        user_id: user.id,
       });
-
-      if (error) throw error;
 
       const results = data?.results || [];
       setAllChannelsTestResult({
@@ -227,14 +226,7 @@ export function NotificationsSettingsTab() {
     queryKey: ["patient-notification-preferences", user?.id],
     queryFn: async () => {
       if (!user) return null;
-
-      const { data, error } = await supabase
-        .from("patient_notification_preferences")
-        .select("*")
-        .eq("user_id", user.id)
-        .maybeSingle();
-
-      if (error) throw error;
+      const data = await getPatientNotificationPreferences(user.id);
       return data as NotificationPreferences | null;
     },
     enabled: !!user,
@@ -243,15 +235,7 @@ export function NotificationsSettingsTab() {
   const createDefaultsMutation = useMutation({
     mutationFn: async () => {
       if (!user) throw new Error("Not authenticated");
-
-      const { data, error } = await supabase
-        .from("patient_notification_preferences")
-        .insert({ user_id: user.id, ...DEFAULT_PREFERENCES })
-        .select()
-        .single();
-
-      if (error) throw error;
-      return data;
+      return await createPatientNotificationPreferences({ user_id: user.id, ...DEFAULT_PREFERENCES });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["patient-notification-preferences"] });
@@ -267,13 +251,7 @@ export function NotificationsSettingsTab() {
   const updatePreferenceMutation = useMutation({
     mutationFn: async (updates: Partial<NotificationPreferences>) => {
       if (!user) throw new Error("Not authenticated");
-
-      const { error } = await supabase
-        .from("patient_notification_preferences")
-        .update(updates)
-        .eq("user_id", user.id);
-
-      if (error) throw error;
+      await updatePatientNotificationPreferences(user.id, updates);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["patient-notification-preferences"] });

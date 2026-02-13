@@ -4,7 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { format } from "date-fns";
 import { CalendarIcon } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { createControlledDrug } from "@/integrations/azure/data";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import {
@@ -96,7 +96,7 @@ export function AddControlledDrugDialog({
 
     setIsSubmitting(true);
     try {
-      const { error } = await supabase.from("controlled_drugs").insert({
+      await createControlledDrug({
         name: values.name,
         generic_name: values.generic_name || null,
         schedule: values.schedule,
@@ -112,8 +112,6 @@ export function AddControlledDrugDialog({
         storage_location: values.storage_location || null,
         created_by: user.id,
       });
-
-      if (error) throw error;
 
       toast.success("Controlled drug added to register");
       form.reset();

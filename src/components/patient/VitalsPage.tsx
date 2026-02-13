@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { listPatientHealthTable, createPatientHealthRow } from "@/integrations/azure/data";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -60,15 +60,13 @@ export default function VitalsPage() {
   const { data: vitals, isLoading } = useQuery({
     queryKey: ["patient-vitals", user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("patient_vitals")
-        .select("*")
-        .eq("user_id", user?.id)
-        .order("recorded_at", { ascending: false })
-        .limit(100);
-      
-      if (error) throw error;
-      return data as VitalRecord[];
+      const data = await listPatientHealthTable("patient_vitals", user!.id);
+      const sorted = (data || []).sort(
+        (a, b) =>
+          new Date((b.recorded_at as string) || 0).getTime() -
+          new Date((a.recorded_at as string) || 0).getTime()
+      );
+      return sorted.slice(0, 100) as VitalRecord[];
     },
     enabled: !!user?.id,
   });
@@ -79,8 +77,9 @@ export default function VitalsPage() {
       const weight = data.weight ? parseFloat(data.weight) : null;
       const bmi = height && weight ? parseFloat((weight / ((height / 100) ** 2)).toFixed(1)) : null;
 
-      const { error } = await supabase.from("patient_vitals").insert({
+      await createPatientHealthRow("patient_vitals", {
         user_id: user?.id,
+        recorded_at: new Date().toISOString(),
         blood_pressure_systolic: data.blood_pressure_systolic ? parseInt(data.blood_pressure_systolic) : null,
         blood_pressure_diastolic: data.blood_pressure_diastolic ? parseInt(data.blood_pressure_diastolic) : null,
         heart_rate: data.heart_rate ? parseInt(data.heart_rate) : null,
@@ -95,8 +94,6 @@ export default function VitalsPage() {
         is_fasting: data.is_fasting,
         measurement_location: data.measurement_location,
       });
-
-      if (error) throw error;
     },
     onSuccess: () => {
       toast.success("Vitals recorded successfully");

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
+import { listMedicationLogs, updateMedicationLog } from "@/integrations/azure/data";
 import { scheduleCache } from "@/lib/cache";
 import { useOfflineStatus } from "./useOfflineStatus";
 import { startOfDay, endOfDay } from "date-fns";
@@ -67,29 +67,17 @@ export function useCachedTodaysSchedule(): UseCachedTodaysScheduleResult {
       const start = startOfDay(today).toISOString();
       const end = endOfDay(today).toISOString();
 
-      const { data, error } = await supabase
-        .from("medication_logs")
-        .select(`
-          id,
-          scheduled_time,
-          status,
-          taken_at,
-          medications (name, dosage, dosage_unit, form),
-          medication_schedules (quantity, with_food)
-        `)
-        .eq("user_id", user.id)
-        .gte("scheduled_time", start)
-        .lte("scheduled_time", end)
-        .order("scheduled_time", { ascending: true });
+      const data = await listMedicationLogs(user.id, { from: start, to: end });
+      const typedLogs = (data || []).sort(
+        (a, b) =>
+          new Date((a.scheduled_time as string) || 0).getTime() -
+          new Date((b.scheduled_time as string) || 0).getTime()
+      ) as CachedMedicationLog[];
 
-      if (error) throw error;
-
-      const typedLogs = (data || []) as CachedMedicationLog[];
       setLogs(typedLogs);
       setIsFromCache(false);
       setLastUpdated(new Date());
 
-      // Save to cache for offline access
       await scheduleCache.saveTodaysSchedule(user.id, typedLogs);
     } catch (error) {
       console.error("Error fetching schedule from network:", error);
@@ -99,33 +87,40 @@ export function useCachedTodaysSchedule(): UseCachedTodaysScheduleResult {
   const refresh = useCallback(async () => {
     if (!user) return;
     setLoading(true);
-    
+
     if (isOnline) {
       await fetchFromNetwork();
     } else {
       await loadFromCache();
     }
-    
+
     setLoading(false);
   }, [user, isOnline, fetchFromNetwork, loadFromCache]);
 
   const updateLogStatus = useCallback(async (logId: string, status: string, takenAt?: string) => {
-    // Update local state optimistically
-    setLogs(prev => prev.map(log => 
-      log.id === logId 
-        ? { ...log, status, taken_at: takenAt || log.taken_at }
-        : log
-    ));
+    setLogs((prev) =>
+      prev.map((log) =>
+        log.id === logId ? { ...log, status, taken_at: takenAt || log.taken_at } : log
+      )
+    );
 
-    // Update cache
     try {
       await scheduleCache.updateLogStatus(logId, status, takenAt);
     } catch (error) {
       console.error("Error updating cache:", error);
     }
-  }, []);
 
-  // Initial load: cache first, then network
+    if (isOnline) {
+      try {
+        const payload: Record<string, unknown> = { status };
+        if (takenAt != null) payload.taken_at = takenAt;
+        await updateMedicationLog(logId, payload);
+      } catch (error) {
+        console.error("Error updating log on server:", error);
+      }
+    }
+  }, [isOnline]);
+
   useEffect(() => {
     const initialize = async () => {
       if (!user) {
@@ -133,17 +128,15 @@ export function useCachedTodaysSchedule(): UseCachedTodaysScheduleResult {
         return;
       }
 
-      // First, try to load from cache for instant display
       const hasCached = await loadFromCache();
       if (hasCached) {
         setLoading(false);
       }
 
-      // Then fetch fresh data from network if online
       if (isOnline) {
         await fetchFromNetwork();
       }
-      
+
       setLoading(false);
     };
 

@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { getProfileByUserId, listClinicianMessages, listProfilesByUserIds } from "@/integrations/azure/data";
 import {
   Card,
   CardContent,
@@ -28,23 +28,18 @@ export function ClinicianMessagesCard() {
   const queryClient = useQueryClient();
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
 
-  // Fetch patient profile for name
   const { data: patientProfile } = useQuery({
     queryKey: ["patient-profile", user?.id],
     queryFn: async () => {
       if (!user) return null;
-      const { data } = await supabase
-        .from("profiles")
-        .select("first_name, last_name")
-        .eq("user_id", user.id)
-        .single();
-      return data;
+      return await getProfileByUserId(user.id);
     },
     enabled: !!user,
   });
 
-  const patientName = patientProfile
-    ? `${patientProfile.first_name || ""} ${patientProfile.last_name || ""}`.trim() || "Patient"
+  const p = patientProfile as { first_name?: string; last_name?: string } | null;
+  const patientName = p
+    ? `${p.first_name || ""} ${p.last_name || ""}`.trim() || "Patient"
     : "Patient";
 
   const { data: conversations, isLoading } = useQuery({
@@ -52,79 +47,49 @@ export function ClinicianMessagesCard() {
     queryFn: async () => {
       if (!user) return [];
 
-      // Get all messages for this patient from clinicians
-      const { data, error } = await supabase
-        .from("clinician_messages")
-        .select("id, message, is_read, created_at, clinician_user_id, sender_type")
-        .eq("patient_user_id", user.id)
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-      if (!data || data.length === 0) return [];
-
-      // Group by clinician
-      const clinicianIds = [...new Set(data.map((m) => m.clinician_user_id))];
-      
-      // Fetch clinician profiles
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("user_id, first_name, last_name")
-        .in("user_id", clinicianIds);
-
-      const profileMap = new Map(
-        profiles?.map((p) => [p.user_id, p]) || []
+      const data = await listClinicianMessages({ patient_user_id: user.id });
+      const sorted = (data || []).sort(
+        (a, b) =>
+          new Date((b.created_at as string) || 0).getTime() -
+          new Date((a.created_at as string) || 0).getTime()
       );
+      if (sorted.length === 0) return [];
 
-      // Build conversation summaries
+      const clinicianIds = [...new Set(sorted.map((m) => m.clinician_user_id as string))];
+      const profiles = await listProfilesByUserIds(clinicianIds);
+      const profileMap = new Map((profiles || []).map((p) => [(p.user_id as string) ?? (p as { user_id?: string }).user_id!, p]));
+
       const convMap = new Map<string, Conversation>();
-      for (const msg of data) {
-        if (!convMap.has(msg.clinician_user_id)) {
-          const profile = profileMap.get(msg.clinician_user_id);
-          convMap.set(msg.clinician_user_id, {
-            clinician_user_id: msg.clinician_user_id,
-            clinician_name: profile?.first_name 
+      for (const msg of sorted) {
+        const cid = msg.clinician_user_id as string;
+        if (!convMap.has(cid)) {
+          const profile = profileMap.get(cid) as { first_name?: string; last_name?: string } | undefined;
+          convMap.set(cid, {
+            clinician_user_id: cid,
+            clinician_name: profile?.first_name
               ? `Dr. ${profile.first_name} ${profile.last_name || ""}`.trim()
               : "Your Clinician",
-            last_message: msg.message,
-            last_message_time: msg.created_at,
+            last_message: msg.message as string,
+            last_message_time: msg.created_at as string,
             unread_count: 0,
           });
         }
-        // Count unread messages from clinician
         if (!msg.is_read && msg.sender_type === "clinician") {
-          const conv = convMap.get(msg.clinician_user_id)!;
+          const conv = convMap.get(cid)!;
           conv.unread_count++;
         }
       }
-
       return Array.from(convMap.values());
     },
     enabled: !!user,
   });
 
-  // Subscribe to realtime updates
   useEffect(() => {
     if (!user) return;
-
-    const channel = supabase
-      .channel("patient-clinician-messages-realtime")
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "clinician_messages",
-          filter: `patient_user_id=eq.${user.id}`,
-        },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ["patient-clinician-messages"] });
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    const interval = setInterval(() => {
+      queryClient.invalidateQueries({ queryKey: ["patient-clinician-messages"] });
+    }, 15000);
+    return () => clearInterval(interval);
   }, [user, queryClient]);
 
   const totalUnread = conversations?.reduce((acc, c) => acc + c.unread_count, 0) || 0;

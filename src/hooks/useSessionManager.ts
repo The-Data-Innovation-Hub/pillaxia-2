@@ -1,6 +1,6 @@
 import { useEffect, useCallback, useRef, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
+import { listSecuritySettings } from "@/integrations/azure/data";
 import { toast } from "sonner";
 
 interface SessionSettings {
@@ -26,12 +26,11 @@ export function useSessionManager() {
   useEffect(() => {
     const fetchSettings = async () => {
       try {
-        const { data } = await supabase
-          .from("security_settings")
-          .select("setting_key, setting_value")
-          .in("setting_key", ["session_timeout_minutes", "max_concurrent_sessions"]);
-
-        if (data) {
+        const data = await listSecuritySettings([
+          "session_timeout_minutes",
+          "max_concurrent_sessions",
+        ]);
+        if (data?.length) {
           const newSettings = { ...DEFAULT_SETTINGS };
           data.forEach((setting) => {
             const settingValue = setting.setting_value as Record<string, unknown> | null;
@@ -93,15 +92,15 @@ export function useSessionManager() {
     timeoutRef.current = setTimeout(async () => {
       // Log the timeout event
       try {
-        await supabase.rpc("log_security_event", {
-          p_user_id: user.id,
-          p_event_type: "session_timeout",
-          p_event_category: "authentication",
-          p_severity: "info",
-          p_description: "User session timed out due to inactivity",
-          p_ip_address: null,
-          p_user_agent: navigator.userAgent,
-          p_metadata: { timeout_minutes: settings.timeoutMinutes },
+        const { logSecurityEvent } = await import("@/integrations/azure/data");
+        await logSecurityEvent({
+          user_id: user.id,
+          event_type: "session_timeout",
+          event_category: "authentication",
+          severity: "info",
+          description: "User session timed out due to inactivity",
+          ip_address: null,
+          metadata: { timeout_minutes: settings.timeoutMinutes },
         });
       } catch {
         // Ignore logging errors

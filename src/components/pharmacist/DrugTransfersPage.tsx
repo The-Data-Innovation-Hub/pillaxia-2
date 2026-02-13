@@ -1,6 +1,11 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import {
+  listPharmacyLocations,
+  listDrugTransfers,
+  createDrugTransfer,
+  updateDrugTransfer,
+} from "@/integrations/azure/data";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -79,53 +84,53 @@ export function DrugTransfersPage() {
     reason: "",
   });
 
-  // Fetch user's pharmacy
   const { data: myPharmacy } = useQuery({
     queryKey: ["my-pharmacy", user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("pharmacy_locations")
-        .select("id, name, city, state")
-        .eq("pharmacist_user_id", user?.id)
-        .eq("is_active", true)
-        .single();
-      if (error) throw error;
-      return data as PharmacyLocation;
+      const list = await listPharmacyLocations({ pharmacist_user_id: user!.id, is_active: true });
+      const first = list[0] as PharmacyLocation | undefined;
+      return first ?? null;
     },
     enabled: !!user?.id,
   });
 
-  // Fetch all pharmacies for transfer destination
   const { data: allPharmacies } = useQuery({
-    queryKey: ["all-pharmacies-for-transfer"],
+    queryKey: ["all-pharmacies-for-transfer", user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("pharmacy_locations")
-        .select("id, name, city, state")
-        .eq("is_active", true)
-        .neq("pharmacist_user_id", user?.id)
-        .order("name");
-      if (error) throw error;
-      return data as PharmacyLocation[];
+      const list = await listPharmacyLocations({ is_active: true });
+      const mine = await listPharmacyLocations({ pharmacist_user_id: user!.id, is_active: true });
+      const myIds = new Set(mine.map((p: Record<string, unknown>) => p.id));
+      return [...list]
+        .filter((p: Record<string, unknown>) => !myIds.has(p.id))
+        .sort((a, b) => ((a.name as string) || "").localeCompare((b.name as string) || "")) as PharmacyLocation[];
     },
     enabled: !!user?.id,
   });
 
-  // Fetch transfers
   const { data: transfers, isLoading } = useQuery({
     queryKey: ["drug-transfers", myPharmacy?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("drug_transfers")
-        .select(`
-          *,
-          source_pharmacy:pharmacy_locations!drug_transfers_source_pharmacy_id_fkey (id, name, city, state),
-          destination_pharmacy:pharmacy_locations!drug_transfers_destination_pharmacy_id_fkey (id, name, city, state)
-        `)
-        .or(`source_pharmacy_id.eq.${myPharmacy?.id},destination_pharmacy_id.eq.${myPharmacy?.id}`)
-        .order("requested_at", { ascending: false });
-      if (error) throw error;
-      return data as unknown as DrugTransfer[];
+      const [list, pharmacies] = await Promise.all([
+        listDrugTransfers(),
+        listPharmacyLocations({ is_active: true }),
+      ]);
+      const filtered = myPharmacy?.id
+        ? list.filter(
+            (t: Record<string, unknown>) =>
+              t.source_pharmacy_id === myPharmacy.id || t.destination_pharmacy_id === myPharmacy.id
+          )
+        : list;
+      const pharmacyMap = new Map(pharmacies.map((p: Record<string, unknown>) => [p.id as string, p]));
+      const sorted = [...filtered].sort(
+        (a, b) =>
+          new Date((b.requested_at as string) || 0).getTime() -
+          new Date((a.requested_at as string) || 0).getTime()
+      );
+      return sorted.map((t) => ({
+        ...t,
+        source_pharmacy: pharmacyMap.get(t.source_pharmacy_id as string) ?? {},
+        destination_pharmacy: pharmacyMap.get(t.destination_pharmacy_id as string) ?? {},
+      })) as DrugTransfer[];
     },
     enabled: !!myPharmacy?.id,
   });
@@ -139,7 +144,7 @@ export function DrugTransfersPage() {
 
   const createTransferMutation = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase.from("drug_transfers").insert({
+      await createDrugTransfer({
         source_pharmacy_id: myPharmacy?.id,
         destination_pharmacy_id: formData.destination_pharmacy_id,
         drug_name: formData.drug_name,
@@ -152,7 +157,6 @@ export function DrugTransfersPage() {
         reason: formData.reason || null,
         requested_by: user?.id,
       });
-      if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["drug-transfers"] });
@@ -177,8 +181,7 @@ export function DrugTransfersPage() {
 
   const updateTransferMutation = useMutation({
     mutationFn: async ({ id, status, notes }: { id: string; status: string; notes?: string }) => {
-      const updateData: Record<string, any> = { status };
-      
+      const updateData: Record<string, unknown> = { status };
       if (status === "approved") {
         updateData.approved_by = user?.id;
         updateData.approved_at = new Date().toISOString();
@@ -186,14 +189,8 @@ export function DrugTransfersPage() {
         updateData.completed_by = user?.id;
         updateData.completed_at = new Date().toISOString();
       }
-      
       if (notes) updateData.notes = notes;
-
-      const { error } = await supabase
-        .from("drug_transfers")
-        .update(updateData)
-        .eq("id", id);
-      if (error) throw error;
+      await updateDrugTransfer(id, updateData);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["drug-transfers"] });

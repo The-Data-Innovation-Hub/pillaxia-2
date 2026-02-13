@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { listMedicationLogs, listMedications } from "@/integrations/azure/data";
 import {
   Dialog,
   DialogContent,
@@ -54,31 +54,30 @@ export function PatientAdherenceHistoryDialog({
   const { data: logs, isLoading } = useQuery({
     queryKey: ["patient-adherence-history", patientId, startDate, endDate],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("medication_logs")
-        .select(`
-          id,
-          medication_id,
-          scheduled_time,
-          status,
-          taken_at,
-          notes,
-          medications (
-            name,
-            dosage,
-            dosage_unit
-          )
-        `)
-        .eq("user_id", patientId)
-        .gte("scheduled_time", startOfDay(startDate).toISOString())
-        .lte("scheduled_time", endOfDay(endDate).toISOString())
-        .order("scheduled_time", { ascending: false });
-
-      if (error) throw error;
-
-      return (data || []).map((log) => ({
+      const [logsRows, medicationsRows] = await Promise.all([
+        listMedicationLogs(patientId, {
+          from: startOfDay(startDate).toISOString(),
+          to: endOfDay(endDate).toISOString(),
+        }),
+        listMedications(patientId),
+      ]);
+      const medMap = new Map(
+        medicationsRows.map((m: Record<string, unknown>) => [m.id as string, m])
+      );
+      const sorted = [...logsRows].sort(
+        (a, b) =>
+          new Date((b.scheduled_time as string) || 0).getTime() -
+          new Date((a.scheduled_time as string) || 0).getTime()
+      );
+      return sorted.map((log) => ({
         ...log,
-        medication: Array.isArray(log.medications) ? log.medications[0] : log.medications,
+        medication: log.medication_id
+          ? {
+              name: (medMap.get(log.medication_id as string) as Record<string, unknown>)?.name,
+              dosage: (medMap.get(log.medication_id as string) as Record<string, unknown>)?.dosage,
+              dosage_unit: (medMap.get(log.medication_id as string) as Record<string, unknown>)?.dosage_unit,
+            }
+          : null,
       })) as MedicationLog[];
     },
     enabled: open && !!patientId,

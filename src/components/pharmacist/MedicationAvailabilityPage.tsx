@@ -1,6 +1,13 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import {
+  listPharmacyLocations,
+  listMedicationAvailability,
+  createPharmacyLocation,
+  createMedicationAvailability,
+  updateMedicationAvailability,
+  apiInvoke,
+} from "@/integrations/azure/data";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -95,40 +102,28 @@ export function MedicationAvailabilityPage() {
     notes: "",
   });
 
-  // Fetch pharmacies owned by this pharmacist
   const { data: pharmacies, isLoading: loadingPharmacies } = useQuery({
     queryKey: ["pharmacist-pharmacies", user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("pharmacy_locations")
-        .select("*")
-        .eq("pharmacist_user_id", user?.id)
-        .order("name");
-      if (error) throw error;
-      return data as PharmacyLocation[];
+      const list = await listPharmacyLocations({ pharmacist_user_id: user!.id });
+      return [...list].sort((a, b) => ((a.name as string) || "").localeCompare((b.name as string) || "")) as PharmacyLocation[];
     },
     enabled: !!user?.id,
   });
 
-  // Fetch medication availability for selected pharmacy
   const { data: medications, isLoading: loadingMedications } = useQuery({
     queryKey: ["pharmacy-medications", selectedPharmacy],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("medication_availability")
-        .select("*")
-        .eq("pharmacy_id", selectedPharmacy)
-        .order("medication_name");
-      if (error) throw error;
-      return data as MedicationAvailability[];
+      if (!selectedPharmacy) return [];
+      const list = await listMedicationAvailability({ pharmacy_id: selectedPharmacy });
+      return [...list].sort((a, b) => ((a.medication_name as string) || "").localeCompare((b.medication_name as string) || "")) as MedicationAvailability[];
     },
     enabled: !!selectedPharmacy,
   });
 
-  // Create pharmacy mutation
   const createPharmacyMutation = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase.from("pharmacy_locations").insert({
+      await createPharmacyLocation({
         pharmacist_user_id: user?.id,
         name: pharmacyForm.name,
         address_line1: pharmacyForm.address_line1,
@@ -136,7 +131,6 @@ export function MedicationAvailabilityPage() {
         state: pharmacyForm.state,
         phone: pharmacyForm.phone || null,
       });
-      if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["pharmacist-pharmacies"] });
@@ -149,10 +143,9 @@ export function MedicationAvailabilityPage() {
     },
   });
 
-  // Create medication mutation
   const createMedicationMutation = useMutation({
     mutationFn: async () => {
-      const { data, error } = await supabase.from("medication_availability").insert({
+      const data = await createMedicationAvailability({
         pharmacy_id: selectedPharmacy,
         medication_name: medicationForm.medication_name,
         generic_name: medicationForm.generic_name || null,
@@ -163,9 +156,8 @@ export function MedicationAvailabilityPage() {
         notes: medicationForm.notes || null,
         is_available: true,
         last_updated_by: user?.id,
-      }).select().single();
-      if (error) throw error;
-      return data;
+      });
+      return data as MedicationAvailability & { id: string };
     },
     onSuccess: async (newMedication) => {
       queryClient.invalidateQueries({ queryKey: ["pharmacy-medications"] });
@@ -189,16 +181,12 @@ export function MedicationAvailabilityPage() {
     },
   });
 
-  // Toggle availability mutation
   const toggleAvailabilityMutation = useMutation({
     mutationFn: async ({ id, isAvailable }: { id: string; isAvailable: boolean }) => {
-      const { data, error } = await supabase
-        .from("medication_availability")
-        .update({ is_available: isAvailable, last_updated_by: user?.id })
-        .eq("id", id)
-        .select()
-        .single();
-      if (error) throw error;
+      const data = await updateMedicationAvailability(id, {
+        is_available: isAvailable,
+        last_updated_by: user?.id,
+      });
       return { data, isAvailable };
     },
     onSuccess: async ({ data, isAvailable }) => {
@@ -218,14 +206,11 @@ export function MedicationAvailabilityPage() {
   const triggerAvailabilityAlerts = async (availabilityId: string, medicationName: string) => {
     setIsSendingAlerts(true);
     try {
-      const { error } = await supabase.functions.invoke("send-availability-alert", {
-        body: {
-          availability_id: availabilityId,
-          medication_name: medicationName,
-          pharmacy_id: selectedPharmacy,
-        },
+      await apiInvoke("send-availability-alert", {
+        availability_id: availabilityId,
+        medication_name: medicationName,
+        pharmacy_id: selectedPharmacy,
       });
-      if (error) console.error("Alert error:", error);
     } catch (err) {
       console.error("Failed to send alerts:", err);
     } finally {

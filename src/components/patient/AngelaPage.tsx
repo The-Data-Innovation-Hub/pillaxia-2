@@ -5,7 +5,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Send, Bot, Sparkles } from "lucide-react";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import angelaImage from "@/assets/hero-angela.png";
 
 interface Message {
@@ -22,9 +22,15 @@ const SUGGESTED_QUESTIONS = [
   "Tips for remembering my medications?",
 ];
 
-const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/angela-chat`;
+import { getApiBaseUrl } from "@/integrations/azure/client";
+
+function getAngelaChatUrl(): string {
+  const base = getApiBaseUrl();
+  return base ? `${base}/api/angela-chat` : "";
+}
 
 export function AngelaPage() {
+  const { session } = useAuth();
   const [messages, setMessages] = useState<Message[]>([
     {
       id: "1",
@@ -69,13 +75,13 @@ export function AngelaPage() {
     let assistantContent = "";
 
     try {
-      // Get the user's session token for authenticated requests
-      const { data: { session } } = await supabase.auth.getSession();
       if (!session?.access_token) {
         throw new Error("Please log in to chat with Angela");
       }
 
-      const response = await fetch(CHAT_URL, {
+      const chatUrl = getAngelaChatUrl();
+      if (!chatUrl) throw new Error("API URL not configured");
+      const response = await fetch(chatUrl, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

@@ -1,7 +1,12 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import {
+  listOrganizationMembersByOrg,
+  listProfilesByUserIds,
+  updateOrganizationMember,
+  addOrganizationMember,
+} from "@/integrations/azure/data";
 
 export interface OrganizationMemberWithProfile {
   id: string;
@@ -29,52 +34,42 @@ export function useOrganizationMembers() {
     queryFn: async (): Promise<OrganizationMemberWithProfile[]> => {
       if (!organization?.id) return [];
 
-      // Fetch members - RLS now restricts to managers/admins/org admins or own membership
-      // Regular members will only see their own membership record
-      const { data: membersData, error: membersError } = await supabase
-        .from("organization_members")
-        .select("*")
-        .eq("organization_id", organization.id)
-        .order("joined_at", { ascending: false });
+      try {
+        const membersData = await listOrganizationMembersByOrg(organization.id);
+        if (!membersData || membersData.length === 0) return [];
 
-      if (membersError) {
-        // If access denied, return empty - user doesn't have permission to view members
-        if (membersError.code === 'PGRST301' || membersError.message?.includes('permission')) {
-          console.info('User does not have permission to view all organization members');
+        const sorted = [...membersData].sort((a, b) => {
+          const aAt = (a.joined_at && new Date(a.joined_at).getTime()) || 0;
+          const bAt = (b.joined_at && new Date(b.joined_at).getTime()) || 0;
+          return bAt - aAt;
+        });
+
+        const userIds = sorted.map((m) => m.user_id as string);
+        let profilesData: Array<Record<string, unknown>> = [];
+        try {
+          profilesData = await listProfilesByUserIds(userIds);
+        } catch {
+          // Permission or missing endpoint
+        }
+        const profilesMap = new Map(profilesData.map((p) => [p.user_id as string, p]));
+
+        return sorted.map((member) => ({
+          ...member,
+          profile: profilesMap.get(member.user_id as string) as OrganizationMemberWithProfile["profile"],
+        })) as OrganizationMemberWithProfile[];
+      } catch (err) {
+        if (err instanceof Error && (err.message?.includes("permission") || err.message?.includes("403"))) {
           return [];
         }
-        throw membersError;
+        throw err;
       }
-      if (!membersData || membersData.length === 0) return [];
-
-      // Fetch profiles for all member user_ids
-      const userIds = membersData.map(m => m.user_id);
-      const { data: profilesData } = await supabase
-        .from("profiles")
-        .select("user_id, first_name, last_name, email, avatar_url")
-        .in("user_id", userIds);
-
-      // Map profiles to members
-      const profilesMap = new Map(
-        (profilesData || []).map(p => [p.user_id, p])
-      );
-
-      return membersData.map(member => ({
-        ...member,
-        profile: profilesMap.get(member.user_id) || undefined,
-      })) as OrganizationMemberWithProfile[];
     },
     enabled: !!organization?.id,
   });
 
   const updateMemberRole = useMutation({
     mutationFn: async ({ memberId, newRole }: { memberId: string; newRole: "owner" | "admin" | "member" }) => {
-      const { error } = await supabase
-        .from("organization_members")
-        .update({ org_role: newRole })
-        .eq("id", memberId);
-
-      if (error) throw error;
+      await updateOrganizationMember(memberId, { org_role: newRole });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["organization-members", organization?.id] });
@@ -87,12 +82,7 @@ export function useOrganizationMembers() {
 
   const removeMember = useMutation({
     mutationFn: async (memberId: string) => {
-      const { error } = await supabase
-        .from("organization_members")
-        .update({ is_active: false })
-        .eq("id", memberId);
-
-      if (error) throw error;
+      await updateOrganizationMember(memberId, { is_active: false });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["organization-members", organization?.id] });
@@ -106,17 +96,12 @@ export function useOrganizationMembers() {
   const inviteMember = useMutation({
     mutationFn: async ({ userId, role }: { userId: string; role: "admin" | "member" }) => {
       if (!organization?.id) throw new Error("No organization");
-
-      const { error } = await supabase
-        .from("organization_members")
-        .insert({
-          organization_id: organization.id,
-          user_id: userId,
-          org_role: role,
-          invited_at: new Date().toISOString(),
-        });
-
-      if (error) throw error;
+      await addOrganizationMember({
+        organization_id: organization.id,
+        user_id: userId,
+        org_role: role,
+        invited_at: new Date().toISOString(),
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["organization-members", organization?.id] });

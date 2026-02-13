@@ -1,8 +1,13 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  getPatientNotificationPreferences,
+  updateProfile,
+  createPatientNotificationPreferences,
+  updatePatientNotificationPreferences,
+} from "@/integrations/azure/data";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -88,13 +93,7 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
     queryKey: ["onboarding-status", user?.id],
     queryFn: async () => {
       if (!user) return true;
-      
-      const { data } = await supabase
-        .from("patient_notification_preferences")
-        .select("id")
-        .eq("user_id", user.id)
-        .maybeSingle();
-      
+      const data = await getPatientNotificationPreferences(user.id);
       return !!data;
     },
     enabled: !!user,
@@ -115,39 +114,36 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
     mutationFn: async () => {
       if (!user) throw new Error("Not authenticated");
 
-      const { error: profileError } = await supabase
-        .from("profiles")
-        .update({
-          first_name: state.firstName,
-          last_name: state.lastName,
-          phone: state.phone,
-        })
-        .eq("user_id", user.id);
+      await updateProfile(user.id, {
+        first_name: state.firstName,
+        last_name: state.lastName,
+        phone: state.phone,
+      });
 
-      if (profileError) throw profileError;
-
-      const { error: prefsError } = await supabase
-        .from("patient_notification_preferences")
-        .upsert({
-          user_id: user.id,
-          email_reminders: state.emailEnabled,
-          email_missed_alerts: state.emailEnabled,
-          email_encouragements: state.emailEnabled,
-          email_clinician_messages: state.emailEnabled,
-          sms_reminders: state.smsEnabled,
-          sms_clinician_messages: state.smsEnabled,
-          whatsapp_reminders: state.whatsappEnabled,
-          whatsapp_clinician_messages: state.whatsappEnabled,
-          in_app_reminders: state.pushEnabled,
-          in_app_missed_alerts: state.pushEnabled,
-          in_app_encouragements: state.pushEnabled,
-          push_clinician_messages: state.pushEnabled,
-          quiet_hours_enabled: state.quietHoursEnabled,
-          quiet_hours_start: state.quietHoursStart,
-          quiet_hours_end: state.quietHoursEnd,
-        }, { onConflict: "user_id" });
-
-      if (prefsError) throw prefsError;
+      const existing = await getPatientNotificationPreferences(user.id);
+      const prefsPayload = {
+        user_id: user.id,
+        email_reminders: state.emailEnabled,
+        email_missed_alerts: state.emailEnabled,
+        email_encouragements: state.emailEnabled,
+        email_clinician_messages: state.emailEnabled,
+        sms_reminders: state.smsEnabled,
+        sms_clinician_messages: state.smsEnabled,
+        whatsapp_reminders: state.whatsappEnabled,
+        whatsapp_clinician_messages: state.whatsappEnabled,
+        in_app_reminders: state.pushEnabled,
+        in_app_missed_alerts: state.pushEnabled,
+        in_app_encouragements: state.pushEnabled,
+        push_clinician_messages: state.pushEnabled,
+        quiet_hours_enabled: state.quietHoursEnabled,
+        quiet_hours_start: state.quietHoursStart,
+        quiet_hours_end: state.quietHoursEnd,
+      };
+      if (existing) {
+        await updatePatientNotificationPreferences(user.id, prefsPayload);
+      } else {
+        await createPatientNotificationPreferences(prefsPayload);
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["profile"] });

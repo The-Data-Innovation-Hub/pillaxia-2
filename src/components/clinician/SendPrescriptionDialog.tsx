@@ -14,7 +14,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Send, Loader2, MapPin, Phone, Mail, AlertTriangle } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { listPharmacyLocations } from "@/integrations/azure/data";
+import { apiInvoke } from "@/integrations/azure/client";
 import { toast } from "sonner";
 import type { Prescription } from "@/hooks/usePrescriptions";
 
@@ -37,27 +38,18 @@ export function SendPrescriptionDialog({
   const { data: pharmacies, isLoading } = useQuery({
     queryKey: ["pharmacies-for-send"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("pharmacy_locations")
-        .select("*")
-        .eq("is_active", true)
-        .order("name");
-      if (error) throw error;
-      return data;
+      const data = await listPharmacyLocations({ is_active: true });
+      return (data || []).sort((a, b) => String(a.name).localeCompare(String(b.name)));
     },
     enabled: open,
   });
 
   const sendPrescription = useMutation({
     mutationFn: async () => {
-      const { data, error } = await supabase.functions.invoke("send-prescription", {
-        body: {
-          prescriptionId: prescription.id,
-          pharmacyId: selectedPharmacyId,
-        },
+      const data = await apiInvoke<{ error?: string; message?: string }>("send-prescription", {
+        prescriptionId: prescription.id,
+        pharmacyId: selectedPharmacyId,
       });
-
-      if (error) throw error;
       if (data?.error) throw new Error(data.error);
       return data;
     },

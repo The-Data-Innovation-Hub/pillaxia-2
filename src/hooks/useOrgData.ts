@@ -1,9 +1,14 @@
 /**
  * Hook for fetching and managing organization data.
- * Extracted from OrganizationContext for better separation of concerns.
+ * Uses Azure API (see integrations/azure/data).
  */
 import { useState, useCallback } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import {
+  getProfileByUserId,
+  listOrganizationMembersByUser,
+  getOrganization,
+  getOrganizationBranding,
+} from "@/integrations/azure/data";
 
 export interface Organization {
   id: string;
@@ -70,60 +75,33 @@ export async function fetchOrganizationData(
   userId: string
 ): Promise<Omit<OrgDataState, "isLoading">> {
   try {
-    // First, get the user's profile to check for a preferred organization
-    const { data: profileData } = await supabase
-      .from("profiles")
-      .select("organization_id")
-      .eq("user_id", userId)
-      .maybeSingle();
+    const profileData = await getProfileByUserId(userId);
+    const memberDataList = await listOrganizationMembersByUser(userId);
+    const activeMembers = (memberDataList as OrganizationMember[]).filter((m) => m.is_active);
+    const sorted = [...activeMembers].sort((a, b) => {
+      const aAt = a.joined_at ? new Date(a.joined_at).getTime() : 0;
+      const bAt = b.joined_at ? new Date(b.joined_at).getTime() : 0;
+      return bAt - aAt;
+    });
 
-    // Get the user's organization memberships
-    const { data: memberDataList, error: memberError } = await supabase
-      .from("organization_members")
-      .select("*")
-      .eq("user_id", userId)
-      .eq("is_active", true)
-      .order("joined_at", { ascending: false });
-
-    if (memberError) throw memberError;
-
-    if (!memberDataList || memberDataList.length === 0) {
+    if (!sorted.length) {
       return { organization: null, branding: null, membership: null, error: null };
     }
 
-    // Prefer the organization set in the user's profile
-    let memberData = memberDataList[0];
-    if (profileData?.organization_id) {
-      const preferredMembership = memberDataList.find(
-        (m) => m.organization_id === profileData.organization_id
-      );
-      if (preferredMembership) {
-        memberData = preferredMembership;
-      }
+    const profileOrgId = (profileData as { organization_id?: string } | null)?.organization_id;
+    let memberData = sorted[0];
+    if (profileOrgId) {
+      const preferred = sorted.find((m) => m.organization_id === profileOrgId);
+      if (preferred) memberData = preferred;
     }
 
-    // Fetch organization details
-    const { data: orgData, error: orgError } = await supabase
-      .from("organizations")
-      .select("*")
-      .eq("id", memberData.organization_id)
-      .single();
-
-    if (orgError) throw orgError;
-
-    // Fetch branding
-    const { data: brandingData, error: brandingError } = await supabase
-      .from("organization_branding")
-      .select("*")
-      .eq("organization_id", memberData.organization_id)
-      .maybeSingle();
-
-    if (brandingError) throw brandingError;
+    const orgData = await getOrganization(memberData.organization_id);
+    const brandingData = await getOrganizationBranding(memberData.organization_id);
 
     return {
       organization: orgData as Organization,
       branding: brandingData as OrganizationBranding | null,
-      membership: memberData as OrganizationMember,
+      membership: memberData,
       error: null,
     };
   } catch (err) {

@@ -1,6 +1,10 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import {
+  listAllPatientEngagementScores,
+  listProfilesByUserIds,
+  apiInvoke,
+} from "@/integrations/azure/data";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -69,41 +73,29 @@ export function PatientEngagementPage() {
   const { data: scores, isLoading, refetch } = useQuery({
     queryKey: ["patient-engagement-scores", riskFilter],
     queryFn: async () => {
-      // First get engagement scores
-      let scoresQuery = supabase
-        .from("patient_engagement_scores")
-        .select("*")
-        .order("overall_score", { ascending: true });
-
-      if (riskFilter !== "all") {
-        scoresQuery = scoresQuery.eq("risk_level", riskFilter);
-      }
-
-      const { data: scoresData, error: scoresError } = await scoresQuery;
-      if (scoresError) throw scoresError;
-
-      // Then get profiles for all user_ids
-      const userIds = [...new Set(scoresData?.map((s) => s.user_id) || [])];
-      const { data: profilesData } = await supabase
-        .from("profiles")
-        .select("user_id, first_name, last_name, email")
-        .in("user_id", userIds);
-
-      const profilesMap = new Map(profilesData?.map((p) => [p.user_id, p]));
-
-      // Deduplicate by user_id, keeping only the latest
+      const scoresData = await listAllPatientEngagementScores(
+        riskFilter !== "all" ? { risk_level: riskFilter } : undefined
+      );
+      const sorted = [...scoresData].sort(
+        (a, b) => Number(a.overall_score ?? 0) - Number(b.overall_score ?? 0)
+      );
+      const userIds = [...new Set(sorted.map((s) => s.user_id as string))];
+      const profilesList = userIds.length ? await listProfilesByUserIds(userIds) : [];
+      const profilesMap = new Map(
+        profilesList.map((p: Record<string, unknown>) => [p.user_id as string, p])
+      );
       const latestScores = new Map<string, EngagementScore>();
-      scoresData?.forEach((score) => {
-        const existing = latestScores.get(score.user_id);
-        if (!existing || new Date(score.score_date) > new Date(existing.score_date)) {
-          latestScores.set(score.user_id, {
+      sorted.forEach((score) => {
+        const uid = score.user_id as string;
+        const existing = latestScores.get(uid);
+        if (!existing || new Date((score.score_date as string) || 0) > new Date((existing.score_date as string) || 0)) {
+          latestScores.set(uid, {
             ...score,
             metrics: score.metrics as EngagementScore["metrics"],
-            profiles: profilesMap.get(score.user_id) || null,
-          });
+            profiles: profilesMap.get(uid) || null,
+          } as EngagementScore);
         }
       });
-
       return Array.from(latestScores.values());
     },
   });
@@ -111,11 +103,9 @@ export function PatientEngagementPage() {
   const calculateScores = async () => {
     setIsCalculating(true);
     try {
-      const { data, error } = await supabase.functions.invoke("calculate-engagement-scores", {
-        body: { days: 7 },
-      });
+      const { data, error } = await apiInvoke<{ processed?: number }>("calculate-engagement-scores", { days: 7 });
       if (error) throw error;
-      toast.success(`Calculated scores for ${data.processed} patients`);
+      toast.success(`Calculated scores for ${data?.processed ?? 0} patients`);
       refetch();
     } catch (error) {
       console.error("Error calculating scores:", error);

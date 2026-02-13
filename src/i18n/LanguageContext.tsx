@@ -1,7 +1,8 @@
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from "react";
 import { en, yo, ig, ha, fr, type Translations } from "./translations";
-import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
+import { useAuth } from "@/contexts/AuthContext";
+import { updateMeProfile } from "@/integrations/azure/data";
 
 // Force fresh module - v4
 
@@ -55,79 +56,38 @@ function getInitialLanguage(): LanguageCode {
 }
 
 export function LanguageProvider({ children }: { children: ReactNode }) {
+  const { profile } = useAuth();
   const [language, setLanguageState] = useState<LanguageCode>(getInitialLanguage);
   const [isLoading, setIsLoading] = useState(false);
-  const [userId, setUserId] = useState<string | null>(null);
 
-  // Get user session independently to avoid circular dependency with AuthContext
+  // Sync language from profile when logged in (Azure/Entra; profile from /api/me)
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUserId(session?.user?.id ?? null);
-      
-      // Fetch language preference from profile if user is logged in
-      if (session?.user?.id) {
-        supabase
-          .from("profiles")
-          .select("language_preference")
-          .eq("user_id", session.user.id)
-          .maybeSingle()
-          .then(({ data }) => {
-            if (data?.language_preference && data.language_preference in translations) {
-              const profileLang = data.language_preference as LanguageCode;
-              if (profileLang !== language) {
-                setLanguageState(profileLang);
-                localStorage.setItem(STORAGE_KEY, profileLang);
-              }
-            }
-          });
+    if (profile?.language_preference && profile.language_preference in translations) {
+      const profileLang = profile.language_preference as LanguageCode;
+      if (profileLang !== language) {
+        setLanguageState(profileLang);
+        localStorage.setItem(STORAGE_KEY, profileLang);
       }
-    });
-
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      setUserId(session?.user?.id ?? null);
-      
-      if (session?.user?.id) {
-        supabase
-          .from("profiles")
-          .select("language_preference")
-          .eq("user_id", session.user.id)
-          .maybeSingle()
-          .then(({ data }) => {
-            if (data?.language_preference && data.language_preference in translations) {
-              const profileLang = data.language_preference as LanguageCode;
-              setLanguageState(profileLang);
-              localStorage.setItem(STORAGE_KEY, profileLang);
-            }
-          });
-      }
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
+    }
+  }, [profile?.language_preference]);
 
   const setLanguage = useCallback(async (lang: LanguageCode) => {
     setIsLoading(true);
     try {
-      // Update local state immediately
       setLanguageState(lang);
       localStorage.setItem(STORAGE_KEY, lang);
 
-      // If user is logged in, persist to database
-      if (userId) {
-        const { error } = await supabase
-          .from("profiles")
-          .update({ language_preference: lang })
-          .eq("user_id", userId);
-
-        if (error) {
+      if (profile?.user_id) {
+        try {
+          await updateMeProfile({ language_preference: lang });
+        } catch (error) {
           console.error("Failed to save language preference:", error);
         }
       }
     } finally {
       setIsLoading(false);
     }
-  }, [userId]);
+  }, [profile?.user_id]);
 
   const formatDateFn = useCallback((date: Date | string, formatStr: string): string => {
     const dateObj = typeof date === "string" ? new Date(date) : date;

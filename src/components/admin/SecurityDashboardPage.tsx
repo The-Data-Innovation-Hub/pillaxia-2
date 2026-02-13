@@ -1,6 +1,10 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import {
+  listSecurityEvents,
+  listDataAccessLogs,
+  listUserSessions,
+} from "@/integrations/azure/data";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -37,9 +41,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { format, subDays } from "date-fns";
-import type { Database } from "@/integrations/supabase/types";
-
-type SecurityEventType = Database["public"]["Enums"]["security_event_type"];
+import type { SecurityEventType } from "@/types/app-enums";
 
 interface SecurityEvent {
   id: string;
@@ -78,59 +80,49 @@ export function SecurityDashboardPage() {
   const [severityFilter, setSeverityFilter] = useState<string>("all");
   const [dateRange, setDateRange] = useState<string>("7");
 
-  // Fetch security events
+  const fromDate = subDays(new Date(), parseInt(dateRange)).toISOString();
+
   const { data: securityEvents, isLoading: loadingEvents, refetch: refetchEvents } = useQuery({
     queryKey: ["security-events", eventFilter, severityFilter, dateRange],
     queryFn: async () => {
-      let query = supabase
-        .from("security_events")
-        .select("*")
-        .gte("created_at", subDays(new Date(), parseInt(dateRange)).toISOString())
-        .order("created_at", { ascending: false })
-        .limit(100);
-
-      if (eventFilter !== "all" && eventFilter) {
-        query = query.eq("event_type", eventFilter as SecurityEventType);
-      }
-      if (severityFilter !== "all") {
-        query = query.eq("severity", severityFilter);
-      }
-
-      const { data, error } = await query;
-      if (error) throw error;
-      return data as SecurityEvent[];
+      const list = await listSecurityEvents({
+        from_date: fromDate,
+        limit: 100,
+        ...(eventFilter !== "all" && eventFilter && { event_type: eventFilter }),
+        ...(severityFilter !== "all" && { severity: severityFilter }),
+      });
+      return [...list].sort(
+        (a, b) =>
+          new Date((b.created_at as string) || 0).getTime() -
+          new Date((a.created_at as string) || 0).getTime()
+      ) as SecurityEvent[];
     },
   });
 
-  // Fetch data access logs
   const { data: dataAccessLogs, isLoading: loadingAccess } = useQuery({
     queryKey: ["data-access-logs", dateRange],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("data_access_log")
-        .select("*")
-        .gte("created_at", subDays(new Date(), parseInt(dateRange)).toISOString())
-        .order("created_at", { ascending: false })
-        .limit(100);
-
-      if (error) throw error;
-      return data as DataAccessLog[];
+      const list = await listDataAccessLogs({ from_date: fromDate, limit: 100 });
+      return [...list].sort(
+        (a, b) =>
+          new Date((b.created_at as string) || 0).getTime() -
+          new Date((a.created_at as string) || 0).getTime()
+      ) as DataAccessLog[];
     },
   });
 
-  // Fetch active sessions
   const { data: activeSessions, isLoading: loadingSessions, refetch: refetchSessions } = useQuery({
     queryKey: ["active-sessions"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("user_sessions")
-        .select("*")
-        .eq("is_active", true)
-        .gt("expires_at", new Date().toISOString())
-        .order("last_activity_at", { ascending: false });
-
-      if (error) throw error;
-      return data as ActiveSession[];
+      const list = await listUserSessions({ is_active: true });
+      const now = new Date().toISOString();
+      return [...list]
+        .filter((s: Record<string, unknown>) => (s.expires_at as string) > now)
+        .sort(
+          (a, b) =>
+            new Date((b.last_activity_at as string) || 0).getTime() -
+            new Date((a.last_activity_at as string) || 0).getTime()
+        ) as ActiveSession[];
     },
   });
 

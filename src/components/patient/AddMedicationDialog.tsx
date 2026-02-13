@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
+import { createMedication, createMedicationSchedule } from "@/integrations/azure/data";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -101,36 +101,26 @@ export function AddMedicationDialog({ open, onOpenChange, onSuccess, existingMed
 
     setLoading(true);
     try {
-      // Insert medication
-      const { data: medication, error: medError } = await supabase
-        .from("medications")
-        .insert({
-          user_id: user.id,
-          name,
-          dosage,
-          dosage_unit: dosageUnit,
-          form,
-          instructions: instructions || null,
-        })
-        .select()
-        .single();
-
-      if (medError) throw medError;
-
-      // Insert schedules
-      if (schedules.length > 0) {
-        const schedulesData = schedules.map((s) => ({
-          medication_id: medication.id,
-          user_id: user.id,
-          time_of_day: s.time,
-          quantity: s.quantity,
-        }));
-
-        const { error: schedError } = await supabase
-          .from("medication_schedules")
-          .insert(schedulesData);
-
-        if (schedError) throw schedError;
+      const medication = await createMedication({
+        user_id: user.id,
+        name,
+        dosage,
+        dosage_unit: dosageUnit,
+        form,
+        instructions: instructions || null,
+      });
+      const medId = (medication as { id?: string })?.id;
+      if (schedules.length > 0 && medId) {
+        await Promise.all(
+          schedules.map((s) =>
+            createMedicationSchedule({
+              medication_id: medId,
+              user_id: user.id,
+              time_of_day: s.time,
+              quantity: s.quantity,
+            })
+          )
+        );
       }
 
       toast.success("Medication added successfully!");

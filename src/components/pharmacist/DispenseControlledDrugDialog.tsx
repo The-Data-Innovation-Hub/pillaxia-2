@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { supabase } from "@/integrations/supabase/client";
+import { createControlledDrugDispensing } from "@/integrations/azure/data";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { AlertTriangle } from "lucide-react";
@@ -92,7 +92,7 @@ export function DispenseControlledDrugDialog({
 
     setIsSubmitting(true);
     try {
-      const { error } = await supabase.from("controlled_drug_dispensing").insert({
+      await createControlledDrugDispensing({
         controlled_drug_id: drug.id,
         patient_name: values.patient_name,
         patient_id: values.patient_id || null,
@@ -104,8 +104,6 @@ export function DispenseControlledDrugDialog({
         dispensing_pharmacist_id: user.id,
         notes: values.notes || null,
       });
-
-      if (error) throw error;
 
       toast.success(`Dispensed ${values.quantity_dispensed} ${drug.unit_of_measure} of ${drug.name}`);
       form.reset();

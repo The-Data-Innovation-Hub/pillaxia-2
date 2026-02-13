@@ -1,5 +1,9 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import {
+  listPatientRiskFlags,
+  updatePatientRiskFlag,
+  listProfilesByUserIds,
+} from "@/integrations/azure/data";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -30,25 +34,22 @@ export function PatientRiskFlagsCard() {
   const { data: riskFlags, isLoading } = useQuery({
     queryKey: ["patient-risk-flags", user?.id],
     queryFn: async () => {
-      const { data: flags, error } = await supabase
-        .from("patient_risk_flags")
-        .select("*")
-        .eq("is_resolved", false)
-        .order("severity", { ascending: false })
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-
-      // Get patient profiles
-      const patientIds = [...new Set(flags?.map(f => f.patient_user_id) || [])];
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("user_id, first_name, last_name")
-        .in("user_id", patientIds);
-
-      return (flags || []).map(flag => ({
+      const flags = await listPatientRiskFlags({ is_resolved: false });
+      const sorted = [...flags].sort((a, b) => {
+        const sev = (s: string) => (s === "critical" ? 0 : 1);
+        const sevDiff = sev((a.severity as string) || "") - sev((b.severity as string) || "");
+        if (sevDiff !== 0) return sevDiff;
+        return (
+          new Date((b.created_at as string) || 0).getTime() -
+          new Date((a.created_at as string) || 0).getTime()
+        );
+      });
+      const patientIds = [...new Set(sorted.map((f) => f.patient_user_id as string))];
+      const profilesList = patientIds.length ? await listProfilesByUserIds(patientIds) : [];
+      const profiles = Array.isArray(profilesList) ? profilesList : [];
+      return sorted.map((flag) => ({
         ...flag,
-        patient: profiles?.find(p => p.user_id === flag.patient_user_id) || null,
+        patient: profiles.find((p: Record<string, unknown>) => p.user_id === flag.patient_user_id) || null,
       })) as RiskFlag[];
     },
     enabled: !!user,
@@ -56,15 +57,11 @@ export function PatientRiskFlagsCard() {
 
   const resolveMutation = useMutation({
     mutationFn: async (flagId: string) => {
-      const { error } = await supabase
-        .from("patient_risk_flags")
-        .update({ 
-          is_resolved: true, 
-          resolved_at: new Date().toISOString(),
-          resolved_by: user?.id 
-        })
-        .eq("id", flagId);
-      if (error) throw error;
+      await updatePatientRiskFlag(flagId, {
+        is_resolved: true,
+        resolved_at: new Date().toISOString(),
+        resolved_by: user?.id,
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["patient-risk-flags"] });

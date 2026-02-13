@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
+import { listPatientEngagementScores } from "@/integrations/azure/data";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -13,16 +13,13 @@ export function EngagementScoreCard() {
     queryKey: ["my-engagement-score", user?.id],
     queryFn: async () => {
       if (!user) return null;
-      const { data, error } = await supabase
-        .from("patient_engagement_scores")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("score_date", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (error) throw error;
-      return data;
+      const data = await listPatientEngagementScores(user.id);
+      const sorted = (data || []).sort(
+        (a, b) =>
+          new Date((b.score_date as string) || 0).getTime() -
+          new Date((a.score_date as string) || 0).getTime()
+      );
+      return sorted[0] ?? null;
     },
     enabled: !!user,
   });
