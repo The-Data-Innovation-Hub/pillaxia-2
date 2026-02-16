@@ -86,8 +86,8 @@ const App = () => (
                 <LanguageProvider>
                   <OnboardingProvider>
                     <SkipLink href="#main-content" />
-                    <EnvironmentBanner />
-                    <DemoDataBanner />
+                    {/* <EnvironmentBanner /> */}
+                    {/* <DemoDataBanner /> */}
                     <OfflineBanner />
                     <SessionTimeoutWarning />
                     <TourOverlay />
