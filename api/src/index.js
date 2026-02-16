@@ -289,6 +289,15 @@ async function syncUserFromJwt(claims) {
 // Middleware: validate B2C JWT, sync user, attach userId
 // ──────────────────────────────────────────────
 const authMiddleware = (req, res, next) => {
+  // TEMPORARY: Bypass auth for debugging
+  if (process.env.DISABLE_AUTH === 'true') {
+    logger.warn('⚠️  Authentication bypassed - DISABLE_AUTH is enabled');
+    req.userId = '12d62e8e-e976-4b40-9e36-7ac5b01a00a5'; // Use your actual user ID from token
+    req.user = { oid: req.userId };
+    req.jwtClaims = { oid: req.userId };
+    return next();
+  }
+
   passport.authenticate(
     'oauth-bearer',
     { session: false },
