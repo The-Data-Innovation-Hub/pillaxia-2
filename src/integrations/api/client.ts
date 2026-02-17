@@ -22,6 +22,7 @@ function getApiBaseUrl(): string {
 }
 
 const API_URL = getApiBaseUrl();
+console.log('🔧 API_URL configured:', API_URL);
 
 const DEFAULT_TIMEOUT_MS = 15_000;
 const MAX_RETRIES = 2;

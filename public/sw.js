@@ -1,5 +1,5 @@
 // Pillaxia Service Worker - Offline-First with Push Notifications
-const CACHE_VERSION = 'v1';
+const CACHE_VERSION = 'v2';
 const STATIC_CACHE = `pillaxia-static-${CACHE_VERSION}`;
 const DYNAMIC_CACHE = `pillaxia-dynamic-${CACHE_VERSION}`;
 const API_CACHE = `pillaxia-api-${CACHE_VERSION}`;
