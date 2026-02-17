@@ -2,11 +2,15 @@
 -- PILLAXIA PHASE 1: Foundation & Infrastructure
 -- =============================================
 
--- 1. Create role enum type
-CREATE TYPE public.app_role AS ENUM ('patient', 'clinician', 'pharmacist', 'admin');
+-- 1. Create role enum type (idempotent)
+DO $$ BEGIN
+  CREATE TYPE public.app_role AS ENUM ('patient', 'clinician', 'pharmacist', 'admin');
+EXCEPTION
+  WHEN duplicate_object THEN null;
+END $$;
 
 -- 2. Create profiles table
-CREATE TABLE public.profiles (
+CREATE TABLE IF NOT EXISTS public.profiles (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID REFERENCES public.users(id) ON DELETE CASCADE NOT NULL UNIQUE,
   first_name TEXT,
@@ -21,7 +25,7 @@ CREATE TABLE public.profiles (
 );
 
 -- 3. Create user_roles table (separate from profiles for security)
-CREATE TABLE public.user_roles (
+CREATE TABLE IF NOT EXISTS public.user_roles (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID REFERENCES public.users(id) ON DELETE CASCADE NOT NULL,
   role app_role NOT NULL,
@@ -31,7 +35,7 @@ CREATE TABLE public.user_roles (
 );
 
 -- 4. Create audit_log table for tracking sensitive actions
-CREATE TABLE public.audit_log (
+CREATE TABLE IF NOT EXISTS public.audit_log (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID REFERENCES public.users(id),
   action TEXT NOT NULL,
@@ -44,7 +48,7 @@ CREATE TABLE public.audit_log (
 );
 
 -- 5. Create clinician_patient_assignments table
-CREATE TABLE public.clinician_patient_assignments (
+CREATE TABLE IF NOT EXISTS public.clinician_patient_assignments (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   clinician_user_id UUID REFERENCES public.users(id) ON DELETE CASCADE NOT NULL,
   patient_user_id UUID REFERENCES public.users(id) ON DELETE CASCADE NOT NULL,
@@ -55,7 +59,7 @@ CREATE TABLE public.clinician_patient_assignments (
 );
 
 -- 6. Create caregiver_invitations table
-CREATE TABLE public.caregiver_invitations (
+CREATE TABLE IF NOT EXISTS public.caregiver_invitations (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   patient_user_id UUID REFERENCES public.users(id) ON DELETE CASCADE NOT NULL,
   caregiver_email TEXT NOT NULL,
@@ -197,6 +201,7 @@ BEGIN
 END;
 $$;
 
+DROP TRIGGER IF EXISTS on_auth_user_created ON public.users;
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON public.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
@@ -215,10 +220,12 @@ BEGIN
 END;
 $$;
 
+DROP TRIGGER IF EXISTS update_profiles_updated_at ON public.profiles;
 CREATE TRIGGER update_profiles_updated_at
   BEFORE UPDATE ON public.profiles
   FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_caregiver_invitations_updated_at ON public.caregiver_invitations;
 CREATE TRIGGER update_caregiver_invitations_updated_at
   BEFORE UPDATE ON public.caregiver_invitations
   FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
@@ -250,14 +257,17 @@ END;
 $$;
 
 -- Add audit triggers to sensitive tables
+DROP TRIGGER IF EXISTS audit_user_roles ON public.user_roles;
 CREATE TRIGGER audit_user_roles
   AFTER INSERT OR UPDATE OR DELETE ON public.user_roles
   FOR EACH ROW EXECUTE FUNCTION public.log_audit_event();
 
+DROP TRIGGER IF EXISTS audit_profiles ON public.profiles;
 CREATE TRIGGER audit_profiles
   AFTER UPDATE ON public.profiles
   FOR EACH ROW EXECUTE FUNCTION public.log_audit_event();
 
+DROP TRIGGER IF EXISTS audit_clinician_patient_assignments ON public.clinician_patient_assignments;
 CREATE TRIGGER audit_clinician_patient_assignments
   AFTER INSERT OR UPDATE OR DELETE ON public.clinician_patient_assignments
   FOR EACH ROW EXECUTE FUNCTION public.log_audit_event();
@@ -459,12 +469,12 @@ CREATE POLICY "Admins can manage all invitations"
 -- INDEXES FOR PERFORMANCE
 -- =============================================
 
-CREATE INDEX idx_profiles_user_id ON public.profiles(user_id);
-CREATE INDEX idx_user_roles_user_id ON public.user_roles(user_id);
-CREATE INDEX idx_user_roles_role ON public.user_roles(role);
-CREATE INDEX idx_audit_log_user_id ON public.audit_log(user_id);
-CREATE INDEX idx_audit_log_created_at ON public.audit_log(created_at);
-CREATE INDEX idx_clinician_assignments_clinician ON public.clinician_patient_assignments(clinician_user_id);
-CREATE INDEX idx_clinician_assignments_patient ON public.clinician_patient_assignments(patient_user_id);
-CREATE INDEX idx_caregiver_invitations_patient ON public.caregiver_invitations(patient_user_id);
-CREATE INDEX idx_caregiver_invitations_caregiver ON public.caregiver_invitations(caregiver_user_id);
+CREATE INDEX IF NOT EXISTS idx_profiles_user_id ON public.profiles(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_roles_user_id ON public.user_roles(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_roles_role ON public.user_roles(role);
+CREATE INDEX IF NOT EXISTS idx_audit_log_user_id ON public.audit_log(user_id);
+CREATE INDEX IF NOT EXISTS idx_audit_log_created_at ON public.audit_log(created_at);
+CREATE INDEX IF NOT EXISTS idx_clinician_assignments_clinician ON public.clinician_patient_assignments(clinician_user_id);
+CREATE INDEX IF NOT EXISTS idx_clinician_assignments_patient ON public.clinician_patient_assignments(patient_user_id);
+CREATE INDEX IF NOT EXISTS idx_caregiver_invitations_patient ON public.caregiver_invitations(patient_user_id);
+CREATE INDEX IF NOT EXISTS idx_caregiver_invitations_caregiver ON public.caregiver_invitations(caregiver_user_id);
