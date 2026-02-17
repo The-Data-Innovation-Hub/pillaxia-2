@@ -1914,7 +1914,7 @@ CREATE TABLE IF NOT EXISTS public.profiles (
 -- Name: controlled_drug_dispensing_full; Type: VIEW; Schema: public; Owner: -
 --
 
-CREATE VIEW public.controlled_drug_dispensing_full AS
+CREATE OR REPLACE VIEW public.controlled_drug_dispensing_full AS
  SELECT cdd.id,
     cdd.controlled_drug_id,
     cdd.patient_user_id,
@@ -2133,7 +2133,7 @@ CREATE TABLE IF NOT EXISTS public.medication_catalog (
 -- Name: drug_transfers_full; Type: VIEW; Schema: public; Owner: -
 --
 
-CREATE VIEW public.drug_transfers_full AS
+CREATE OR REPLACE VIEW public.drug_transfers_full AS
  SELECT dt.id,
     dt.source_pharmacy_id,
     dt.destination_pharmacy_id,
@@ -2385,7 +2385,7 @@ CREATE MATERIALIZED VIEW public.medication_availability_view AS
 -- Name: medication_availability_with_details; Type: VIEW; Schema: public; Owner: -
 --
 
-CREATE VIEW public.medication_availability_with_details AS
+CREATE OR REPLACE VIEW public.medication_availability_with_details AS
  SELECT ma.id,
     ma.pharmacy_id,
     COALESCE(mc.name, ma.medication_name) AS medication_name,
@@ -2469,7 +2469,7 @@ CREATE TABLE IF NOT EXISTS public.medications (
 -- Name: medication_schedules_with_user; Type: VIEW; Schema: public; Owner: -
 --
 
-CREATE VIEW public.medication_schedules_with_user AS
+CREATE OR REPLACE VIEW public.medication_schedules_with_user AS
  SELECT ms.id,
     ms.medication_id,
     m.user_id,
@@ -2519,7 +2519,7 @@ CREATE MATERIALIZED VIEW public.medications_full_view AS
 -- Name: medications_with_details; Type: VIEW; Schema: public; Owner: -
 --
 
-CREATE VIEW public.medications_with_details AS
+CREATE OR REPLACE VIEW public.medications_with_details AS
  SELECT m.id,
     m.user_id,
     m.name,
@@ -2677,7 +2677,7 @@ CREATE TABLE IF NOT EXISTS public.organization_subscriptions (
 -- Name: organization_invoices_full; Type: VIEW; Schema: public; Owner: -
 --
 
-CREATE VIEW public.organization_invoices_full AS
+CREATE OR REPLACE VIEW public.organization_invoices_full AS
  SELECT oi.id,
     oi.organization_id,
     oi.stripe_invoice_id,
@@ -2966,7 +2966,7 @@ CREATE TABLE IF NOT EXISTS public.patient_vitals (
 -- Name: patient_vitals_with_bmi; Type: VIEW; Schema: public; Owner: -
 --
 
-CREATE VIEW public.patient_vitals_with_bmi AS
+CREATE OR REPLACE VIEW public.patient_vitals_with_bmi AS
  SELECT patient_vitals.id,
     patient_vitals.user_id,
     patient_vitals.recorded_at,
@@ -3094,7 +3094,7 @@ CREATE TABLE IF NOT EXISTS public.users (
 -- Name: profiles_with_email; Type: VIEW; Schema: public; Owner: -
 --
 
-CREATE VIEW public.profiles_with_email AS
+CREATE OR REPLACE VIEW public.profiles_with_email AS
  SELECT p.id,
     p.user_id,
     p.first_name,
