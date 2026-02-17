@@ -342,14 +342,14 @@ DO $$ BEGIN
   END IF;
 END $$;
 
--- medications: refills_remaining <= refills_authorized
+-- medications: refills_remaining must be >= 0
 DO $$ BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_constraint WHERE conname = 'medications_valid_refills'
   ) THEN
     ALTER TABLE public.medications
       ADD CONSTRAINT medications_valid_refills
-      CHECK (refills_remaining <= refills_authorized);
+      CHECK (refills_remaining >= 0);
   END IF;
 END $$;
 
