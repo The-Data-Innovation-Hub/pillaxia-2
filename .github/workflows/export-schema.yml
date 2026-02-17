@@ -32,18 +32,9 @@ jobs:
           echo "Schema exported successfully"
           wc -l infrastructure/migrations/consolidated/00000000000000_consolidated_schema.sql
 
-      - name: Commit exported schema
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add infrastructure/migrations/consolidated/
-          git commit -m "Export consolidated database schema from production
-
-          Exported schema includes:
-          - All tables, columns, constraints
-          - All functions and triggers
-          - All RLS policies
-          - All indexes
-
-          This will be used as the consolidated migration." || echo "No changes to commit"
-          git push
+      - name: Upload schema as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: consolidated-schema
+          path: infrastructure/migrations/consolidated/00000000000000_consolidated_schema.sql
+          retention-days: 7
