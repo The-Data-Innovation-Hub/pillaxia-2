@@ -114,7 +114,8 @@ function AppRoutes() {
     <Routes>
       <Route path="/" element={<HomeOrDashboard />} />
       <Route path="/auth" element={<Auth />} />
-    
+      <Route path="/auth/callback" element={<Auth />} />
+
       {/* Protected Dashboard Routes */}
       <Route
         path="/dashboard"
