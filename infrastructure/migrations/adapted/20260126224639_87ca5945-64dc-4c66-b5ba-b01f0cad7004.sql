@@ -21,6 +21,7 @@ DROP POLICY IF EXISTS "System can insert audit logs" ON public.audit_log;
 
 -- Create a more restrictive insert policy
 -- Audit logs are only inserted via security definer trigger, not directly by users
+DROP POLICY IF EXISTS "Audit logs inserted via trigger only" ON public.audit_log;
 CREATE POLICY "Audit logs inserted via trigger only"
   ON public.audit_log FOR INSERT
   WITH CHECK (
