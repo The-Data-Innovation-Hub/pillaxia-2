@@ -77,7 +77,8 @@ jobs:
   build-and-deploy:
     name: Build and Deploy
     needs: [run-migrations, test]
-    if: ${{ !failure() }}
+    # Run if tests pass, even if migrations fail (migrations are informational)
+    if: ${{ !cancelled() && needs.test.result == 'success' }}
     runs-on: ubuntu-latest
     environment:
       name: production

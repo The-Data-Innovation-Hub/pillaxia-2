@@ -35,11 +35,35 @@ echo "Running migrations against $PGHOST/$PGDATABASE..."
 echo ""
 
 # ── Ensure schema_migrations tracking table exists ──
+# Check if table exists and has the correct schema
 psql "$CONN" -v ON_ERROR_STOP=1 <<'SQL'
-CREATE TABLE IF NOT EXISTS public.schema_migrations (
-  filename TEXT PRIMARY KEY,
-  applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
+DO $$
+BEGIN
+  -- Check if table exists
+  IF EXISTS (SELECT FROM pg_tables WHERE schemaname = 'public' AND tablename = 'schema_migrations') THEN
+    -- Check if it has the filename column
+    IF NOT EXISTS (
+      SELECT FROM information_schema.columns
+      WHERE table_schema = 'public'
+      AND table_name = 'schema_migrations'
+      AND column_name = 'filename'
+    ) THEN
+      -- Table exists but with wrong schema, rename it and create new one
+      ALTER TABLE public.schema_migrations RENAME TO schema_migrations_old;
+      CREATE TABLE public.schema_migrations (
+        filename TEXT PRIMARY KEY,
+        applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    END IF;
+  ELSE
+    -- Table doesn't exist, create it
+    CREATE TABLE public.schema_migrations (
+      filename TEXT PRIMARY KEY,
+      applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  END IF;
+END
+$$;
 SQL
 
 # ── Helper: run a migration file if not already applied ──
