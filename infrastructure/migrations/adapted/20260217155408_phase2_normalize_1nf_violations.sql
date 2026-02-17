@@ -63,10 +63,23 @@ WHERE dr.affected_ndc_numbers IS NOT NULL
 ON CONFLICT (drug_recall_id, ndc_number) DO NOTHING;
 
 -- ============================================================
--- PART 3: Create Backward-Compatible Views
+-- PART 3: Drop Original Array Columns and Create Views
+-- ============================================================
+-- Note: We create the views AFTER dropping columns to avoid dependency issues
+
+-- ============================================================
+-- PART 4: Drop drug_recalls Array Columns
 -- ============================================================
 
--- Create view that provides array format for backward compatibility
+-- Drop lot_numbers column from drug_recalls (CASCADE to drop dependent views)
+ALTER TABLE public.drug_recalls
+  DROP COLUMN IF EXISTS lot_numbers CASCADE;
+
+-- Drop affected_ndc_numbers column from drug_recalls (CASCADE to drop dependent views)
+ALTER TABLE public.drug_recalls
+  DROP COLUMN IF EXISTS affected_ndc_numbers CASCADE;
+
+-- Recreate the backward-compatible view after dropping columns
 CREATE OR REPLACE VIEW public.drug_recalls_with_arrays AS
 SELECT
   dr.*,
@@ -82,18 +95,6 @@ FROM public.drug_recalls dr
 LEFT JOIN public.drug_recall_lot_numbers drln ON dr.id = drln.drug_recall_id
 LEFT JOIN public.drug_recall_ndc_numbers drnn ON dr.id = drnn.drug_recall_id
 GROUP BY dr.id;
-
--- ============================================================
--- PART 4: Drop Original Array Columns
--- ============================================================
-
--- Drop lot_numbers column from drug_recalls
-ALTER TABLE public.drug_recalls
-  DROP COLUMN IF EXISTS lot_numbers;
-
--- Drop affected_ndc_numbers column from drug_recalls
-ALTER TABLE public.drug_recalls
-  DROP COLUMN IF EXISTS affected_ndc_numbers;
 
 -- ============================================================
 -- PART 5: Normalize medication_schedules.days_of_week array
@@ -130,10 +131,14 @@ WHERE ms.days_of_week IS NOT NULL
 ON CONFLICT (schedule_id, day_of_week) DO NOTHING;
 
 -- ============================================================
--- PART 7: Create Backward-Compatible View for medication_schedules
+-- PART 7: Drop Original days_of_week Array Column
 -- ============================================================
 
--- Create view that provides array format for backward compatibility
+-- Drop days_of_week column from medication_schedules (CASCADE to drop dependent views)
+ALTER TABLE public.medication_schedules
+  DROP COLUMN IF EXISTS days_of_week CASCADE;
+
+-- Recreate the backward-compatible view after dropping column
 CREATE OR REPLACE VIEW public.medication_schedules_with_days_array AS
 SELECT
   ms.*,
@@ -144,14 +149,6 @@ SELECT
 FROM public.medication_schedules ms
 LEFT JOIN public.medication_schedule_days msd ON ms.id = msd.schedule_id
 GROUP BY ms.id;
-
--- ============================================================
--- PART 8: Drop Original days_of_week Array Column
--- ============================================================
-
--- Drop days_of_week column from medication_schedules
-ALTER TABLE public.medication_schedules
-  DROP COLUMN IF EXISTS days_of_week;
 
 -- ============================================================
 -- PART 9: Add Helper Functions for Common Operations
