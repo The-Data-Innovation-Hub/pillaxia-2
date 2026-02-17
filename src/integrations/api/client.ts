@@ -247,48 +247,54 @@ class QueryBuilder {
   }
 
   /** Fetch multiple rows */
-  async then(
-    resolve: (value: { data: unknown[]; error: Error | null; count?: number }) => void,
-    reject?: (err: Error) => void
-  ): Promise<void> {
-    try {
-      // Build Prefer header for count requests
-      const preferParts: string[] = [];
-      if (this._wantsCount) {
-        preferParts.push(`count=${this._wantsCount}`);
-      }
-      if (this._headOnly) {
-        preferParts.push('head');
-      }
-
-      const headers: Record<string, string> = {};
-      if (preferParts.length > 0) {
-        headers['Prefer'] = preferParts.join(',');
-      }
-
-      const res = await fetchApi(`/rest/${this._table}${this._buildQs()}`, { headers });
-
-      // Parse Content-Range header for count (PostgREST standard)
-      // Format: "0-24/3573" or "*/3573"
-      let count: number | undefined;
-      const contentRange = res.headers.get('Content-Range');
-      if (contentRange) {
-        const match = contentRange.match(/\/(\d+)$/);
-        if (match) {
-          count = parseInt(match[1], 10);
+  then<TResult1 = { data: unknown[]; error: Error | null; count?: number }, TResult2 = never>(
+    onfulfilled?: ((value: { data: unknown[]; error: Error | null; count?: number }) => TResult1 | PromiseLike<TResult1>) | null,
+    onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | null
+  ): Promise<TResult1 | TResult2> {
+    const promise = (async () => {
+      try {
+        // Build Prefer header for count requests
+        const preferParts: string[] = [];
+        if (this._wantsCount) {
+          preferParts.push(`count=${this._wantsCount}`);
         }
-      }
+        if (this._headOnly) {
+          preferParts.push('head');
+        }
 
-      const data = await parseJson(res);
-      resolve({
-        data: Array.isArray(data) ? data : [],
-        error: buildError(res, data),
-        count,
-      });
-    } catch (err) {
-      if (reject) reject(err instanceof Error ? err : new Error(String(err)));
-      else resolve({ data: [], error: err instanceof Error ? err : new Error(String(err)) });
-    }
+        const headers: Record<string, string> = {};
+        if (preferParts.length > 0) {
+          headers['Prefer'] = preferParts.join(',');
+        }
+
+        const res = await fetchApi(`/rest/${this._table}${this._buildQs()}`, { headers });
+
+        // Parse Content-Range header for count (PostgREST standard)
+        // Format: "0-24/3573" or "*/3573"
+        let count: number | undefined;
+        const contentRange = res.headers.get('Content-Range');
+        if (contentRange) {
+          const match = contentRange.match(/\/(\d+)$/);
+          if (match) {
+            count = parseInt(match[1], 10);
+          }
+        }
+
+        const data = await parseJson(res);
+        return {
+          data: Array.isArray(data) ? data : [],
+          error: buildError(res, data),
+          count,
+        };
+      } catch (err) {
+        return {
+          data: [],
+          error: err instanceof Error ? err : new Error(String(err))
+        };
+      }
+    })();
+
+    return promise.then(onfulfilled, onrejected);
   }
 
   /** Fetch exactly one row (or null) */
