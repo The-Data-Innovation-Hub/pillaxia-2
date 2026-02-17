@@ -14,7 +14,6 @@ import { ThemeProvider } from "next-themes";
 import { PageLoadingFallback } from "@/components/ui/loading-spinner";
 import { OnboardingProvider, TourOverlay, OnboardingChecklist } from "@/components/onboarding";
 import { SkipLink } from "@/components/a11y";
-import { SentryErrorBoundary } from "@/components/SentryErrorBoundary";
 import { useServerVerifiedRoles } from "@/hooks/useServerVerifiedRoles";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
@@ -74,34 +73,32 @@ import {
 const queryClient = new QueryClient();
 
 const App = () => (
-  <SentryErrorBoundary>
-    <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
-      <QueryClientProvider client={queryClient}>
-        <TooltipProvider>
-          <Toaster />
-          <Sonner />
-          <BrowserRouter>
-            <AuthProvider>
-              <OrganizationProvider>
-                <LanguageProvider>
-                  <OnboardingProvider>
-                    <SkipLink href="#main-content" />
-                    {/* <EnvironmentBanner /> */}
-                    {/* <DemoDataBanner /> */}
-                    <OfflineBanner />
-                    <SessionTimeoutWarning />
-                    <TourOverlay />
-                    <OnboardingChecklist />
-                    <AppRoutes />
-                  </OnboardingProvider>
-                </LanguageProvider>
-              </OrganizationProvider>
-            </AuthProvider>
-          </BrowserRouter>
-        </TooltipProvider>
-      </QueryClientProvider>
-    </ThemeProvider>
-  </SentryErrorBoundary>
+  <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <AuthProvider>
+            <OrganizationProvider>
+              <LanguageProvider>
+                <OnboardingProvider>
+                  <SkipLink href="#main-content" />
+                  {/* <EnvironmentBanner /> */}
+                  {/* <DemoDataBanner /> */}
+                  <OfflineBanner />
+                  <SessionTimeoutWarning />
+                  <TourOverlay />
+                  <OnboardingChecklist />
+                  <AppRoutes />
+                </OnboardingProvider>
+              </LanguageProvider>
+            </OrganizationProvider>
+          </AuthProvider>
+        </BrowserRouter>
+      </TooltipProvider>
+    </QueryClientProvider>
+  </ThemeProvider>
 );
 
 // Suspense wrapper for lazy loaded routes

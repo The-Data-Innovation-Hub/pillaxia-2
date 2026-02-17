@@ -483,12 +483,6 @@ app.get('/health/ready', readinessCheck);
 app.get('/health', readinessCheck); // backward-compat alias
 app.get('/health/live', (_req, res) => res.json({ status: 'ok' }));
 
-// Sentry DSN for frontend (no auth; returns null if not configured)
-app.get('/api/get-sentry-dsn', (_req, res) => {
-  const dsn = (process.env.SENTRY_DSN || process.env.SENTRY_PUBLIC_DSN || '').trim() || null;
-  res.json({ dsn });
-});
-
 // ──────────────────────────────────────────────
 // Organization Management API (Admin only)
 // ──────────────────────────────────────────────

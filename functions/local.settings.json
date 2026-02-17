@@ -1,0 +1,15 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "FUNCTIONS_WORKER_RUNTIME": "node",
+    "DATABASE_URL": "postgresql://pillaxiaadmin:H3althcare1!@pillaxia-dev-pg.postgres.database.azure.com:5432/pillaxia?sslmode=require",
+    "RESEND_API_KEY": "",
+    "STRIPE_SECRET_KEY": "",
+    "STRIPE_WEBHOOK_SECRET": "",
+    "TWILIO_ACCOUNT_SID": "",
+    "TWILIO_AUTH_TOKEN": "",
+    "FUNCTIONS_BASE_URL": "http://localhost:7071",
+    "FUNCTIONS_MASTER_KEY": ""
+  }
+}
