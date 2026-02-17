@@ -22,7 +22,7 @@ SET row_security = off;
 -- Name: auth; Type: SCHEMA; Schema: -; Owner: -
 --
 
-CREATE SCHEMA auth;
+CREATE SCHEMA IF NOT EXISTS auth;
 
 
 --
@@ -36,55 +36,72 @@ CREATE SCHEMA auth;
 -- Name: app_role; Type: TYPE; Schema: public; Owner: -
 --
 
-CREATE TYPE public.app_role AS ENUM (
+DO $$ BEGIN
+  CREATE TYPE public.app_role AS ENUM (
     'patient',
     'clinician',
     'pharmacist',
     'admin',
     'manager'
 );
+EXCEPTION
+  WHEN duplicate_object THEN null;
+END $$;
 
 
 --
 -- Name: drug_schedule; Type: TYPE; Schema: public; Owner: -
 --
 
-CREATE TYPE public.drug_schedule AS ENUM (
+DO $$ BEGIN
+  CREATE TYPE public.drug_schedule AS ENUM (
     'II',
     'III',
     'IV',
     'V'
 );
+EXCEPTION
+  WHEN duplicate_object THEN null;
+END $$;
 
 
 --
 -- Name: organization_role; Type: TYPE; Schema: public; Owner: -
 --
 
-CREATE TYPE public.organization_role AS ENUM (
+DO $$ BEGIN
+  CREATE TYPE public.organization_role AS ENUM (
     'owner',
     'admin',
     'member'
 );
+EXCEPTION
+  WHEN duplicate_object THEN null;
+END $$;
 
 
 --
 -- Name: organization_status; Type: TYPE; Schema: public; Owner: -
 --
 
-CREATE TYPE public.organization_status AS ENUM (
+DO $$ BEGIN
+  CREATE TYPE public.organization_status AS ENUM (
     'active',
     'suspended',
     'trial',
     'cancelled'
 );
+EXCEPTION
+  WHEN duplicate_object THEN null;
+END $$;
 
 
 --
 -- Name: security_event_type; Type: TYPE; Schema: public; Owner: -
 --
 
-CREATE TYPE public.security_event_type AS ENUM (
+DO $$ BEGIN
+  CREATE TYPE public.security_event_type AS ENUM (
     'login_success',
     'login_failure',
     'logout',
@@ -102,13 +119,17 @@ CREATE TYPE public.security_event_type AS ENUM (
     'account_unlocked',
     'new_login_location'
 );
+EXCEPTION
+  WHEN duplicate_object THEN null;
+END $$;
 
 
 --
 -- Name: subscription_status; Type: TYPE; Schema: public; Owner: -
 --
 
-CREATE TYPE public.subscription_status AS ENUM (
+DO $$ BEGIN
+  CREATE TYPE public.subscription_status AS ENUM (
     'active',
     'trialing',
     'past_due',
@@ -118,6 +139,9 @@ CREATE TYPE public.subscription_status AS ENUM (
     'unpaid',
     'paused'
 );
+EXCEPTION
+  WHEN duplicate_object THEN null;
+END $$;
 
 
 --
@@ -1603,7 +1627,7 @@ SET default_table_access_method = heap;
 -- Name: account_lockouts; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.account_lockouts (
+CREATE TABLE IF NOT EXISTS public.account_lockouts (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     email text NOT NULL,
     user_id uuid,
@@ -1621,7 +1645,7 @@ CREATE TABLE public.account_lockouts (
 -- Name: appointments; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.appointments (
+CREATE TABLE IF NOT EXISTS public.appointments (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     clinician_user_id uuid NOT NULL,
     patient_user_id uuid NOT NULL,
@@ -1645,7 +1669,7 @@ CREATE TABLE public.appointments (
 -- Name: audit_log; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.audit_log (
+CREATE TABLE IF NOT EXISTS public.audit_log (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     user_id uuid,
     action text NOT NULL,
@@ -1662,7 +1686,7 @@ CREATE TABLE public.audit_log (
 -- Name: availability_notification_history; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.availability_notification_history (
+CREATE TABLE IF NOT EXISTS public.availability_notification_history (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     alert_id uuid NOT NULL,
     availability_id uuid NOT NULL,
@@ -1676,7 +1700,7 @@ CREATE TABLE public.availability_notification_history (
 -- Name: billing_events; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.billing_events (
+CREATE TABLE IF NOT EXISTS public.billing_events (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     organization_id uuid NOT NULL,
     event_type text NOT NULL,
@@ -1693,7 +1717,7 @@ CREATE TABLE public.billing_events (
 -- Name: caregiver_invitations; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.caregiver_invitations (
+CREATE TABLE IF NOT EXISTS public.caregiver_invitations (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     patient_user_id uuid NOT NULL,
     caregiver_email text NOT NULL,
@@ -1712,7 +1736,7 @@ CREATE TABLE public.caregiver_invitations (
 -- Name: caregiver_messages; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.caregiver_messages (
+CREATE TABLE IF NOT EXISTS public.caregiver_messages (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     caregiver_user_id uuid NOT NULL,
     patient_user_id uuid NOT NULL,
@@ -1729,7 +1753,7 @@ CREATE TABLE public.caregiver_messages (
 -- Name: clinician_messages; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.clinician_messages (
+CREATE TABLE IF NOT EXISTS public.clinician_messages (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     clinician_user_id uuid NOT NULL,
     patient_user_id uuid NOT NULL,
@@ -1747,7 +1771,7 @@ CREATE TABLE public.clinician_messages (
 -- Name: clinician_patient_assignments; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.clinician_patient_assignments (
+CREATE TABLE IF NOT EXISTS public.clinician_patient_assignments (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     clinician_user_id uuid NOT NULL,
     patient_user_id uuid NOT NULL,
@@ -1761,7 +1785,7 @@ CREATE TABLE public.clinician_patient_assignments (
 -- Name: compliance_reports; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.compliance_reports (
+CREATE TABLE IF NOT EXISTS public.compliance_reports (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     report_type text NOT NULL,
     report_period_start date NOT NULL,
@@ -1778,7 +1802,7 @@ CREATE TABLE public.compliance_reports (
 -- Name: controlled_drug_adjustments; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.controlled_drug_adjustments (
+CREATE TABLE IF NOT EXISTS public.controlled_drug_adjustments (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     controlled_drug_id uuid NOT NULL,
     adjustment_type text NOT NULL,
@@ -1799,7 +1823,7 @@ CREATE TABLE public.controlled_drug_adjustments (
 -- Name: controlled_drug_dispensing; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.controlled_drug_dispensing (
+CREATE TABLE IF NOT EXISTS public.controlled_drug_dispensing (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     controlled_drug_id uuid NOT NULL,
     patient_name text NOT NULL,
@@ -1825,7 +1849,7 @@ CREATE TABLE public.controlled_drug_dispensing (
 -- Name: prescriptions; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.prescriptions (
+CREATE TABLE IF NOT EXISTS public.prescriptions (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     prescription_number text NOT NULL,
     patient_user_id uuid NOT NULL,
@@ -1862,7 +1886,7 @@ CREATE TABLE public.prescriptions (
 -- Name: profiles; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.profiles (
+CREATE TABLE IF NOT EXISTS public.profiles (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     user_id uuid NOT NULL,
     first_name text,
@@ -1918,7 +1942,7 @@ CREATE VIEW public.controlled_drug_dispensing_full AS
 -- Name: controlled_drugs; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.controlled_drugs (
+CREATE TABLE IF NOT EXISTS public.controlled_drugs (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     name text NOT NULL,
     generic_name text,
@@ -1982,7 +2006,7 @@ CREATE MATERIALIZED VIEW public.controlled_drug_dispensing_full_view AS
 -- Name: data_access_log; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.data_access_log (
+CREATE TABLE IF NOT EXISTS public.data_access_log (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     user_id uuid NOT NULL,
     accessed_table text NOT NULL,
@@ -2003,7 +2027,7 @@ CREATE TABLE public.data_access_log (
 -- Name: drug_interactions; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.drug_interactions (
+CREATE TABLE IF NOT EXISTS public.drug_interactions (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     drug_a text NOT NULL,
     drug_b text NOT NULL,
@@ -2019,7 +2043,7 @@ CREATE TABLE public.drug_interactions (
 -- Name: drug_recall_notifications; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.drug_recall_notifications (
+CREATE TABLE IF NOT EXISTS public.drug_recall_notifications (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     recall_id uuid NOT NULL,
     pharmacy_id uuid,
@@ -2036,7 +2060,7 @@ CREATE TABLE public.drug_recall_notifications (
 -- Name: drug_recalls; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.drug_recalls (
+CREATE TABLE IF NOT EXISTS public.drug_recalls (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     drug_name text NOT NULL,
     generic_name text,
@@ -2060,7 +2084,7 @@ CREATE TABLE public.drug_recalls (
 -- Name: drug_transfers; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.drug_transfers (
+CREATE TABLE IF NOT EXISTS public.drug_transfers (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     source_pharmacy_id uuid NOT NULL,
     destination_pharmacy_id uuid NOT NULL,
@@ -2090,7 +2114,7 @@ CREATE TABLE public.drug_transfers (
 -- Name: medication_catalog; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.medication_catalog (
+CREATE TABLE IF NOT EXISTS public.medication_catalog (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     name text NOT NULL,
     generic_name text,
@@ -2139,7 +2163,7 @@ CREATE VIEW public.drug_transfers_full AS
 -- Name: pharmacy_locations; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.pharmacy_locations (
+CREATE TABLE IF NOT EXISTS public.pharmacy_locations (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     pharmacist_user_id uuid NOT NULL,
     name text NOT NULL,
@@ -2202,7 +2226,7 @@ CREATE MATERIALIZED VIEW public.drug_transfers_full_view AS
 -- Name: email_ab_assignments; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.email_ab_assignments (
+CREATE TABLE IF NOT EXISTS public.email_ab_assignments (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     test_id uuid NOT NULL,
     notification_id uuid NOT NULL,
@@ -2217,7 +2241,7 @@ CREATE TABLE public.email_ab_assignments (
 -- Name: email_ab_tests; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.email_ab_tests (
+CREATE TABLE IF NOT EXISTS public.email_ab_tests (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     test_name text NOT NULL,
     notification_type text NOT NULL,
@@ -2237,7 +2261,7 @@ CREATE TABLE public.email_ab_tests (
 -- Name: external_user_mapping; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.external_user_mapping (
+CREATE TABLE IF NOT EXISTS public.external_user_mapping (
     external_id text NOT NULL,
     user_id uuid NOT NULL
 );
@@ -2247,7 +2271,7 @@ CREATE TABLE public.external_user_mapping (
 -- Name: lab_results; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.lab_results (
+CREATE TABLE IF NOT EXISTS public.lab_results (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     user_id uuid NOT NULL,
     ordered_by uuid,
@@ -2275,7 +2299,7 @@ CREATE TABLE public.lab_results (
 -- Name: login_attempts; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.login_attempts (
+CREATE TABLE IF NOT EXISTS public.login_attempts (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     email text NOT NULL,
     user_id uuid,
@@ -2290,7 +2314,7 @@ CREATE TABLE public.login_attempts (
 -- Name: medication_availability; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.medication_availability (
+CREATE TABLE IF NOT EXISTS public.medication_availability (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     pharmacy_id uuid NOT NULL,
     medication_name text NOT NULL,
@@ -2312,7 +2336,7 @@ CREATE TABLE public.medication_availability (
 -- Name: medication_availability_alerts; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.medication_availability_alerts (
+CREATE TABLE IF NOT EXISTS public.medication_availability_alerts (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     patient_user_id uuid NOT NULL,
     medication_name text NOT NULL,
@@ -2383,7 +2407,7 @@ CREATE VIEW public.medication_availability_with_details AS
 -- Name: medication_logs; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.medication_logs (
+CREATE TABLE IF NOT EXISTS public.medication_logs (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     schedule_id uuid NOT NULL,
     medication_id uuid NOT NULL,
@@ -2400,7 +2424,7 @@ CREATE TABLE public.medication_logs (
 -- Name: medication_schedules; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.medication_schedules (
+CREATE TABLE IF NOT EXISTS public.medication_schedules (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     medication_id uuid NOT NULL,
     time_of_day time without time zone NOT NULL,
@@ -2417,7 +2441,7 @@ CREATE TABLE public.medication_schedules (
 -- Name: medications; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.medications (
+CREATE TABLE IF NOT EXISTS public.medications (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     user_id uuid NOT NULL,
     name text NOT NULL,
@@ -2522,7 +2546,7 @@ CREATE VIEW public.medications_with_details AS
 -- Name: mfa_recovery_codes; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.mfa_recovery_codes (
+CREATE TABLE IF NOT EXISTS public.mfa_recovery_codes (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     user_id uuid NOT NULL,
     code_hash text NOT NULL,
@@ -2535,7 +2559,7 @@ CREATE TABLE public.mfa_recovery_codes (
 -- Name: notification_history; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.notification_history (
+CREATE TABLE IF NOT EXISTS public.notification_history (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     user_id uuid NOT NULL,
     channel text NOT NULL,
@@ -2562,7 +2586,7 @@ CREATE TABLE public.notification_history (
 -- Name: notification_settings; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.notification_settings (
+CREATE TABLE IF NOT EXISTS public.notification_settings (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     setting_key text NOT NULL,
     is_enabled boolean DEFAULT true NOT NULL,
@@ -2576,7 +2600,7 @@ CREATE TABLE public.notification_settings (
 -- Name: organization_branding; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.organization_branding (
+CREATE TABLE IF NOT EXISTS public.organization_branding (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     organization_id uuid NOT NULL,
     app_name text DEFAULT 'Pillaxia'::text NOT NULL,
@@ -2603,7 +2627,7 @@ CREATE TABLE public.organization_branding (
 -- Name: organization_invoices; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.organization_invoices (
+CREATE TABLE IF NOT EXISTS public.organization_invoices (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     organization_id uuid NOT NULL,
     stripe_invoice_id text,
@@ -2627,7 +2651,7 @@ CREATE TABLE public.organization_invoices (
 -- Name: organization_subscriptions; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.organization_subscriptions (
+CREATE TABLE IF NOT EXISTS public.organization_subscriptions (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     organization_id uuid NOT NULL,
     stripe_customer_id text,
@@ -2679,7 +2703,7 @@ CREATE VIEW public.organization_invoices_full AS
 -- Name: organizations; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.organizations (
+CREATE TABLE IF NOT EXISTS public.organizations (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     name text NOT NULL,
     slug text NOT NULL,
@@ -2731,7 +2755,7 @@ CREATE MATERIALIZED VIEW public.organization_invoices_full_view AS
 -- Name: organization_members; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.organization_members (
+CREATE TABLE IF NOT EXISTS public.organization_members (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     organization_id uuid NOT NULL,
     user_id uuid NOT NULL,
@@ -2749,7 +2773,7 @@ CREATE TABLE public.organization_members (
 -- Name: organization_payment_methods; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.organization_payment_methods (
+CREATE TABLE IF NOT EXISTS public.organization_payment_methods (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     organization_id uuid NOT NULL,
     stripe_payment_method_id text,
@@ -2768,7 +2792,7 @@ CREATE TABLE public.organization_payment_methods (
 -- Name: patient_activity_log; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.patient_activity_log (
+CREATE TABLE IF NOT EXISTS public.patient_activity_log (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     user_id uuid NOT NULL,
     activity_type text NOT NULL,
@@ -2781,7 +2805,7 @@ CREATE TABLE public.patient_activity_log (
 -- Name: patient_allergies; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.patient_allergies (
+CREATE TABLE IF NOT EXISTS public.patient_allergies (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     user_id uuid NOT NULL,
     allergen text NOT NULL,
@@ -2797,7 +2821,7 @@ CREATE TABLE public.patient_allergies (
 -- Name: patient_chronic_conditions; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.patient_chronic_conditions (
+CREATE TABLE IF NOT EXISTS public.patient_chronic_conditions (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     user_id uuid NOT NULL,
     condition_name text NOT NULL,
@@ -2813,7 +2837,7 @@ CREATE TABLE public.patient_chronic_conditions (
 -- Name: patient_emergency_contacts; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.patient_emergency_contacts (
+CREATE TABLE IF NOT EXISTS public.patient_emergency_contacts (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     user_id uuid NOT NULL,
     name text NOT NULL,
@@ -2830,7 +2854,7 @@ CREATE TABLE public.patient_emergency_contacts (
 -- Name: patient_engagement_scores; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.patient_engagement_scores (
+CREATE TABLE IF NOT EXISTS public.patient_engagement_scores (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     user_id uuid NOT NULL,
     score_date date DEFAULT CURRENT_DATE NOT NULL,
@@ -2854,7 +2878,7 @@ END) STORED
 -- Name: patient_notification_preferences; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.patient_notification_preferences (
+CREATE TABLE IF NOT EXISTS public.patient_notification_preferences (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     user_id uuid NOT NULL,
     email_reminders boolean DEFAULT true NOT NULL,
@@ -2880,7 +2904,7 @@ CREATE TABLE public.patient_notification_preferences (
 -- Name: patient_preferred_pharmacies; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.patient_preferred_pharmacies (
+CREATE TABLE IF NOT EXISTS public.patient_preferred_pharmacies (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     patient_user_id uuid NOT NULL,
     pharmacy_id uuid NOT NULL,
@@ -2893,7 +2917,7 @@ CREATE TABLE public.patient_preferred_pharmacies (
 -- Name: patient_risk_flags; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.patient_risk_flags (
+CREATE TABLE IF NOT EXISTS public.patient_risk_flags (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     patient_user_id uuid NOT NULL,
     clinician_user_id uuid NOT NULL,
@@ -2916,7 +2940,7 @@ CREATE TABLE public.patient_risk_flags (
 -- Name: patient_vitals; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.patient_vitals (
+CREATE TABLE IF NOT EXISTS public.patient_vitals (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     user_id uuid NOT NULL,
     recorded_at timestamp with time zone DEFAULT now() NOT NULL,
@@ -3007,7 +3031,7 @@ CREATE MATERIALIZED VIEW public.patient_vitals_with_bmi_view AS
 -- Name: polypharmacy_warnings; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.polypharmacy_warnings (
+CREATE TABLE IF NOT EXISTS public.polypharmacy_warnings (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     patient_user_id uuid NOT NULL,
     medication_count integer NOT NULL,
@@ -3023,7 +3047,7 @@ CREATE TABLE public.polypharmacy_warnings (
 -- Name: post_call_summaries; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.post_call_summaries (
+CREATE TABLE IF NOT EXISTS public.post_call_summaries (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     room_id uuid NOT NULL,
     patient_user_id uuid NOT NULL,
@@ -3042,7 +3066,7 @@ CREATE TABLE public.post_call_summaries (
 -- Name: prescription_status_history; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.prescription_status_history (
+CREATE TABLE IF NOT EXISTS public.prescription_status_history (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     prescription_id uuid NOT NULL,
     previous_status text,
@@ -3057,7 +3081,7 @@ CREATE TABLE public.prescription_status_history (
 -- Name: users; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.users (
+CREATE TABLE IF NOT EXISTS public.users (
     id uuid NOT NULL,
     email text,
     raw_user_meta_data jsonb DEFAULT '{}'::jsonb,
@@ -3092,7 +3116,7 @@ CREATE VIEW public.profiles_with_email AS
 -- Name: push_subscriptions; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.push_subscriptions (
+CREATE TABLE IF NOT EXISTS public.push_subscriptions (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     user_id uuid NOT NULL,
     endpoint text NOT NULL,
@@ -3109,7 +3133,7 @@ CREATE TABLE public.push_subscriptions (
 -- Name: red_flag_alerts; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.red_flag_alerts (
+CREATE TABLE IF NOT EXISTS public.red_flag_alerts (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     patient_user_id uuid NOT NULL,
     clinician_user_id uuid NOT NULL,
@@ -3129,7 +3153,7 @@ CREATE TABLE public.red_flag_alerts (
 -- Name: refill_requests; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.refill_requests (
+CREATE TABLE IF NOT EXISTS public.refill_requests (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     patient_user_id uuid NOT NULL,
     medication_id uuid NOT NULL,
@@ -3148,7 +3172,7 @@ CREATE TABLE public.refill_requests (
 -- Name: schema_migrations; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.schema_migrations (
+CREATE TABLE IF NOT EXISTS public.schema_migrations (
     filename text NOT NULL,
     applied_at timestamp with time zone DEFAULT now() NOT NULL
 );
@@ -3158,7 +3182,7 @@ CREATE TABLE public.schema_migrations (
 -- Name: schema_migrations_old; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.schema_migrations_old (
+CREATE TABLE IF NOT EXISTS public.schema_migrations_old (
     name text NOT NULL,
     applied_at timestamp with time zone DEFAULT now() NOT NULL
 );
@@ -3168,7 +3192,7 @@ CREATE TABLE public.schema_migrations_old (
 -- Name: security_events; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.security_events (
+CREATE TABLE IF NOT EXISTS public.security_events (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     user_id uuid,
     event_type public.security_event_type NOT NULL,
@@ -3190,7 +3214,7 @@ CREATE TABLE public.security_events (
 -- Name: security_notification_preferences; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.security_notification_preferences (
+CREATE TABLE IF NOT EXISTS public.security_notification_preferences (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     user_id uuid NOT NULL,
     notify_account_locked boolean DEFAULT true NOT NULL,
@@ -3215,7 +3239,7 @@ CREATE TABLE public.security_notification_preferences (
 -- Name: security_settings; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.security_settings (
+CREATE TABLE IF NOT EXISTS public.security_settings (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     setting_key text NOT NULL,
     setting_value jsonb DEFAULT '{}'::jsonb NOT NULL,
@@ -3230,7 +3254,7 @@ CREATE TABLE public.security_settings (
 -- Name: soap_notes; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.soap_notes (
+CREATE TABLE IF NOT EXISTS public.soap_notes (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     clinician_user_id uuid NOT NULL,
     patient_user_id uuid NOT NULL,
@@ -3248,7 +3272,7 @@ CREATE TABLE public.soap_notes (
 -- Name: symptom_entries; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.symptom_entries (
+CREATE TABLE IF NOT EXISTS public.symptom_entries (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     user_id uuid NOT NULL,
     symptom_type text NOT NULL,
@@ -3265,7 +3289,7 @@ CREATE TABLE public.symptom_entries (
 -- Name: trusted_devices; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.trusted_devices (
+CREATE TABLE IF NOT EXISTS public.trusted_devices (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     user_id uuid NOT NULL,
     device_token_hash text NOT NULL,
@@ -3286,7 +3310,7 @@ CREATE TABLE public.trusted_devices (
 -- Name: user_login_locations; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.user_login_locations (
+CREATE TABLE IF NOT EXISTS public.user_login_locations (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     user_id uuid NOT NULL,
     ip_address text NOT NULL,
@@ -3309,7 +3333,7 @@ CREATE TABLE public.user_login_locations (
 -- Name: user_roles; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.user_roles (
+CREATE TABLE IF NOT EXISTS public.user_roles (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     user_id uuid NOT NULL,
     role public.app_role NOT NULL,
@@ -3322,7 +3346,7 @@ CREATE TABLE public.user_roles (
 -- Name: user_sessions; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.user_sessions (
+CREATE TABLE IF NOT EXISTS public.user_sessions (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     user_id uuid NOT NULL,
     session_token text NOT NULL,
@@ -3342,7 +3366,7 @@ CREATE TABLE public.user_sessions (
 -- Name: video_call_notes; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.video_call_notes (
+CREATE TABLE IF NOT EXISTS public.video_call_notes (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     room_id uuid NOT NULL,
     clinician_user_id uuid NOT NULL,
@@ -3361,7 +3385,7 @@ CREATE TABLE public.video_call_notes (
 -- Name: video_room_participants; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.video_room_participants (
+CREATE TABLE IF NOT EXISTS public.video_room_participants (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     room_id uuid NOT NULL,
     user_id uuid NOT NULL,
@@ -3380,7 +3404,7 @@ CREATE TABLE public.video_room_participants (
 -- Name: video_rooms; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.video_rooms (
+CREATE TABLE IF NOT EXISTS public.video_rooms (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     room_name text NOT NULL,
     room_sid text,
@@ -3404,7 +3428,7 @@ CREATE TABLE public.video_rooms (
 -- Name: vitals_alerts; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.vitals_alerts (
+CREATE TABLE IF NOT EXISTS public.vitals_alerts (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     user_id uuid NOT NULL,
     vital_id uuid,
@@ -3422,7 +3446,7 @@ CREATE TABLE public.vitals_alerts (
 -- Name: waiting_room_queue; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.waiting_room_queue (
+CREATE TABLE IF NOT EXISTS public.waiting_room_queue (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     clinician_user_id uuid NOT NULL,
     patient_user_id uuid NOT NULL,
@@ -4234,1441 +4258,1442 @@ ALTER TABLE ONLY public.waiting_room_queue
 -- Name: idx_account_lockouts_active; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_account_lockouts_active ON public.account_lockouts USING btree (email, locked_until) WHERE (unlocked_at IS NULL);
+CREATE INDEX IF NOT EXISTS idx_account_lockouts_active ON public.account_lockouts USING btree (email, locked_until) WHERE (unlocked_at IS NULL);
 
 
 --
 -- Name: idx_account_lockouts_email; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_account_lockouts_email ON public.account_lockouts USING btree (email);
+CREATE INDEX IF NOT EXISTS idx_account_lockouts_email ON public.account_lockouts USING btree (email);
 
 
 --
 -- Name: idx_account_lockouts_email_active; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_account_lockouts_email_active ON public.account_lockouts USING btree (email) WHERE (unlocked_at IS NULL);
+CREATE INDEX IF NOT EXISTS idx_account_lockouts_email_active ON public.account_lockouts USING btree (email) WHERE (unlocked_at IS NULL);
 
 
 --
 -- Name: idx_account_lockouts_locked_until; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_account_lockouts_locked_until ON public.account_lockouts USING btree (locked_until);
+CREATE INDEX IF NOT EXISTS idx_account_lockouts_locked_until ON public.account_lockouts USING btree (locked_until);
 
 
 --
 -- Name: idx_activity_log_type; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_activity_log_type ON public.patient_activity_log USING btree (activity_type, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_activity_log_type ON public.patient_activity_log USING btree (activity_type, created_at DESC);
 
 
 --
 -- Name: idx_activity_log_user; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_activity_log_user ON public.patient_activity_log USING btree (user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_activity_log_user ON public.patient_activity_log USING btree (user_id, created_at DESC);
 
 
 --
 -- Name: idx_appointments_clinician; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_appointments_clinician ON public.appointments USING btree (clinician_user_id);
+CREATE INDEX IF NOT EXISTS idx_appointments_clinician ON public.appointments USING btree (clinician_user_id);
 
 
 --
 -- Name: idx_appointments_clinician_date; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_appointments_clinician_date ON public.appointments USING btree (clinician_user_id, appointment_date DESC);
+CREATE INDEX IF NOT EXISTS idx_appointments_clinician_date ON public.appointments USING btree (clinician_user_id, appointment_date DESC);
 
 
 --
 -- Name: idx_appointments_date; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_appointments_date ON public.appointments USING btree (appointment_date);
+CREATE INDEX IF NOT EXISTS idx_appointments_date ON public.appointments USING btree (appointment_date);
 
 
 --
 -- Name: idx_appointments_patient; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_appointments_patient ON public.appointments USING btree (patient_user_id);
+CREATE INDEX IF NOT EXISTS idx_appointments_patient ON public.appointments USING btree (patient_user_id);
 
 
 --
 -- Name: idx_appointments_patient_date; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_appointments_patient_date ON public.appointments USING btree (patient_user_id, appointment_date DESC);
+CREATE INDEX IF NOT EXISTS idx_appointments_patient_date ON public.appointments USING btree (patient_user_id, appointment_date DESC);
 
 
 --
 -- Name: idx_appointments_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_appointments_status ON public.appointments USING btree (status);
+CREATE INDEX IF NOT EXISTS idx_appointments_status ON public.appointments USING btree (status);
 
 
 --
 -- Name: idx_audit_log_action; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_audit_log_action ON public.audit_log USING btree (action);
+CREATE INDEX IF NOT EXISTS idx_audit_log_action ON public.audit_log USING btree (action);
 
 
 --
 -- Name: idx_audit_log_created; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_audit_log_created ON public.audit_log USING btree (created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_log_created ON public.audit_log USING btree (created_at DESC);
 
 
 --
 -- Name: idx_audit_log_created_at; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_audit_log_created_at ON public.audit_log USING btree (created_at);
+CREATE INDEX IF NOT EXISTS idx_audit_log_created_at ON public.audit_log USING btree (created_at);
 
 
 --
 -- Name: idx_audit_log_details; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_audit_log_details ON public.audit_log USING gin (details);
+CREATE INDEX IF NOT EXISTS idx_audit_log_details ON public.audit_log USING gin (details);
 
 
 --
 -- Name: idx_audit_log_user_created; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_audit_log_user_created ON public.audit_log USING btree (user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_log_user_created ON public.audit_log USING btree (user_id, created_at DESC);
 
 
 --
 -- Name: idx_audit_log_user_id; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_audit_log_user_id ON public.audit_log USING btree (user_id);
+CREATE INDEX IF NOT EXISTS idx_audit_log_user_id ON public.audit_log USING btree (user_id);
 
 
 --
 -- Name: idx_billing_events_org_id; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_billing_events_org_id ON public.billing_events USING btree (organization_id);
+CREATE INDEX IF NOT EXISTS idx_billing_events_org_id ON public.billing_events USING btree (organization_id);
 
 
 --
 -- Name: idx_billing_events_org_type; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_billing_events_org_type ON public.billing_events USING btree (organization_id, event_type, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_billing_events_org_type ON public.billing_events USING btree (organization_id, event_type, created_at DESC);
 
 
 --
 -- Name: idx_caregiver_invitations_caregiver; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_caregiver_invitations_caregiver ON public.caregiver_invitations USING btree (caregiver_user_id);
+CREATE INDEX IF NOT EXISTS idx_caregiver_invitations_caregiver ON public.caregiver_invitations USING btree (caregiver_user_id);
 
 
 --
 -- Name: idx_caregiver_invitations_patient; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_caregiver_invitations_patient ON public.caregiver_invitations USING btree (patient_user_id);
+CREATE INDEX IF NOT EXISTS idx_caregiver_invitations_patient ON public.caregiver_invitations USING btree (patient_user_id);
 
 
 --
 -- Name: idx_caregiver_invitations_patient_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_caregiver_invitations_patient_status ON public.caregiver_invitations USING btree (patient_user_id, status);
+CREATE INDEX IF NOT EXISTS idx_caregiver_invitations_patient_status ON public.caregiver_invitations USING btree (patient_user_id, status);
 
 
 --
 -- Name: idx_caregiver_invitations_permissions_gin; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_caregiver_invitations_permissions_gin ON public.caregiver_invitations USING gin (permissions);
+CREATE INDEX IF NOT EXISTS idx_caregiver_invitations_permissions_gin ON public.caregiver_invitations USING gin (permissions);
 
 
 --
 -- Name: idx_caregiver_messages_conversation; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_caregiver_messages_conversation ON public.caregiver_messages USING btree (patient_user_id, caregiver_user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_caregiver_messages_conversation ON public.caregiver_messages USING btree (patient_user_id, caregiver_user_id, created_at DESC);
 
 
 --
 -- Name: idx_clinician_assignments_clinician; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_clinician_assignments_clinician ON public.clinician_patient_assignments USING btree (clinician_user_id);
+CREATE INDEX IF NOT EXISTS idx_clinician_assignments_clinician ON public.clinician_patient_assignments USING btree (clinician_user_id);
 
 
 --
 -- Name: idx_clinician_assignments_patient; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_clinician_assignments_patient ON public.clinician_patient_assignments USING btree (patient_user_id);
+CREATE INDEX IF NOT EXISTS idx_clinician_assignments_patient ON public.clinician_patient_assignments USING btree (patient_user_id);
 
 
 --
 -- Name: idx_clinician_messages_clinician_created; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_clinician_messages_clinician_created ON public.clinician_messages USING btree (clinician_user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_clinician_messages_clinician_created ON public.clinician_messages USING btree (clinician_user_id, created_at DESC);
 
 
 --
 -- Name: idx_clinician_messages_conversation; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_clinician_messages_conversation ON public.clinician_messages USING btree (patient_user_id, clinician_user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_clinician_messages_conversation ON public.clinician_messages USING btree (patient_user_id, clinician_user_id, created_at DESC);
 
 
 --
 -- Name: idx_clinician_messages_delivery_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_clinician_messages_delivery_status ON public.clinician_messages USING gin (delivery_status);
+CREATE INDEX IF NOT EXISTS idx_clinician_messages_delivery_status ON public.clinician_messages USING gin (delivery_status);
 
 
 --
 -- Name: idx_clinician_messages_patient_created; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_clinician_messages_patient_created ON public.clinician_messages USING btree (patient_user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_clinician_messages_patient_created ON public.clinician_messages USING btree (patient_user_id, created_at DESC);
 
 
 --
 -- Name: idx_clinician_messages_unread; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_clinician_messages_unread ON public.clinician_messages USING btree (patient_user_id, is_read) WHERE (is_read = false);
+CREATE INDEX IF NOT EXISTS idx_clinician_messages_unread ON public.clinician_messages USING btree (patient_user_id, is_read) WHERE (is_read = false);
 
 
 --
 -- Name: idx_clinician_patient_clinician; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_clinician_patient_clinician ON public.clinician_patient_assignments USING btree (clinician_user_id);
+CREATE INDEX IF NOT EXISTS idx_clinician_patient_clinician ON public.clinician_patient_assignments USING btree (clinician_user_id);
 
 
 --
 -- Name: idx_clinician_patient_patient; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_clinician_patient_patient ON public.clinician_patient_assignments USING btree (patient_user_id);
+CREATE INDEX IF NOT EXISTS idx_clinician_patient_patient ON public.clinician_patient_assignments USING btree (patient_user_id);
 
 
 --
 -- Name: idx_controlled_drug_dispensing_dispensed_at; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_controlled_drug_dispensing_dispensed_at ON public.controlled_drug_dispensing USING btree (dispensed_at DESC);
+CREATE INDEX IF NOT EXISTS idx_controlled_drug_dispensing_dispensed_at ON public.controlled_drug_dispensing USING btree (dispensed_at DESC);
 
 
 --
 -- Name: idx_controlled_drug_dispensing_full_view_dispensed_at; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_controlled_drug_dispensing_full_view_dispensed_at ON public.controlled_drug_dispensing_full_view USING btree (dispensed_at DESC);
+CREATE INDEX IF NOT EXISTS idx_controlled_drug_dispensing_full_view_dispensed_at ON public.controlled_drug_dispensing_full_view USING btree (dispensed_at DESC);
 
 
 --
 -- Name: idx_controlled_drug_dispensing_full_view_id; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE UNIQUE INDEX idx_controlled_drug_dispensing_full_view_id ON public.controlled_drug_dispensing_full_view USING btree (id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_controlled_drug_dispensing_full_view_id ON public.controlled_drug_dispensing_full_view USING btree (id);
 
 
 --
 -- Name: idx_controlled_drug_dispensing_full_view_patient; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_controlled_drug_dispensing_full_view_patient ON public.controlled_drug_dispensing_full_view USING btree (patient_user_id);
+CREATE INDEX IF NOT EXISTS idx_controlled_drug_dispensing_full_view_patient ON public.controlled_drug_dispensing_full_view USING btree (patient_user_id);
 
 
 --
 -- Name: idx_controlled_drug_dispensing_full_view_schedule; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_controlled_drug_dispensing_full_view_schedule ON public.controlled_drug_dispensing_full_view USING btree (controlled_drug_schedule);
+CREATE INDEX IF NOT EXISTS idx_controlled_drug_dispensing_full_view_schedule ON public.controlled_drug_dispensing_full_view USING btree (controlled_drug_schedule);
 
 
 --
 -- Name: idx_controlled_drug_dispensing_patient_prescriber; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_controlled_drug_dispensing_patient_prescriber ON public.controlled_drug_dispensing USING btree (patient_user_id, prescriber_user_id);
+CREATE INDEX IF NOT EXISTS idx_controlled_drug_dispensing_patient_prescriber ON public.controlled_drug_dispensing USING btree (patient_user_id, prescriber_user_id);
 
 
 --
 -- Name: idx_controlled_drug_dispensing_patient_user_id; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_controlled_drug_dispensing_patient_user_id ON public.controlled_drug_dispensing USING btree (patient_user_id);
+CREATE INDEX IF NOT EXISTS idx_controlled_drug_dispensing_patient_user_id ON public.controlled_drug_dispensing USING btree (patient_user_id);
 
 
 --
 -- Name: idx_controlled_drug_dispensing_prescriber_user_id; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_controlled_drug_dispensing_prescriber_user_id ON public.controlled_drug_dispensing USING btree (prescriber_user_id);
+CREATE INDEX IF NOT EXISTS idx_controlled_drug_dispensing_prescriber_user_id ON public.controlled_drug_dispensing USING btree (prescriber_user_id);
 
 
 --
 -- Name: idx_controlled_drug_dispensing_prescription_id; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_controlled_drug_dispensing_prescription_id ON public.controlled_drug_dispensing USING btree (prescription_id);
+CREATE INDEX IF NOT EXISTS idx_controlled_drug_dispensing_prescription_id ON public.controlled_drug_dispensing USING btree (prescription_id);
 
 
 --
 -- Name: idx_controlled_drugs_active; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_controlled_drugs_active ON public.controlled_drugs USING btree (is_active) WHERE (is_active = true);
+CREATE INDEX IF NOT EXISTS idx_controlled_drugs_active ON public.controlled_drugs USING btree (is_active) WHERE (is_active = true);
 
 
 --
 -- Name: idx_controlled_drugs_expiry; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_controlled_drugs_expiry ON public.controlled_drugs USING btree (expiry_date) WHERE (expiry_date IS NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_controlled_drugs_expiry ON public.controlled_drugs USING btree (expiry_date) WHERE (expiry_date IS NOT NULL);
 
 
 --
 -- Name: idx_controlled_drugs_low_stock; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_controlled_drugs_low_stock ON public.controlled_drugs USING btree (current_stock, minimum_stock) WHERE ((is_active = true) AND (current_stock <= minimum_stock));
+CREATE INDEX IF NOT EXISTS idx_controlled_drugs_low_stock ON public.controlled_drugs USING btree (current_stock, minimum_stock) WHERE ((is_active = true) AND (current_stock <= minimum_stock));
 
 
 --
 -- Name: idx_controlled_drugs_stock_alert; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_controlled_drugs_stock_alert ON public.controlled_drugs USING btree (current_stock, minimum_stock) WHERE (is_active = true);
+CREATE INDEX IF NOT EXISTS idx_controlled_drugs_stock_alert ON public.controlled_drugs USING btree (current_stock, minimum_stock) WHERE (is_active = true);
 
 
 --
 -- Name: idx_cpa_clinician; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_cpa_clinician ON public.clinician_patient_assignments USING btree (clinician_user_id);
+CREATE INDEX IF NOT EXISTS idx_cpa_clinician ON public.clinician_patient_assignments USING btree (clinician_user_id);
 
 
 --
 -- Name: idx_cpa_patient; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_cpa_patient ON public.clinician_patient_assignments USING btree (patient_user_id);
+CREATE INDEX IF NOT EXISTS idx_cpa_patient ON public.clinician_patient_assignments USING btree (patient_user_id);
 
 
 --
 -- Name: idx_data_access_log_created_at; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_data_access_log_created_at ON public.data_access_log USING btree (created_at);
+CREATE INDEX IF NOT EXISTS idx_data_access_log_created_at ON public.data_access_log USING btree (created_at);
 
 
 --
 -- Name: idx_data_access_log_data_category; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_data_access_log_data_category ON public.data_access_log USING btree (data_category);
+CREATE INDEX IF NOT EXISTS idx_data_access_log_data_category ON public.data_access_log USING btree (data_category);
 
 
 --
 -- Name: idx_data_access_log_patient; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_data_access_log_patient ON public.data_access_log USING btree (patient_id, created_at DESC) WHERE (patient_id IS NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_data_access_log_patient ON public.data_access_log USING btree (patient_id, created_at DESC) WHERE (patient_id IS NOT NULL);
 
 
 --
 -- Name: idx_data_access_log_patient_id; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_data_access_log_patient_id ON public.data_access_log USING btree (patient_id);
+CREATE INDEX IF NOT EXISTS idx_data_access_log_patient_id ON public.data_access_log USING btree (patient_id);
 
 
 --
 -- Name: idx_data_access_log_patient_time; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_data_access_log_patient_time ON public.data_access_log USING btree (patient_id, created_at DESC) WHERE (patient_id IS NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_data_access_log_patient_time ON public.data_access_log USING btree (patient_id, created_at DESC) WHERE (patient_id IS NOT NULL);
 
 
 --
 -- Name: idx_data_access_log_user_created; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_data_access_log_user_created ON public.data_access_log USING btree (user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_data_access_log_user_created ON public.data_access_log USING btree (user_id, created_at DESC);
 
 
 --
 -- Name: idx_data_access_log_user_id; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_data_access_log_user_id ON public.data_access_log USING btree (user_id);
+CREATE INDEX IF NOT EXISTS idx_data_access_log_user_id ON public.data_access_log USING btree (user_id);
 
 
 --
 -- Name: idx_data_access_log_user_time; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_data_access_log_user_time ON public.data_access_log USING btree (user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_data_access_log_user_time ON public.data_access_log USING btree (user_id, created_at DESC);
 
 
 --
 -- Name: idx_drug_recalls_active; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_drug_recalls_active ON public.drug_recalls USING btree (is_active, recall_date DESC) WHERE (is_active = true);
+CREATE INDEX IF NOT EXISTS idx_drug_recalls_active ON public.drug_recalls USING btree (is_active, recall_date DESC) WHERE (is_active = true);
 
 
 --
 -- Name: idx_drug_transfers_catalog_id; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_drug_transfers_catalog_id ON public.drug_transfers USING btree (medication_catalog_id);
+CREATE INDEX IF NOT EXISTS idx_drug_transfers_catalog_id ON public.drug_transfers USING btree (medication_catalog_id);
 
 
 --
 -- Name: idx_drug_transfers_destination_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_drug_transfers_destination_status ON public.drug_transfers USING btree (destination_pharmacy_id, status);
+CREATE INDEX IF NOT EXISTS idx_drug_transfers_destination_status ON public.drug_transfers USING btree (destination_pharmacy_id, status);
 
 
 --
 -- Name: idx_drug_transfers_full_view_destination; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_drug_transfers_full_view_destination ON public.drug_transfers_full_view USING btree (destination_pharmacy_id);
+CREATE INDEX IF NOT EXISTS idx_drug_transfers_full_view_destination ON public.drug_transfers_full_view USING btree (destination_pharmacy_id);
 
 
 --
 -- Name: idx_drug_transfers_full_view_id; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE UNIQUE INDEX idx_drug_transfers_full_view_id ON public.drug_transfers_full_view USING btree (id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_drug_transfers_full_view_id ON public.drug_transfers_full_view USING btree (id);
 
 
 --
 -- Name: idx_drug_transfers_full_view_source; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_drug_transfers_full_view_source ON public.drug_transfers_full_view USING btree (source_pharmacy_id);
+CREATE INDEX IF NOT EXISTS idx_drug_transfers_full_view_source ON public.drug_transfers_full_view USING btree (source_pharmacy_id);
 
 
 --
 -- Name: idx_drug_transfers_full_view_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_drug_transfers_full_view_status ON public.drug_transfers_full_view USING btree (status);
+CREATE INDEX IF NOT EXISTS idx_drug_transfers_full_view_status ON public.drug_transfers_full_view USING btree (status);
 
 
 --
 -- Name: idx_drug_transfers_source_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_drug_transfers_source_status ON public.drug_transfers USING btree (source_pharmacy_id, status);
+CREATE INDEX IF NOT EXISTS idx_drug_transfers_source_status ON public.drug_transfers USING btree (source_pharmacy_id, status);
 
 
 --
 -- Name: idx_drug_transfers_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_drug_transfers_status ON public.drug_transfers USING btree (status, requested_at DESC);
+CREATE INDEX IF NOT EXISTS idx_drug_transfers_status ON public.drug_transfers USING btree (status, requested_at DESC);
 
 
 --
 -- Name: idx_email_ab_assignments_notification_id; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_email_ab_assignments_notification_id ON public.email_ab_assignments USING btree (notification_id);
+CREATE INDEX IF NOT EXISTS idx_email_ab_assignments_notification_id ON public.email_ab_assignments USING btree (notification_id);
 
 
 --
 -- Name: idx_email_ab_assignments_test_id; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_email_ab_assignments_test_id ON public.email_ab_assignments USING btree (test_id);
+CREATE INDEX IF NOT EXISTS idx_email_ab_assignments_test_id ON public.email_ab_assignments USING btree (test_id);
 
 
 --
 -- Name: idx_email_ab_tests_active; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_email_ab_tests_active ON public.email_ab_tests USING btree (is_active);
+CREATE INDEX IF NOT EXISTS idx_email_ab_tests_active ON public.email_ab_tests USING btree (is_active);
 
 
 --
 -- Name: idx_email_ab_tests_notification_type; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_email_ab_tests_notification_type ON public.email_ab_tests USING btree (notification_type);
+CREATE INDEX IF NOT EXISTS idx_email_ab_tests_notification_type ON public.email_ab_tests USING btree (notification_type);
 
 
 --
 -- Name: idx_engagement_scores_metrics; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_engagement_scores_metrics ON public.patient_engagement_scores USING gin (metrics);
+CREATE INDEX IF NOT EXISTS idx_engagement_scores_metrics ON public.patient_engagement_scores USING gin (metrics);
 
 
 --
 -- Name: idx_engagement_scores_risk; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_engagement_scores_risk ON public.patient_engagement_scores USING btree (risk_level, score_date DESC);
+CREATE INDEX IF NOT EXISTS idx_engagement_scores_risk ON public.patient_engagement_scores USING btree (risk_level, score_date DESC);
 
 
 --
 -- Name: idx_engagement_scores_user_date; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_engagement_scores_user_date ON public.patient_engagement_scores USING btree (user_id, score_date DESC);
+CREATE INDEX IF NOT EXISTS idx_engagement_scores_user_date ON public.patient_engagement_scores USING btree (user_id, score_date DESC);
 
 
 --
 -- Name: idx_external_user_mapping_user_id; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_external_user_mapping_user_id ON public.external_user_mapping USING btree (user_id);
+CREATE INDEX IF NOT EXISTS idx_external_user_mapping_user_id ON public.external_user_mapping USING btree (user_id);
 
 
 --
 -- Name: idx_lab_results_abnormal; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_lab_results_abnormal ON public.lab_results USING btree (user_id, resulted_at DESC) WHERE (is_abnormal = true);
+CREATE INDEX IF NOT EXISTS idx_lab_results_abnormal ON public.lab_results USING btree (user_id, resulted_at DESC) WHERE (is_abnormal = true);
 
 
 --
 -- Name: idx_lab_results_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_lab_results_status ON public.lab_results USING btree (status);
+CREATE INDEX IF NOT EXISTS idx_lab_results_status ON public.lab_results USING btree (status);
 
 
 --
 -- Name: idx_lab_results_user_category; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_lab_results_user_category ON public.lab_results USING btree (user_id, category, ordered_at DESC);
+CREATE INDEX IF NOT EXISTS idx_lab_results_user_category ON public.lab_results USING btree (user_id, category, ordered_at DESC);
 
 
 --
 -- Name: idx_lab_results_user_id; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_lab_results_user_id ON public.lab_results USING btree (user_id);
+CREATE INDEX IF NOT EXISTS idx_lab_results_user_id ON public.lab_results USING btree (user_id);
 
 
 --
 -- Name: idx_lab_results_user_ordered; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_lab_results_user_ordered ON public.lab_results USING btree (user_id, ordered_at DESC);
+CREATE INDEX IF NOT EXISTS idx_lab_results_user_ordered ON public.lab_results USING btree (user_id, ordered_at DESC);
 
 
 --
 -- Name: idx_login_attempts_email_created; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_login_attempts_email_created ON public.login_attempts USING btree (email, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_login_attempts_email_created ON public.login_attempts USING btree (email, created_at DESC);
 
 
 --
 -- Name: idx_login_attempts_email_time; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_login_attempts_email_time ON public.login_attempts USING btree (email, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_login_attempts_email_time ON public.login_attempts USING btree (email, created_at DESC);
 
 
 --
 -- Name: idx_login_attempts_user_id; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_login_attempts_user_id ON public.login_attempts USING btree (user_id);
+CREATE INDEX IF NOT EXISTS idx_login_attempts_user_id ON public.login_attempts USING btree (user_id);
 
 
 --
 -- Name: idx_med_avail_alerts_catalog_id; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_med_avail_alerts_catalog_id ON public.medication_availability_alerts USING btree (medication_catalog_id);
+CREATE INDEX IF NOT EXISTS idx_med_avail_alerts_catalog_id ON public.medication_availability_alerts USING btree (medication_catalog_id);
 
 
 --
 -- Name: idx_medication_alerts_name; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_medication_alerts_name ON public.medication_availability_alerts USING btree (medication_name);
+CREATE INDEX IF NOT EXISTS idx_medication_alerts_name ON public.medication_availability_alerts USING btree (medication_name);
 
 
 --
 -- Name: idx_medication_alerts_patient; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_medication_alerts_patient ON public.medication_availability_alerts USING btree (patient_user_id);
+CREATE INDEX IF NOT EXISTS idx_medication_alerts_patient ON public.medication_availability_alerts USING btree (patient_user_id);
 
 
 --
 -- Name: idx_medication_availability_catalog_id; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_medication_availability_catalog_id ON public.medication_availability USING btree (medication_catalog_id);
+CREATE INDEX IF NOT EXISTS idx_medication_availability_catalog_id ON public.medication_availability USING btree (medication_catalog_id);
 
 
 --
 -- Name: idx_medication_availability_name; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_medication_availability_name ON public.medication_availability USING btree (medication_name);
+CREATE INDEX IF NOT EXISTS idx_medication_availability_name ON public.medication_availability USING btree (medication_name);
 
 
 --
 -- Name: idx_medication_availability_pharmacy; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_medication_availability_pharmacy ON public.medication_availability USING btree (pharmacy_id);
+CREATE INDEX IF NOT EXISTS idx_medication_availability_pharmacy ON public.medication_availability USING btree (pharmacy_id);
 
 
 --
 -- Name: idx_medication_availability_pharmacy_catalog; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_medication_availability_pharmacy_catalog ON public.medication_availability USING btree (pharmacy_id, medication_catalog_id) WHERE (is_available = true);
+CREATE INDEX IF NOT EXISTS idx_medication_availability_pharmacy_catalog ON public.medication_availability USING btree (pharmacy_id, medication_catalog_id) WHERE (is_available = true);
 
 
 --
 -- Name: idx_medication_availability_view_city_state; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_medication_availability_view_city_state ON public.medication_availability_view USING btree (pharmacy_city, pharmacy_state);
+CREATE INDEX IF NOT EXISTS idx_medication_availability_view_city_state ON public.medication_availability_view USING btree (pharmacy_city, pharmacy_state);
 
 
 --
 -- Name: idx_medication_availability_view_id; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE UNIQUE INDEX idx_medication_availability_view_id ON public.medication_availability_view USING btree (id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_medication_availability_view_id ON public.medication_availability_view USING btree (id);
 
 
 --
 -- Name: idx_medication_availability_view_name; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_medication_availability_view_name ON public.medication_availability_view USING btree (medication_name);
+CREATE INDEX IF NOT EXISTS idx_medication_availability_view_name ON public.medication_availability_view USING btree (medication_name);
 
 
 --
 -- Name: idx_medication_availability_view_pharmacy; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_medication_availability_view_pharmacy ON public.medication_availability_view USING btree (pharmacy_id);
+CREATE INDEX IF NOT EXISTS idx_medication_availability_view_pharmacy ON public.medication_availability_view USING btree (pharmacy_id);
 
 
 --
 -- Name: idx_medication_catalog_generic_name; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_medication_catalog_generic_name ON public.medication_catalog USING btree (generic_name);
+CREATE INDEX IF NOT EXISTS idx_medication_catalog_generic_name ON public.medication_catalog USING btree (generic_name);
 
 
 --
 -- Name: idx_medication_catalog_is_active; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_medication_catalog_is_active ON public.medication_catalog USING btree (is_active) WHERE (is_active = true);
+CREATE INDEX IF NOT EXISTS idx_medication_catalog_is_active ON public.medication_catalog USING btree (is_active) WHERE (is_active = true);
 
 
 --
 -- Name: idx_medication_catalog_name; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_medication_catalog_name ON public.medication_catalog USING btree (name);
+CREATE INDEX IF NOT EXISTS idx_medication_catalog_name ON public.medication_catalog USING btree (name);
 
 
 --
 -- Name: idx_medication_logs_schedule_med; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_medication_logs_schedule_med ON public.medication_logs USING btree (schedule_id, medication_id);
+CREATE INDEX IF NOT EXISTS idx_medication_logs_schedule_med ON public.medication_logs USING btree (schedule_id, medication_id);
 
 
 --
 -- Name: idx_medication_logs_scheduled_time; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_medication_logs_scheduled_time ON public.medication_logs USING btree (scheduled_time);
+CREATE INDEX IF NOT EXISTS idx_medication_logs_scheduled_time ON public.medication_logs USING btree (scheduled_time);
 
 
 --
 -- Name: idx_medication_logs_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_medication_logs_status ON public.medication_logs USING btree (status);
+CREATE INDEX IF NOT EXISTS idx_medication_logs_status ON public.medication_logs USING btree (status);
 
 
 --
 -- Name: idx_medication_logs_user_id; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_medication_logs_user_id ON public.medication_logs USING btree (user_id);
+CREATE INDEX IF NOT EXISTS idx_medication_logs_user_id ON public.medication_logs USING btree (user_id);
 
 
 --
 -- Name: idx_medication_logs_user_scheduled; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_medication_logs_user_scheduled ON public.medication_logs USING btree (user_id, scheduled_time DESC);
+CREATE INDEX IF NOT EXISTS idx_medication_logs_user_scheduled ON public.medication_logs USING btree (user_id, scheduled_time DESC);
 
 
 --
 -- Name: idx_medication_logs_user_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_medication_logs_user_status ON public.medication_logs USING btree (user_id, status);
+CREATE INDEX IF NOT EXISTS idx_medication_logs_user_status ON public.medication_logs USING btree (user_id, status);
 
 
 --
 -- Name: idx_medication_logs_user_status_time; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_medication_logs_user_status_time ON public.medication_logs USING btree (user_id, status, scheduled_time DESC);
+CREATE INDEX IF NOT EXISTS idx_medication_logs_user_status_time ON public.medication_logs USING btree (user_id, status, scheduled_time DESC);
 
 
 --
 -- Name: idx_medication_schedules_medication; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_medication_schedules_medication ON public.medication_schedules USING btree (medication_id);
+CREATE INDEX IF NOT EXISTS idx_medication_schedules_medication ON public.medication_schedules USING btree (medication_id);
 
 
 --
 -- Name: idx_medication_schedules_medication_active; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_medication_schedules_medication_active ON public.medication_schedules USING btree (medication_id, is_active) WHERE (is_active = true);
+CREATE INDEX IF NOT EXISTS idx_medication_schedules_medication_active ON public.medication_schedules USING btree (medication_id, is_active) WHERE (is_active = true);
 
 
 --
 -- Name: idx_medication_schedules_medication_id; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_medication_schedules_medication_id ON public.medication_schedules USING btree (medication_id);
+CREATE INDEX IF NOT EXISTS idx_medication_schedules_medication_id ON public.medication_schedules USING btree (medication_id);
 
 
 --
 -- Name: idx_medication_schedules_user_id; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_medication_schedules_user_id ON public.medication_schedules USING btree (user_id);
+CREATE INDEX IF NOT EXISTS idx_medication_schedules_user_id ON public.medication_schedules USING btree (user_id);
 
 
 --
 -- Name: idx_medications_catalog_id; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_medications_catalog_id ON public.medications USING btree (medication_catalog_id);
+CREATE INDEX IF NOT EXISTS idx_medications_catalog_id ON public.medications USING btree (medication_catalog_id);
 
 
 --
 -- Name: idx_medications_full_view_id; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE UNIQUE INDEX idx_medications_full_view_id ON public.medications_full_view USING btree (id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_medications_full_view_id ON public.medications_full_view USING btree (id);
 
 
 --
 -- Name: idx_medications_full_view_is_active; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_medications_full_view_is_active ON public.medications_full_view USING btree (is_active) WHERE (is_active = true);
+CREATE INDEX IF NOT EXISTS idx_medications_full_view_is_active ON public.medications_full_view USING btree (is_active) WHERE (is_active = true);
 
 
 --
 -- Name: idx_medications_full_view_prescriber; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_medications_full_view_prescriber ON public.medications_full_view USING btree (prescriber_user_id);
+CREATE INDEX IF NOT EXISTS idx_medications_full_view_prescriber ON public.medications_full_view USING btree (prescriber_user_id);
 
 
 --
 -- Name: idx_medications_full_view_user_id; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_medications_full_view_user_id ON public.medications_full_view USING btree (user_id);
+CREATE INDEX IF NOT EXISTS idx_medications_full_view_user_id ON public.medications_full_view USING btree (user_id);
 
 
 --
 -- Name: idx_medications_pharmacy_id; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_medications_pharmacy_id ON public.medications USING btree (pharmacy_id);
+CREATE INDEX IF NOT EXISTS idx_medications_pharmacy_id ON public.medications USING btree (pharmacy_id);
 
 
 --
 -- Name: idx_medications_prescriber_user_id; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_medications_prescriber_user_id ON public.medications USING btree (prescriber_user_id);
+CREATE INDEX IF NOT EXISTS idx_medications_prescriber_user_id ON public.medications USING btree (prescriber_user_id);
 
 
 --
 -- Name: idx_medications_prescription_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_medications_prescription_status ON public.medications USING btree (prescription_status);
+CREATE INDEX IF NOT EXISTS idx_medications_prescription_status ON public.medications USING btree (prescription_status);
 
 
 --
 -- Name: idx_medications_user_active; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_medications_user_active ON public.medications USING btree (user_id, is_active);
+CREATE INDEX IF NOT EXISTS idx_medications_user_active ON public.medications USING btree (user_id, is_active);
 
 
 --
 -- Name: idx_medications_user_id; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_medications_user_id ON public.medications USING btree (user_id);
+CREATE INDEX IF NOT EXISTS idx_medications_user_id ON public.medications USING btree (user_id);
 
 
 --
 -- Name: idx_medications_user_prescriber; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_medications_user_prescriber ON public.medications USING btree (user_id, prescriber_user_id) WHERE (prescriber_user_id IS NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_medications_user_prescriber ON public.medications USING btree (user_id, prescriber_user_id) WHERE (prescriber_user_id IS NOT NULL);
 
 
 --
 -- Name: idx_mfa_recovery_codes_user_id; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_mfa_recovery_codes_user_id ON public.mfa_recovery_codes USING btree (user_id);
+CREATE INDEX IF NOT EXISTS idx_mfa_recovery_codes_user_id ON public.mfa_recovery_codes USING btree (user_id);
 
 
 --
 -- Name: idx_notification_history_channel; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_notification_history_channel ON public.notification_history USING btree (user_id, channel, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_notification_history_channel ON public.notification_history USING btree (user_id, channel, created_at DESC);
 
 
 --
 -- Name: idx_notification_history_channel_type; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_notification_history_channel_type ON public.notification_history USING btree (channel, notification_type);
+CREATE INDEX IF NOT EXISTS idx_notification_history_channel_type ON public.notification_history USING btree (channel, notification_type);
 
 
 --
 -- Name: idx_notification_history_delivery_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_notification_history_delivery_status ON public.notification_history USING btree (status, delivered_at);
+CREATE INDEX IF NOT EXISTS idx_notification_history_delivery_status ON public.notification_history USING btree (status, delivered_at);
 
 
 --
 -- Name: idx_notification_history_metadata; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_notification_history_metadata ON public.notification_history USING gin (metadata);
+CREATE INDEX IF NOT EXISTS idx_notification_history_metadata ON public.notification_history USING gin (metadata);
 
 
 --
 -- Name: idx_notification_history_retry; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_notification_history_retry ON public.notification_history USING btree (next_retry_at, retry_count, status) WHERE ((status = 'failed'::text) AND (next_retry_at IS NOT NULL));
+CREATE INDEX IF NOT EXISTS idx_notification_history_retry ON public.notification_history USING btree (next_retry_at, retry_count, status) WHERE ((status = 'failed'::text) AND (next_retry_at IS NOT NULL));
 
 
 --
 -- Name: idx_notification_history_retry_queue; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_notification_history_retry_queue ON public.notification_history USING btree (next_retry_at) WHERE ((status = 'failed'::text) AND (retry_count < max_retries));
+CREATE INDEX IF NOT EXISTS idx_notification_history_retry_queue ON public.notification_history USING btree (next_retry_at) WHERE ((status = 'failed'::text) AND (retry_count < max_retries));
 
 
 --
 -- Name: idx_notification_history_status_retry; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_notification_history_status_retry ON public.notification_history USING btree (status, next_retry_at) WHERE ((status = 'failed'::text) AND (next_retry_at IS NOT NULL));
+CREATE INDEX IF NOT EXISTS idx_notification_history_status_retry ON public.notification_history USING btree (status, next_retry_at) WHERE ((status = 'failed'::text) AND (next_retry_at IS NOT NULL));
 
 
 --
 -- Name: idx_notification_history_user_created; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_notification_history_user_created ON public.notification_history USING btree (user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_notification_history_user_created ON public.notification_history USING btree (user_id, created_at DESC);
 
 
 --
 -- Name: idx_org_invoices_org_id; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_org_invoices_org_id ON public.organization_invoices USING btree (organization_id);
+CREATE INDEX IF NOT EXISTS idx_org_invoices_org_id ON public.organization_invoices USING btree (organization_id);
 
 
 --
 -- Name: idx_org_invoices_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_org_invoices_status ON public.organization_invoices USING btree (organization_id, status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_org_invoices_status ON public.organization_invoices USING btree (organization_id, status, created_at DESC);
 
 
 --
 -- Name: idx_org_members_org_active; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_org_members_org_active ON public.organization_members USING btree (organization_id, is_active);
+CREATE INDEX IF NOT EXISTS idx_org_members_org_active ON public.organization_members USING btree (organization_id, is_active);
 
 
 --
 -- Name: idx_org_members_user_active; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_org_members_user_active ON public.organization_members USING btree (user_id, is_active);
+CREATE INDEX IF NOT EXISTS idx_org_members_user_active ON public.organization_members USING btree (user_id, is_active);
 
 
 --
 -- Name: idx_org_subscriptions_org_id; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_org_subscriptions_org_id ON public.organization_subscriptions USING btree (organization_id);
+CREATE INDEX IF NOT EXISTS idx_org_subscriptions_org_id ON public.organization_subscriptions USING btree (organization_id);
 
 
 --
 -- Name: idx_org_subscriptions_org_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_org_subscriptions_org_status ON public.organization_subscriptions USING btree (organization_id, status);
+CREATE INDEX IF NOT EXISTS idx_org_subscriptions_org_status ON public.organization_subscriptions USING btree (organization_id, status);
 
 
 --
 -- Name: idx_org_subscriptions_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_org_subscriptions_status ON public.organization_subscriptions USING btree (organization_id, status);
+CREATE INDEX IF NOT EXISTS idx_org_subscriptions_status ON public.organization_subscriptions USING btree (organization_id, status);
 
 
 --
 -- Name: idx_org_subscriptions_stripe_sub; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_org_subscriptions_stripe_sub ON public.organization_subscriptions USING btree (stripe_subscription_id);
+CREATE INDEX IF NOT EXISTS idx_org_subscriptions_stripe_sub ON public.organization_subscriptions USING btree (stripe_subscription_id);
 
 
 --
 -- Name: idx_organization_invoices_due_date; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_organization_invoices_due_date ON public.organization_invoices USING btree (due_date) WHERE (status <> 'paid'::text);
+CREATE INDEX IF NOT EXISTS idx_organization_invoices_due_date ON public.organization_invoices USING btree (due_date) WHERE (status <> 'paid'::text);
 
 
 --
 -- Name: idx_organization_invoices_full_view_due_date; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_organization_invoices_full_view_due_date ON public.organization_invoices_full_view USING btree (due_date);
+CREATE INDEX IF NOT EXISTS idx_organization_invoices_full_view_due_date ON public.organization_invoices_full_view USING btree (due_date);
 
 
 --
 -- Name: idx_organization_invoices_full_view_id; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE UNIQUE INDEX idx_organization_invoices_full_view_id ON public.organization_invoices_full_view USING btree (id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_organization_invoices_full_view_id ON public.organization_invoices_full_view USING btree (id);
 
 
 --
 -- Name: idx_organization_invoices_full_view_org_id; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_organization_invoices_full_view_org_id ON public.organization_invoices_full_view USING btree (organization_id);
+CREATE INDEX IF NOT EXISTS idx_organization_invoices_full_view_org_id ON public.organization_invoices_full_view USING btree (organization_id);
 
 
 --
 -- Name: idx_organization_invoices_full_view_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_organization_invoices_full_view_status ON public.organization_invoices_full_view USING btree (status);
+CREATE INDEX IF NOT EXISTS idx_organization_invoices_full_view_status ON public.organization_invoices_full_view USING btree (status);
 
 
 --
 -- Name: idx_organization_invoices_org_id; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_organization_invoices_org_id ON public.organization_invoices USING btree (organization_id);
+CREATE INDEX IF NOT EXISTS idx_organization_invoices_org_id ON public.organization_invoices USING btree (organization_id);
 
 
 --
 -- Name: idx_organization_members_organization_id; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_organization_members_organization_id ON public.organization_members USING btree (organization_id);
+CREATE INDEX IF NOT EXISTS idx_organization_members_organization_id ON public.organization_members USING btree (organization_id);
 
 
 --
 -- Name: idx_organization_members_user_id; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_organization_members_user_id ON public.organization_members USING btree (user_id);
+CREATE INDEX IF NOT EXISTS idx_organization_members_user_id ON public.organization_members USING btree (user_id);
 
 
 --
 -- Name: idx_organizations_slug; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_organizations_slug ON public.organizations USING btree (slug);
+CREATE INDEX IF NOT EXISTS idx_organizations_slug ON public.organizations USING btree (slug);
 
 
 --
 -- Name: idx_patient_preferred_pharmacies_patient; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_patient_preferred_pharmacies_patient ON public.patient_preferred_pharmacies USING btree (patient_user_id);
+CREATE INDEX IF NOT EXISTS idx_patient_preferred_pharmacies_patient ON public.patient_preferred_pharmacies USING btree (patient_user_id);
 
 
 --
 -- Name: idx_patient_risk_flags_clinician; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_patient_risk_flags_clinician ON public.patient_risk_flags USING btree (clinician_user_id);
+CREATE INDEX IF NOT EXISTS idx_patient_risk_flags_clinician ON public.patient_risk_flags USING btree (clinician_user_id);
 
 
 --
 -- Name: idx_patient_risk_flags_patient; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_patient_risk_flags_patient ON public.patient_risk_flags USING btree (patient_user_id);
+CREATE INDEX IF NOT EXISTS idx_patient_risk_flags_patient ON public.patient_risk_flags USING btree (patient_user_id);
 
 
 --
 -- Name: idx_patient_risk_flags_unresolved; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_patient_risk_flags_unresolved ON public.patient_risk_flags USING btree (is_resolved) WHERE (is_resolved = false);
+CREATE INDEX IF NOT EXISTS idx_patient_risk_flags_unresolved ON public.patient_risk_flags USING btree (is_resolved) WHERE (is_resolved = false);
 
 
 --
 -- Name: idx_patient_vitals_recorded_at; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_patient_vitals_recorded_at ON public.patient_vitals USING btree (recorded_at DESC);
+CREATE INDEX IF NOT EXISTS idx_patient_vitals_recorded_at ON public.patient_vitals USING btree (recorded_at DESC);
 
 
 --
 -- Name: idx_patient_vitals_user_id; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_patient_vitals_user_id ON public.patient_vitals USING btree (user_id);
+CREATE INDEX IF NOT EXISTS idx_patient_vitals_user_id ON public.patient_vitals USING btree (user_id);
 
 
 --
 -- Name: idx_patient_vitals_user_recorded; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_patient_vitals_user_recorded ON public.patient_vitals USING btree (user_id, recorded_at DESC);
+CREATE INDEX IF NOT EXISTS idx_patient_vitals_user_recorded ON public.patient_vitals USING btree (user_id, recorded_at DESC);
 
 
 --
 -- Name: idx_patient_vitals_with_bmi_view_id; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE UNIQUE INDEX idx_patient_vitals_with_bmi_view_id ON public.patient_vitals_with_bmi_view USING btree (id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_patient_vitals_with_bmi_view_id ON public.patient_vitals_with_bmi_view USING btree (id);
 
 
 --
 -- Name: idx_patient_vitals_with_bmi_view_recorded_at; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_patient_vitals_with_bmi_view_recorded_at ON public.patient_vitals_with_bmi_view USING btree (recorded_at DESC);
+CREATE INDEX IF NOT EXISTS idx_patient_vitals_with_bmi_view_recorded_at ON public.patient_vitals_with_bmi_view USING btree (recorded_at DESC);
 
 
 --
 -- Name: idx_patient_vitals_with_bmi_view_user_id; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_patient_vitals_with_bmi_view_user_id ON public.patient_vitals_with_bmi_view USING btree (user_id);
+CREATE INDEX IF NOT EXISTS idx_patient_vitals_with_bmi_view_user_id ON public.patient_vitals_with_bmi_view USING btree (user_id);
 
 
 --
 -- Name: idx_pharmacy_locations_city; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_pharmacy_locations_city ON public.pharmacy_locations USING btree (city);
+CREATE INDEX IF NOT EXISTS idx_pharmacy_locations_city ON public.pharmacy_locations USING btree (city);
 
 
 --
 -- Name: idx_pharmacy_locations_state; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_pharmacy_locations_state ON public.pharmacy_locations USING btree (state);
+CREATE INDEX IF NOT EXISTS idx_pharmacy_locations_state ON public.pharmacy_locations USING btree (state);
 
 
 --
 -- Name: idx_polypharmacy_warnings_unacked; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_polypharmacy_warnings_unacked ON public.polypharmacy_warnings USING btree (patient_user_id) WHERE (is_acknowledged = false);
+CREATE INDEX IF NOT EXISTS idx_polypharmacy_warnings_unacked ON public.polypharmacy_warnings USING btree (patient_user_id) WHERE (is_acknowledged = false);
 
 
 --
 -- Name: idx_prescriptions_clinician; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_prescriptions_clinician ON public.prescriptions USING btree (clinician_user_id);
+CREATE INDEX IF NOT EXISTS idx_prescriptions_clinician ON public.prescriptions USING btree (clinician_user_id);
 
 
 --
 -- Name: idx_prescriptions_clinician_date; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_prescriptions_clinician_date ON public.prescriptions USING btree (clinician_user_id, date_written DESC);
+CREATE INDEX IF NOT EXISTS idx_prescriptions_clinician_date ON public.prescriptions USING btree (clinician_user_id, date_written DESC);
 
 
 --
 -- Name: idx_prescriptions_clinician_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_prescriptions_clinician_status ON public.prescriptions USING btree (clinician_user_id, status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_prescriptions_clinician_status ON public.prescriptions USING btree (clinician_user_id, status, created_at DESC);
 
 
 --
 -- Name: idx_prescriptions_number; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_prescriptions_number ON public.prescriptions USING btree (prescription_number);
+CREATE INDEX IF NOT EXISTS idx_prescriptions_number ON public.prescriptions USING btree (prescription_number);
 
 
 --
 -- Name: idx_prescriptions_patient; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_prescriptions_patient ON public.prescriptions USING btree (patient_user_id);
+CREATE INDEX IF NOT EXISTS idx_prescriptions_patient ON public.prescriptions USING btree (patient_user_id);
 
 
 --
 -- Name: idx_prescriptions_patient_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_prescriptions_patient_status ON public.prescriptions USING btree (patient_user_id, status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_prescriptions_patient_status ON public.prescriptions USING btree (patient_user_id, status, created_at DESC);
 
 
 --
 -- Name: idx_prescriptions_pending; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_prescriptions_pending ON public.prescriptions USING btree (pharmacy_id, created_at DESC) WHERE (status = 'pending'::text);
+CREATE INDEX IF NOT EXISTS idx_prescriptions_pending ON public.prescriptions USING btree (pharmacy_id, created_at DESC) WHERE (status = 'pending'::text);
 
 
 --
 -- Name: idx_prescriptions_pharmacy; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_prescriptions_pharmacy ON public.prescriptions USING btree (pharmacy_id);
+CREATE INDEX IF NOT EXISTS idx_prescriptions_pharmacy ON public.prescriptions USING btree (pharmacy_id);
 
 
 --
 -- Name: idx_prescriptions_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_prescriptions_status ON public.prescriptions USING btree (status);
+CREATE INDEX IF NOT EXISTS idx_prescriptions_status ON public.prescriptions USING btree (status);
 
 
 --
 -- Name: idx_profiles_org_user; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_profiles_org_user ON public.profiles USING btree (organization_id, user_id) WHERE (organization_id IS NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_profiles_org_user ON public.profiles USING btree (organization_id, user_id) WHERE (organization_id IS NOT NULL);
 
 
 --
 -- Name: idx_profiles_organization; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_profiles_organization ON public.profiles USING btree (organization_id) WHERE (organization_id IS NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_profiles_organization ON public.profiles USING btree (organization_id) WHERE (organization_id IS NOT NULL);
 
 
 --
 -- Name: idx_profiles_organization_id; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_profiles_organization_id ON public.profiles USING btree (organization_id);
+CREATE INDEX IF NOT EXISTS idx_profiles_organization_id ON public.profiles USING btree (organization_id);
 
 
 --
 -- Name: idx_profiles_user_id; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_profiles_user_id ON public.profiles USING btree (user_id);
+CREATE INDEX IF NOT EXISTS idx_profiles_user_id ON public.profiles USING btree (user_id);
 
 
 --
 -- Name: idx_push_subscriptions_platform; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_push_subscriptions_platform ON public.push_subscriptions USING btree (platform);
+CREATE INDEX IF NOT EXISTS idx_push_subscriptions_platform ON public.push_subscriptions USING btree (platform);
 
 
 --
 -- Name: idx_push_subscriptions_user; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_push_subscriptions_user ON public.push_subscriptions USING btree (user_id);
+CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user ON public.push_subscriptions USING btree (user_id);
 
 
 --
 -- Name: idx_refill_requests_medication; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_refill_requests_medication ON public.refill_requests USING btree (medication_id);
+CREATE INDEX IF NOT EXISTS idx_refill_requests_medication ON public.refill_requests USING btree (medication_id);
 
 
 --
 -- Name: idx_refill_requests_patient; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_refill_requests_patient ON public.refill_requests USING btree (patient_user_id);
+CREATE INDEX IF NOT EXISTS idx_refill_requests_patient ON public.refill_requests USING btree (patient_user_id);
 
 
 --
 -- Name: idx_refill_requests_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_refill_requests_status ON public.refill_requests USING btree (status);
+CREATE INDEX IF NOT EXISTS idx_refill_requests_status ON public.refill_requests USING btree (status);
 
 
 --
 -- Name: idx_sec_notif_prefs_user_id; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_sec_notif_prefs_user_id ON public.security_notification_preferences USING btree (user_id);
+CREATE INDEX IF NOT EXISTS idx_sec_notif_prefs_user_id ON public.security_notification_preferences USING btree (user_id);
 
 
 --
 -- Name: idx_security_events_created_at; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_security_events_created_at ON public.security_events USING btree (created_at);
+CREATE INDEX IF NOT EXISTS idx_security_events_created_at ON public.security_events USING btree (created_at);
 
 
 --
 -- Name: idx_security_events_event_type; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_security_events_event_type ON public.security_events USING btree (event_type);
+CREATE INDEX IF NOT EXISTS idx_security_events_event_type ON public.security_events USING btree (event_type);
 
 
 --
 -- Name: idx_security_events_metadata; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_security_events_metadata ON public.security_events USING gin (metadata);
+CREATE INDEX IF NOT EXISTS idx_security_events_metadata ON public.security_events USING gin (metadata);
 
 
 --
 -- Name: idx_security_events_metadata_gin; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_security_events_metadata_gin ON public.security_events USING gin (metadata);
+CREATE INDEX IF NOT EXISTS idx_security_events_metadata_gin ON public.security_events USING gin (metadata);
 
 
 --
 -- Name: idx_security_events_severity; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_security_events_severity ON public.security_events USING btree (severity);
+CREATE INDEX IF NOT EXISTS idx_security_events_severity ON public.security_events USING btree (severity);
 
 
 --
 -- Name: idx_security_events_type; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_security_events_type ON public.security_events USING btree (event_type);
+CREATE INDEX IF NOT EXISTS idx_security_events_type ON public.security_events USING btree (event_type);
 
 
 --
 -- Name: idx_security_events_type_severity; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_security_events_type_severity ON public.security_events USING btree (event_type, severity, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_security_events_type_severity ON public.security_events USING btree (event_type, severity, created_at DESC);
 
 
 --
 -- Name: idx_security_events_user_created; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_security_events_user_created ON public.security_events USING btree (user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_security_events_user_created ON public.security_events USING btree (user_id, created_at DESC);
 
 
 --
 -- Name: idx_security_events_user_id; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_security_events_user_id ON public.security_events USING btree (user_id);
+CREATE INDEX IF NOT EXISTS idx_security_events_user_id ON public.security_events USING btree (user_id);
 
 
 --
 -- Name: idx_symptom_entries_recorded_at; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_symptom_entries_recorded_at ON public.symptom_entries USING btree (recorded_at);
+CREATE INDEX IF NOT EXISTS idx_symptom_entries_recorded_at ON public.symptom_entries USING btree (recorded_at);
 
 
 --
 -- Name: idx_symptom_entries_type; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_symptom_entries_type ON public.symptom_entries USING btree (symptom_type);
+CREATE INDEX IF NOT EXISTS idx_symptom_entries_type ON public.symptom_entries USING btree (symptom_type);
 
 
 --
 -- Name: idx_symptom_entries_user_id; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_symptom_entries_user_id ON public.symptom_entries USING btree (user_id);
+CREATE INDEX IF NOT EXISTS idx_symptom_entries_user_id ON public.symptom_entries USING btree (user_id);
 
 
 --
 -- Name: idx_symptom_entries_user_recorded; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_symptom_entries_user_recorded ON public.symptom_entries USING btree (user_id, recorded_at DESC);
+CREATE INDEX IF NOT EXISTS idx_symptom_entries_user_recorded ON public.symptom_entries USING btree (user_id, recorded_at DESC);
 
 
 --
 -- Name: idx_trusted_devices_token; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE UNIQUE INDEX idx_trusted_devices_token ON public.trusted_devices USING btree (user_id, device_token_hash) WHERE (is_active = true);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_trusted_devices_token ON public.trusted_devices USING btree (user_id, device_token_hash) WHERE (is_active = true);
 
 
 --
 -- Name: idx_trusted_devices_user_active; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_trusted_devices_user_active ON public.trusted_devices USING btree (user_id, is_active) WHERE (is_active = true);
+CREATE INDEX IF NOT EXISTS idx_trusted_devices_user_active ON public.trusted_devices USING btree (user_id, is_active) WHERE (is_active = true);
 
 
 --
 -- Name: idx_user_login_locations_created_at; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_user_login_locations_created_at ON public.user_login_locations USING btree (created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_user_login_locations_created_at ON public.user_login_locations USING btree (created_at DESC);
 
 
 --
 -- Name: idx_user_login_locations_user_id; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_user_login_locations_user_id ON public.user_login_locations USING btree (user_id);
+CREATE INDEX IF NOT EXISTS idx_user_login_locations_user_id ON public.user_login_locations USING btree (user_id);
 
 
 --
 -- Name: idx_user_roles_role; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_user_roles_role ON public.user_roles USING btree (role);
+CREATE INDEX IF NOT EXISTS idx_user_roles_role ON public.user_roles USING btree (role);
 
 
 --
 -- Name: idx_user_roles_user_id; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_user_roles_user_id ON public.user_roles USING btree (user_id);
+CREATE INDEX IF NOT EXISTS idx_user_roles_user_id ON public.user_roles USING btree (user_id);
 
 
 --
 -- Name: idx_user_sessions_device_info_gin; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_user_sessions_device_info_gin ON public.user_sessions USING gin (device_info);
+CREATE INDEX IF NOT EXISTS idx_user_sessions_device_info_gin ON public.user_sessions USING gin (device_info);
 
 
 --
 -- Name: idx_user_sessions_expires_at; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_user_sessions_expires_at ON public.user_sessions USING btree (expires_at);
+CREATE INDEX IF NOT EXISTS idx_user_sessions_expires_at ON public.user_sessions USING btree (expires_at);
 
 
 --
 -- Name: idx_user_sessions_is_active; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_user_sessions_is_active ON public.user_sessions USING btree (is_active) WHERE (is_active = true);
+CREATE INDEX IF NOT EXISTS idx_user_sessions_is_active ON public.user_sessions USING btree (is_active) WHERE (is_active = true);
 
 
 --
 -- Name: idx_user_sessions_user_active; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_user_sessions_user_active ON public.user_sessions USING btree (user_id, is_active) WHERE (is_active = true);
+CREATE INDEX IF NOT EXISTS idx_user_sessions_user_active ON public.user_sessions USING btree (user_id, is_active) WHERE (is_active = true);
 
 
 --
 -- Name: idx_user_sessions_user_id; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_user_sessions_user_id ON public.user_sessions USING btree (user_id);
+CREATE INDEX IF NOT EXISTS idx_user_sessions_user_id ON public.user_sessions USING btree (user_id);
 
 
 --
 -- Name: idx_users_email; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_users_email ON public.users USING btree (email);
+CREATE INDEX IF NOT EXISTS idx_users_email ON public.users USING btree (email);
 
 
 --
 -- Name: idx_video_rooms_created; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_video_rooms_created ON public.video_rooms USING btree (created_at DESC) WHERE (status = 'active'::text);
+CREATE INDEX IF NOT EXISTS idx_video_rooms_created ON public.video_rooms USING btree (created_at DESC) WHERE (status = 'active'::text);
 
 
 --
 -- Name: idx_video_rooms_status; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_video_rooms_status ON public.video_rooms USING btree (status, created_at DESC) WHERE (status = 'active'::text);
+CREATE INDEX IF NOT EXISTS idx_video_rooms_status ON public.video_rooms USING btree (status, created_at DESC) WHERE (status = 'active'::text);
 
 
 --
 -- Name: idx_vitals_alerts_severity; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_vitals_alerts_severity ON public.vitals_alerts USING btree (severity);
+CREATE INDEX IF NOT EXISTS idx_vitals_alerts_severity ON public.vitals_alerts USING btree (severity);
 
 
 --
 -- Name: idx_vitals_alerts_user_id; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX idx_vitals_alerts_user_id ON public.vitals_alerts USING btree (user_id);
+CREATE INDEX IF NOT EXISTS idx_vitals_alerts_user_id ON public.vitals_alerts USING btree (user_id);
 
 
 --
 -- Name: clinician_patient_assignments audit_clinician_patient_assignments; Type: TRIGGER; Schema: public; Owner: -
 --
 
+DROP TRIGGER IF EXISTS audit_clinician_patient_assignments ON public.clinician_patient_assignments;
 CREATE TRIGGER audit_clinician_patient_assignments AFTER INSERT OR DELETE OR UPDATE ON public.clinician_patient_assignments FOR EACH ROW EXECUTE FUNCTION public.log_audit_event();
 
 
@@ -5676,6 +5701,7 @@ CREATE TRIGGER audit_clinician_patient_assignments AFTER INSERT OR DELETE OR UPD
 -- Name: controlled_drug_adjustments audit_controlled_drug_adjustments; Type: TRIGGER; Schema: public; Owner: -
 --
 
+DROP TRIGGER IF EXISTS audit_controlled_drug_adjustments ON public.controlled_drug_adjustments;
 CREATE TRIGGER audit_controlled_drug_adjustments AFTER INSERT ON public.controlled_drug_adjustments FOR EACH ROW EXECUTE FUNCTION public.log_audit_event();
 
 
@@ -5683,6 +5709,7 @@ CREATE TRIGGER audit_controlled_drug_adjustments AFTER INSERT ON public.controll
 -- Name: controlled_drug_dispensing audit_controlled_drug_dispensing; Type: TRIGGER; Schema: public; Owner: -
 --
 
+DROP TRIGGER IF EXISTS audit_controlled_drug_dispensing ON public.controlled_drug_dispensing;
 CREATE TRIGGER audit_controlled_drug_dispensing AFTER INSERT ON public.controlled_drug_dispensing FOR EACH ROW EXECUTE FUNCTION public.log_audit_event();
 
 
@@ -5690,6 +5717,7 @@ CREATE TRIGGER audit_controlled_drug_dispensing AFTER INSERT ON public.controlle
 -- Name: controlled_drugs audit_controlled_drugs; Type: TRIGGER; Schema: public; Owner: -
 --
 
+DROP TRIGGER IF EXISTS audit_controlled_drugs ON public.controlled_drugs;
 CREATE TRIGGER audit_controlled_drugs AFTER INSERT OR DELETE OR UPDATE ON public.controlled_drugs FOR EACH ROW EXECUTE FUNCTION public.log_audit_event();
 
 
@@ -5697,6 +5725,7 @@ CREATE TRIGGER audit_controlled_drugs AFTER INSERT OR DELETE OR UPDATE ON public
 -- Name: profiles audit_profiles; Type: TRIGGER; Schema: public; Owner: -
 --
 
+DROP TRIGGER IF EXISTS audit_profiles ON public.profiles;
 CREATE TRIGGER audit_profiles AFTER UPDATE ON public.profiles FOR EACH ROW EXECUTE FUNCTION public.log_audit_event();
 
 
@@ -5704,6 +5733,7 @@ CREATE TRIGGER audit_profiles AFTER UPDATE ON public.profiles FOR EACH ROW EXECU
 -- Name: user_roles audit_user_roles; Type: TRIGGER; Schema: public; Owner: -
 --
 
+DROP TRIGGER IF EXISTS audit_user_roles ON public.user_roles;
 CREATE TRIGGER audit_user_roles AFTER INSERT OR DELETE OR UPDATE ON public.user_roles FOR EACH ROW EXECUTE FUNCTION public.log_audit_event();
 
 
@@ -5711,6 +5741,7 @@ CREATE TRIGGER audit_user_roles AFTER INSERT OR DELETE OR UPDATE ON public.user_
 -- Name: users on_auth_user_created; Type: TRIGGER; Schema: public; Owner: -
 --
 
+DROP TRIGGER IF EXISTS on_auth_user_created ON public.users;
 CREATE TRIGGER on_auth_user_created AFTER INSERT ON public.users FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
 
@@ -5718,6 +5749,7 @@ CREATE TRIGGER on_auth_user_created AFTER INSERT ON public.users FOR EACH ROW EX
 -- Name: medication_availability_alerts trg_auto_link_alert_catalog; Type: TRIGGER; Schema: public; Owner: -
 --
 
+DROP TRIGGER IF EXISTS trg_auto_link_alert_catalog ON public.medication_availability_alerts;
 CREATE TRIGGER trg_auto_link_alert_catalog BEFORE INSERT ON public.medication_availability_alerts FOR EACH ROW EXECUTE FUNCTION public.auto_link_alert_catalog();
 
 
@@ -5725,6 +5757,7 @@ CREATE TRIGGER trg_auto_link_alert_catalog BEFORE INSERT ON public.medication_av
 -- Name: medication_availability trg_auto_link_availability_catalog; Type: TRIGGER; Schema: public; Owner: -
 --
 
+DROP TRIGGER IF EXISTS trg_auto_link_availability_catalog ON public.medication_availability;
 CREATE TRIGGER trg_auto_link_availability_catalog BEFORE INSERT ON public.medication_availability FOR EACH ROW EXECUTE FUNCTION public.auto_link_availability_catalog();
 
 
@@ -5732,6 +5765,7 @@ CREATE TRIGGER trg_auto_link_availability_catalog BEFORE INSERT ON public.medica
 -- Name: medications trg_auto_link_medication_catalog; Type: TRIGGER; Schema: public; Owner: -
 --
 
+DROP TRIGGER IF EXISTS trg_auto_link_medication_catalog ON public.medications;
 CREATE TRIGGER trg_auto_link_medication_catalog BEFORE INSERT ON public.medications FOR EACH ROW EXECUTE FUNCTION public.auto_link_medication_catalog();
 
 
@@ -5739,6 +5773,7 @@ CREATE TRIGGER trg_auto_link_medication_catalog BEFORE INSERT ON public.medicati
 -- Name: drug_transfers trg_auto_link_transfer_catalog; Type: TRIGGER; Schema: public; Owner: -
 --
 
+DROP TRIGGER IF EXISTS trg_auto_link_transfer_catalog ON public.drug_transfers;
 CREATE TRIGGER trg_auto_link_transfer_catalog BEFORE INSERT ON public.drug_transfers FOR EACH ROW EXECUTE FUNCTION public.auto_link_transfer_catalog();
 
 
@@ -5746,6 +5781,7 @@ CREATE TRIGGER trg_auto_link_transfer_catalog BEFORE INSERT ON public.drug_trans
 -- Name: controlled_drug_adjustments trigger_update_stock_on_adjustment; Type: TRIGGER; Schema: public; Owner: -
 --
 
+DROP TRIGGER IF EXISTS trigger_update_stock_on_adjustment ON public.controlled_drug_adjustments;
 CREATE TRIGGER trigger_update_stock_on_adjustment AFTER INSERT ON public.controlled_drug_adjustments FOR EACH ROW EXECUTE FUNCTION public.update_controlled_drug_stock_on_adjustment();
 
 
@@ -5753,6 +5789,7 @@ CREATE TRIGGER trigger_update_stock_on_adjustment AFTER INSERT ON public.control
 -- Name: controlled_drug_dispensing trigger_update_stock_on_dispense; Type: TRIGGER; Schema: public; Owner: -
 --
 
+DROP TRIGGER IF EXISTS trigger_update_stock_on_dispense ON public.controlled_drug_dispensing;
 CREATE TRIGGER trigger_update_stock_on_dispense AFTER INSERT ON public.controlled_drug_dispensing FOR EACH ROW EXECUTE FUNCTION public.update_controlled_drug_stock_on_dispense();
 
 
@@ -5760,6 +5797,7 @@ CREATE TRIGGER trigger_update_stock_on_dispense AFTER INSERT ON public.controlle
 -- Name: appointments update_appointments_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
+DROP TRIGGER IF EXISTS update_appointments_updated_at ON public.appointments;
 CREATE TRIGGER update_appointments_updated_at BEFORE UPDATE ON public.appointments FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
 
@@ -5767,6 +5805,7 @@ CREATE TRIGGER update_appointments_updated_at BEFORE UPDATE ON public.appointmen
 -- Name: caregiver_invitations update_caregiver_invitations_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
+DROP TRIGGER IF EXISTS update_caregiver_invitations_updated_at ON public.caregiver_invitations;
 CREATE TRIGGER update_caregiver_invitations_updated_at BEFORE UPDATE ON public.caregiver_invitations FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
 
@@ -5774,6 +5813,7 @@ CREATE TRIGGER update_caregiver_invitations_updated_at BEFORE UPDATE ON public.c
 -- Name: controlled_drugs update_controlled_drugs_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
+DROP TRIGGER IF EXISTS update_controlled_drugs_updated_at ON public.controlled_drugs;
 CREATE TRIGGER update_controlled_drugs_updated_at BEFORE UPDATE ON public.controlled_drugs FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
 
@@ -5781,6 +5821,7 @@ CREATE TRIGGER update_controlled_drugs_updated_at BEFORE UPDATE ON public.contro
 -- Name: drug_recalls update_drug_recalls_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
+DROP TRIGGER IF EXISTS update_drug_recalls_updated_at ON public.drug_recalls;
 CREATE TRIGGER update_drug_recalls_updated_at BEFORE UPDATE ON public.drug_recalls FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
 
@@ -5788,6 +5829,7 @@ CREATE TRIGGER update_drug_recalls_updated_at BEFORE UPDATE ON public.drug_recal
 -- Name: drug_transfers update_drug_transfers_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
+DROP TRIGGER IF EXISTS update_drug_transfers_updated_at ON public.drug_transfers;
 CREATE TRIGGER update_drug_transfers_updated_at BEFORE UPDATE ON public.drug_transfers FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
 
@@ -5795,6 +5837,7 @@ CREATE TRIGGER update_drug_transfers_updated_at BEFORE UPDATE ON public.drug_tra
 -- Name: patient_engagement_scores update_engagement_scores_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
+DROP TRIGGER IF EXISTS update_engagement_scores_updated_at ON public.patient_engagement_scores;
 CREATE TRIGGER update_engagement_scores_updated_at BEFORE UPDATE ON public.patient_engagement_scores FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
 
@@ -5802,6 +5845,7 @@ CREATE TRIGGER update_engagement_scores_updated_at BEFORE UPDATE ON public.patie
 -- Name: lab_results update_lab_results_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
+DROP TRIGGER IF EXISTS update_lab_results_updated_at ON public.lab_results;
 CREATE TRIGGER update_lab_results_updated_at BEFORE UPDATE ON public.lab_results FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
 
@@ -5809,6 +5853,7 @@ CREATE TRIGGER update_lab_results_updated_at BEFORE UPDATE ON public.lab_results
 -- Name: medication_availability_alerts update_medication_availability_alerts_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
+DROP TRIGGER IF EXISTS update_medication_availability_alerts_updated_at ON public.medication_availability_alerts;
 CREATE TRIGGER update_medication_availability_alerts_updated_at BEFORE UPDATE ON public.medication_availability_alerts FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
 
@@ -5816,6 +5861,7 @@ CREATE TRIGGER update_medication_availability_alerts_updated_at BEFORE UPDATE ON
 -- Name: medication_availability update_medication_availability_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
+DROP TRIGGER IF EXISTS update_medication_availability_updated_at ON public.medication_availability;
 CREATE TRIGGER update_medication_availability_updated_at BEFORE UPDATE ON public.medication_availability FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
 
@@ -5823,6 +5869,7 @@ CREATE TRIGGER update_medication_availability_updated_at BEFORE UPDATE ON public
 -- Name: medication_catalog update_medication_catalog_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
+DROP TRIGGER IF EXISTS update_medication_catalog_updated_at ON public.medication_catalog;
 CREATE TRIGGER update_medication_catalog_updated_at BEFORE UPDATE ON public.medication_catalog FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
 
@@ -5830,6 +5877,7 @@ CREATE TRIGGER update_medication_catalog_updated_at BEFORE UPDATE ON public.medi
 -- Name: medications update_medications_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
+DROP TRIGGER IF EXISTS update_medications_updated_at ON public.medications;
 CREATE TRIGGER update_medications_updated_at BEFORE UPDATE ON public.medications FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
 
@@ -5837,6 +5885,7 @@ CREATE TRIGGER update_medications_updated_at BEFORE UPDATE ON public.medications
 -- Name: notification_settings update_notification_settings_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
+DROP TRIGGER IF EXISTS update_notification_settings_updated_at ON public.notification_settings;
 CREATE TRIGGER update_notification_settings_updated_at BEFORE UPDATE ON public.notification_settings FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
 
@@ -5844,6 +5893,7 @@ CREATE TRIGGER update_notification_settings_updated_at BEFORE UPDATE ON public.n
 -- Name: organization_invoices update_org_invoices_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
+DROP TRIGGER IF EXISTS update_org_invoices_updated_at ON public.organization_invoices;
 CREATE TRIGGER update_org_invoices_updated_at BEFORE UPDATE ON public.organization_invoices FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
 
@@ -5851,6 +5901,7 @@ CREATE TRIGGER update_org_invoices_updated_at BEFORE UPDATE ON public.organizati
 -- Name: organization_payment_methods update_org_payment_methods_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
+DROP TRIGGER IF EXISTS update_org_payment_methods_updated_at ON public.organization_payment_methods;
 CREATE TRIGGER update_org_payment_methods_updated_at BEFORE UPDATE ON public.organization_payment_methods FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
 
@@ -5858,6 +5909,7 @@ CREATE TRIGGER update_org_payment_methods_updated_at BEFORE UPDATE ON public.org
 -- Name: organization_subscriptions update_org_subscriptions_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
+DROP TRIGGER IF EXISTS update_org_subscriptions_updated_at ON public.organization_subscriptions;
 CREATE TRIGGER update_org_subscriptions_updated_at BEFORE UPDATE ON public.organization_subscriptions FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
 
@@ -5865,6 +5917,7 @@ CREATE TRIGGER update_org_subscriptions_updated_at BEFORE UPDATE ON public.organ
 -- Name: organization_branding update_organization_branding_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
+DROP TRIGGER IF EXISTS update_organization_branding_updated_at ON public.organization_branding;
 CREATE TRIGGER update_organization_branding_updated_at BEFORE UPDATE ON public.organization_branding FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
 
@@ -5872,6 +5925,7 @@ CREATE TRIGGER update_organization_branding_updated_at BEFORE UPDATE ON public.o
 -- Name: organization_members update_organization_members_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
+DROP TRIGGER IF EXISTS update_organization_members_updated_at ON public.organization_members;
 CREATE TRIGGER update_organization_members_updated_at BEFORE UPDATE ON public.organization_members FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
 
@@ -5879,6 +5933,7 @@ CREATE TRIGGER update_organization_members_updated_at BEFORE UPDATE ON public.or
 -- Name: organizations update_organizations_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
+DROP TRIGGER IF EXISTS update_organizations_updated_at ON public.organizations;
 CREATE TRIGGER update_organizations_updated_at BEFORE UPDATE ON public.organizations FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
 
@@ -5886,6 +5941,7 @@ CREATE TRIGGER update_organizations_updated_at BEFORE UPDATE ON public.organizat
 -- Name: patient_allergies update_patient_allergies_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
+DROP TRIGGER IF EXISTS update_patient_allergies_updated_at ON public.patient_allergies;
 CREATE TRIGGER update_patient_allergies_updated_at BEFORE UPDATE ON public.patient_allergies FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
 
@@ -5893,6 +5949,7 @@ CREATE TRIGGER update_patient_allergies_updated_at BEFORE UPDATE ON public.patie
 -- Name: patient_chronic_conditions update_patient_chronic_conditions_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
+DROP TRIGGER IF EXISTS update_patient_chronic_conditions_updated_at ON public.patient_chronic_conditions;
 CREATE TRIGGER update_patient_chronic_conditions_updated_at BEFORE UPDATE ON public.patient_chronic_conditions FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
 
@@ -5900,6 +5957,7 @@ CREATE TRIGGER update_patient_chronic_conditions_updated_at BEFORE UPDATE ON pub
 -- Name: patient_emergency_contacts update_patient_emergency_contacts_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
+DROP TRIGGER IF EXISTS update_patient_emergency_contacts_updated_at ON public.patient_emergency_contacts;
 CREATE TRIGGER update_patient_emergency_contacts_updated_at BEFORE UPDATE ON public.patient_emergency_contacts FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
 
@@ -5907,6 +5965,7 @@ CREATE TRIGGER update_patient_emergency_contacts_updated_at BEFORE UPDATE ON pub
 -- Name: patient_notification_preferences update_patient_notification_preferences_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
+DROP TRIGGER IF EXISTS update_patient_notification_preferences_updated_at ON public.patient_notification_preferences;
 CREATE TRIGGER update_patient_notification_preferences_updated_at BEFORE UPDATE ON public.patient_notification_preferences FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
 
@@ -5914,6 +5973,7 @@ CREATE TRIGGER update_patient_notification_preferences_updated_at BEFORE UPDATE 
 -- Name: patient_risk_flags update_patient_risk_flags_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
+DROP TRIGGER IF EXISTS update_patient_risk_flags_updated_at ON public.patient_risk_flags;
 CREATE TRIGGER update_patient_risk_flags_updated_at BEFORE UPDATE ON public.patient_risk_flags FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
 
@@ -5921,6 +5981,7 @@ CREATE TRIGGER update_patient_risk_flags_updated_at BEFORE UPDATE ON public.pati
 -- Name: patient_vitals update_patient_vitals_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
+DROP TRIGGER IF EXISTS update_patient_vitals_updated_at ON public.patient_vitals;
 CREATE TRIGGER update_patient_vitals_updated_at BEFORE UPDATE ON public.patient_vitals FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
 
@@ -5928,6 +5989,7 @@ CREATE TRIGGER update_patient_vitals_updated_at BEFORE UPDATE ON public.patient_
 -- Name: pharmacy_locations update_pharmacy_locations_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
+DROP TRIGGER IF EXISTS update_pharmacy_locations_updated_at ON public.pharmacy_locations;
 CREATE TRIGGER update_pharmacy_locations_updated_at BEFORE UPDATE ON public.pharmacy_locations FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
 
@@ -5935,6 +5997,7 @@ CREATE TRIGGER update_pharmacy_locations_updated_at BEFORE UPDATE ON public.phar
 -- Name: polypharmacy_warnings update_polypharmacy_warnings_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
+DROP TRIGGER IF EXISTS update_polypharmacy_warnings_updated_at ON public.polypharmacy_warnings;
 CREATE TRIGGER update_polypharmacy_warnings_updated_at BEFORE UPDATE ON public.polypharmacy_warnings FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
 
@@ -5942,6 +6005,7 @@ CREATE TRIGGER update_polypharmacy_warnings_updated_at BEFORE UPDATE ON public.p
 -- Name: prescriptions update_prescriptions_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
+DROP TRIGGER IF EXISTS update_prescriptions_updated_at ON public.prescriptions;
 CREATE TRIGGER update_prescriptions_updated_at BEFORE UPDATE ON public.prescriptions FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
 
@@ -5949,6 +6013,7 @@ CREATE TRIGGER update_prescriptions_updated_at BEFORE UPDATE ON public.prescript
 -- Name: profiles update_profiles_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
+DROP TRIGGER IF EXISTS update_profiles_updated_at ON public.profiles;
 CREATE TRIGGER update_profiles_updated_at BEFORE UPDATE ON public.profiles FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
 
@@ -5956,6 +6021,7 @@ CREATE TRIGGER update_profiles_updated_at BEFORE UPDATE ON public.profiles FOR E
 -- Name: push_subscriptions update_push_subscriptions_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
+DROP TRIGGER IF EXISTS update_push_subscriptions_updated_at ON public.push_subscriptions;
 CREATE TRIGGER update_push_subscriptions_updated_at BEFORE UPDATE ON public.push_subscriptions FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
 
@@ -5963,6 +6029,7 @@ CREATE TRIGGER update_push_subscriptions_updated_at BEFORE UPDATE ON public.push
 -- Name: refill_requests update_refill_requests_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
+DROP TRIGGER IF EXISTS update_refill_requests_updated_at ON public.refill_requests;
 CREATE TRIGGER update_refill_requests_updated_at BEFORE UPDATE ON public.refill_requests FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
 
@@ -5970,6 +6037,7 @@ CREATE TRIGGER update_refill_requests_updated_at BEFORE UPDATE ON public.refill_
 -- Name: security_notification_preferences update_security_notification_preferences_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
+DROP TRIGGER IF EXISTS update_security_notification_preferences_updated_at ON public.security_notification_preferences;
 CREATE TRIGGER update_security_notification_preferences_updated_at BEFORE UPDATE ON public.security_notification_preferences FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
 
@@ -5977,6 +6045,7 @@ CREATE TRIGGER update_security_notification_preferences_updated_at BEFORE UPDATE
 -- Name: soap_notes update_soap_notes_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
+DROP TRIGGER IF EXISTS update_soap_notes_updated_at ON public.soap_notes;
 CREATE TRIGGER update_soap_notes_updated_at BEFORE UPDATE ON public.soap_notes FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
 
@@ -5984,6 +6053,7 @@ CREATE TRIGGER update_soap_notes_updated_at BEFORE UPDATE ON public.soap_notes F
 -- Name: video_call_notes update_video_call_notes_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
+DROP TRIGGER IF EXISTS update_video_call_notes_updated_at ON public.video_call_notes;
 CREATE TRIGGER update_video_call_notes_updated_at BEFORE UPDATE ON public.video_call_notes FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
 
@@ -5991,6 +6061,7 @@ CREATE TRIGGER update_video_call_notes_updated_at BEFORE UPDATE ON public.video_
 -- Name: video_rooms update_video_rooms_updated_at; Type: TRIGGER; Schema: public; Owner: -
 --
 
+DROP TRIGGER IF EXISTS update_video_rooms_updated_at ON public.video_rooms;
 CREATE TRIGGER update_video_rooms_updated_at BEFORE UPDATE ON public.video_rooms FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
 
@@ -6734,6 +6805,7 @@ ALTER TABLE ONLY public.waiting_room_queue
 -- Name: email_ab_tests Admins can create A/B tests; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Admins can create A/B tests" ON public.email_ab_tests;
 CREATE POLICY "Admins can create A/B tests" ON public.email_ab_tests FOR INSERT WITH CHECK ((EXISTS ( SELECT 1
    FROM public.user_roles
   WHERE ((user_roles.user_id = auth.uid()) AND (user_roles.role = 'admin'::public.app_role)))));
@@ -6743,6 +6815,7 @@ CREATE POLICY "Admins can create A/B tests" ON public.email_ab_tests FOR INSERT 
 -- Name: clinician_patient_assignments Admins can create assignments; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Admins can create assignments" ON public.clinician_patient_assignments;
 CREATE POLICY "Admins can create assignments" ON public.clinician_patient_assignments FOR INSERT WITH CHECK (public.is_admin(auth.uid()));
 
 
@@ -6750,6 +6823,7 @@ CREATE POLICY "Admins can create assignments" ON public.clinician_patient_assign
 -- Name: email_ab_assignments Admins can delete A/B assignments; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Admins can delete A/B assignments" ON public.email_ab_assignments;
 CREATE POLICY "Admins can delete A/B assignments" ON public.email_ab_assignments FOR DELETE USING (public.is_admin(auth.uid()));
 
 
@@ -6757,6 +6831,7 @@ CREATE POLICY "Admins can delete A/B assignments" ON public.email_ab_assignments
 -- Name: email_ab_tests Admins can delete A/B tests; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Admins can delete A/B tests" ON public.email_ab_tests;
 CREATE POLICY "Admins can delete A/B tests" ON public.email_ab_tests FOR DELETE USING ((EXISTS ( SELECT 1
    FROM public.user_roles
   WHERE ((user_roles.user_id = auth.uid()) AND (user_roles.role = 'admin'::public.app_role)))));
@@ -6766,6 +6841,7 @@ CREATE POLICY "Admins can delete A/B tests" ON public.email_ab_tests FOR DELETE 
 -- Name: clinician_patient_assignments Admins can delete assignments; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Admins can delete assignments" ON public.clinician_patient_assignments;
 CREATE POLICY "Admins can delete assignments" ON public.clinician_patient_assignments FOR DELETE USING (public.is_admin(auth.uid()));
 
 
@@ -6773,6 +6849,7 @@ CREATE POLICY "Admins can delete assignments" ON public.clinician_patient_assign
 -- Name: user_roles Admins can delete roles; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Admins can delete roles" ON public.user_roles;
 CREATE POLICY "Admins can delete roles" ON public.user_roles FOR DELETE USING (public.is_admin(auth.uid()));
 
 
@@ -6780,6 +6857,7 @@ CREATE POLICY "Admins can delete roles" ON public.user_roles FOR DELETE USING (p
 -- Name: email_ab_assignments Admins can insert A/B assignments; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Admins can insert A/B assignments" ON public.email_ab_assignments;
 CREATE POLICY "Admins can insert A/B assignments" ON public.email_ab_assignments FOR INSERT WITH CHECK (public.is_admin(auth.uid()));
 
 
@@ -6787,6 +6865,7 @@ CREATE POLICY "Admins can insert A/B assignments" ON public.email_ab_assignments
 -- Name: notification_settings Admins can insert notification settings; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Admins can insert notification settings" ON public.notification_settings;
 CREATE POLICY "Admins can insert notification settings" ON public.notification_settings FOR INSERT WITH CHECK (public.is_admin(auth.uid()));
 
 
@@ -6794,6 +6873,7 @@ CREATE POLICY "Admins can insert notification settings" ON public.notification_s
 -- Name: profiles Admins can insert profiles; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Admins can insert profiles" ON public.profiles;
 CREATE POLICY "Admins can insert profiles" ON public.profiles FOR INSERT WITH CHECK (public.is_admin(auth.uid()));
 
 
@@ -6801,6 +6881,7 @@ CREATE POLICY "Admins can insert profiles" ON public.profiles FOR INSERT WITH CH
 -- Name: user_roles Admins can insert roles; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Admins can insert roles" ON public.user_roles;
 CREATE POLICY "Admins can insert roles" ON public.user_roles FOR INSERT WITH CHECK (public.is_admin(auth.uid()));
 
 
@@ -6808,6 +6889,7 @@ CREATE POLICY "Admins can insert roles" ON public.user_roles FOR INSERT WITH CHE
 -- Name: caregiver_invitations Admins can manage all invitations; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Admins can manage all invitations" ON public.caregiver_invitations;
 CREATE POLICY "Admins can manage all invitations" ON public.caregiver_invitations USING (public.is_admin(auth.uid()));
 
 
@@ -6815,6 +6897,7 @@ CREATE POLICY "Admins can manage all invitations" ON public.caregiver_invitation
 -- Name: compliance_reports Admins can manage compliance reports; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Admins can manage compliance reports" ON public.compliance_reports;
 CREATE POLICY "Admins can manage compliance reports" ON public.compliance_reports USING (public.is_admin(auth.uid()));
 
 
@@ -6822,6 +6905,7 @@ CREATE POLICY "Admins can manage compliance reports" ON public.compliance_report
 -- Name: drug_interactions Admins can manage drug interactions; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Admins can manage drug interactions" ON public.drug_interactions;
 CREATE POLICY "Admins can manage drug interactions" ON public.drug_interactions USING (public.is_admin(auth.uid()));
 
 
@@ -6829,6 +6913,7 @@ CREATE POLICY "Admins can manage drug interactions" ON public.drug_interactions 
 -- Name: security_settings Admins can manage security settings; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Admins can manage security settings" ON public.security_settings;
 CREATE POLICY "Admins can manage security settings" ON public.security_settings USING (public.is_admin(auth.uid()));
 
 
@@ -6836,6 +6921,7 @@ CREATE POLICY "Admins can manage security settings" ON public.security_settings 
 -- Name: user_sessions Admins can manage sessions; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Admins can manage sessions" ON public.user_sessions;
 CREATE POLICY "Admins can manage sessions" ON public.user_sessions USING (public.is_admin(auth.uid()));
 
 
@@ -6843,6 +6929,7 @@ CREATE POLICY "Admins can manage sessions" ON public.user_sessions USING (public
 -- Name: email_ab_assignments Admins can update A/B assignments; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Admins can update A/B assignments" ON public.email_ab_assignments;
 CREATE POLICY "Admins can update A/B assignments" ON public.email_ab_assignments FOR UPDATE USING (public.is_admin(auth.uid()));
 
 
@@ -6850,6 +6937,7 @@ CREATE POLICY "Admins can update A/B assignments" ON public.email_ab_assignments
 -- Name: email_ab_tests Admins can update A/B tests; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Admins can update A/B tests" ON public.email_ab_tests;
 CREATE POLICY "Admins can update A/B tests" ON public.email_ab_tests FOR UPDATE USING ((EXISTS ( SELECT 1
    FROM public.user_roles
   WHERE ((user_roles.user_id = auth.uid()) AND (user_roles.role = 'admin'::public.app_role)))));
@@ -6859,6 +6947,7 @@ CREATE POLICY "Admins can update A/B tests" ON public.email_ab_tests FOR UPDATE 
 -- Name: profiles Admins can update all profiles; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Admins can update all profiles" ON public.profiles;
 CREATE POLICY "Admins can update all profiles" ON public.profiles FOR UPDATE USING (public.is_admin(auth.uid()));
 
 
@@ -6866,6 +6955,7 @@ CREATE POLICY "Admins can update all profiles" ON public.profiles FOR UPDATE USI
 -- Name: account_lockouts Admins can update lockouts; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Admins can update lockouts" ON public.account_lockouts;
 CREATE POLICY "Admins can update lockouts" ON public.account_lockouts FOR UPDATE USING (public.is_admin(auth.uid()));
 
 
@@ -6873,6 +6963,7 @@ CREATE POLICY "Admins can update lockouts" ON public.account_lockouts FOR UPDATE
 -- Name: notification_settings Admins can update notification settings; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Admins can update notification settings" ON public.notification_settings;
 CREATE POLICY "Admins can update notification settings" ON public.notification_settings FOR UPDATE USING (public.is_admin(auth.uid()));
 
 
@@ -6880,6 +6971,7 @@ CREATE POLICY "Admins can update notification settings" ON public.notification_s
 -- Name: user_roles Admins can update roles; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Admins can update roles" ON public.user_roles;
 CREATE POLICY "Admins can update roles" ON public.user_roles FOR UPDATE USING (public.is_admin(auth.uid()));
 
 
@@ -6887,6 +6979,7 @@ CREATE POLICY "Admins can update roles" ON public.user_roles FOR UPDATE USING (p
 -- Name: email_ab_assignments Admins can view all A/B assignments; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Admins can view all A/B assignments" ON public.email_ab_assignments;
 CREATE POLICY "Admins can view all A/B assignments" ON public.email_ab_assignments FOR SELECT USING ((EXISTS ( SELECT 1
    FROM public.user_roles
   WHERE ((user_roles.user_id = auth.uid()) AND (user_roles.role = 'admin'::public.app_role)))));
@@ -6896,6 +6989,7 @@ CREATE POLICY "Admins can view all A/B assignments" ON public.email_ab_assignmen
 -- Name: email_ab_tests Admins can view all A/B tests; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Admins can view all A/B tests" ON public.email_ab_tests;
 CREATE POLICY "Admins can view all A/B tests" ON public.email_ab_tests FOR SELECT USING ((EXISTS ( SELECT 1
    FROM public.user_roles
   WHERE ((user_roles.user_id = auth.uid()) AND (user_roles.role = 'admin'::public.app_role)))));
@@ -6905,6 +6999,7 @@ CREATE POLICY "Admins can view all A/B tests" ON public.email_ab_tests FOR SELEC
 -- Name: patient_activity_log Admins can view all activity; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Admins can view all activity" ON public.patient_activity_log;
 CREATE POLICY "Admins can view all activity" ON public.patient_activity_log FOR SELECT USING (public.is_admin(auth.uid()));
 
 
@@ -6912,6 +7007,7 @@ CREATE POLICY "Admins can view all activity" ON public.patient_activity_log FOR 
 -- Name: appointments Admins can view all appointments; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Admins can view all appointments" ON public.appointments;
 CREATE POLICY "Admins can view all appointments" ON public.appointments FOR SELECT USING (public.is_admin(auth.uid()));
 
 
@@ -6919,6 +7015,7 @@ CREATE POLICY "Admins can view all appointments" ON public.appointments FOR SELE
 -- Name: clinician_patient_assignments Admins can view all assignments; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Admins can view all assignments" ON public.clinician_patient_assignments;
 CREATE POLICY "Admins can view all assignments" ON public.clinician_patient_assignments FOR SELECT USING (public.is_admin(auth.uid()));
 
 
@@ -6926,6 +7023,7 @@ CREATE POLICY "Admins can view all assignments" ON public.clinician_patient_assi
 -- Name: audit_log Admins can view all audit logs; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Admins can view all audit logs" ON public.audit_log;
 CREATE POLICY "Admins can view all audit logs" ON public.audit_log FOR SELECT USING (public.is_admin(auth.uid()));
 
 
@@ -6933,6 +7031,7 @@ CREATE POLICY "Admins can view all audit logs" ON public.audit_log FOR SELECT US
 -- Name: caregiver_invitations Admins can view all caregiver invitations; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Admins can view all caregiver invitations" ON public.caregiver_invitations;
 CREATE POLICY "Admins can view all caregiver invitations" ON public.caregiver_invitations FOR SELECT USING (public.is_admin(auth.uid()));
 
 
@@ -6940,6 +7039,7 @@ CREATE POLICY "Admins can view all caregiver invitations" ON public.caregiver_in
 -- Name: data_access_log Admins can view all data access logs; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Admins can view all data access logs" ON public.data_access_log;
 CREATE POLICY "Admins can view all data access logs" ON public.data_access_log FOR SELECT USING (public.is_admin(auth.uid()));
 
 
@@ -6947,6 +7047,7 @@ CREATE POLICY "Admins can view all data access logs" ON public.data_access_log F
 -- Name: patient_engagement_scores Admins can view all engagement scores; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Admins can view all engagement scores" ON public.patient_engagement_scores;
 CREATE POLICY "Admins can view all engagement scores" ON public.patient_engagement_scores FOR SELECT USING (public.is_admin(auth.uid()));
 
 
@@ -6954,6 +7055,7 @@ CREATE POLICY "Admins can view all engagement scores" ON public.patient_engageme
 -- Name: account_lockouts Admins can view all lockouts; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Admins can view all lockouts" ON public.account_lockouts;
 CREATE POLICY "Admins can view all lockouts" ON public.account_lockouts FOR SELECT USING (public.is_admin(auth.uid()));
 
 
@@ -6961,6 +7063,7 @@ CREATE POLICY "Admins can view all lockouts" ON public.account_lockouts FOR SELE
 -- Name: login_attempts Admins can view all login attempts; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Admins can view all login attempts" ON public.login_attempts;
 CREATE POLICY "Admins can view all login attempts" ON public.login_attempts FOR SELECT USING (public.is_admin(auth.uid()));
 
 
@@ -6968,6 +7071,7 @@ CREATE POLICY "Admins can view all login attempts" ON public.login_attempts FOR 
 -- Name: user_login_locations Admins can view all login locations; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Admins can view all login locations" ON public.user_login_locations;
 CREATE POLICY "Admins can view all login locations" ON public.user_login_locations FOR SELECT USING (public.is_admin(auth.uid()));
 
 
@@ -6975,6 +7079,7 @@ CREATE POLICY "Admins can view all login locations" ON public.user_login_locatio
 -- Name: patient_notification_preferences Admins can view all notification preferences; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Admins can view all notification preferences" ON public.patient_notification_preferences;
 CREATE POLICY "Admins can view all notification preferences" ON public.patient_notification_preferences FOR SELECT USING (public.is_admin(auth.uid()));
 
 
@@ -6982,6 +7087,7 @@ CREATE POLICY "Admins can view all notification preferences" ON public.patient_n
 -- Name: polypharmacy_warnings Admins can view all polypharmacy warnings; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Admins can view all polypharmacy warnings" ON public.polypharmacy_warnings;
 CREATE POLICY "Admins can view all polypharmacy warnings" ON public.polypharmacy_warnings FOR SELECT USING (public.is_admin(auth.uid()));
 
 
@@ -6989,6 +7095,7 @@ CREATE POLICY "Admins can view all polypharmacy warnings" ON public.polypharmacy
 -- Name: prescriptions Admins can view all prescriptions; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Admins can view all prescriptions" ON public.prescriptions;
 CREATE POLICY "Admins can view all prescriptions" ON public.prescriptions FOR SELECT USING (public.is_admin(auth.uid()));
 
 
@@ -6996,6 +7103,7 @@ CREATE POLICY "Admins can view all prescriptions" ON public.prescriptions FOR SE
 -- Name: profiles Admins can view all profiles; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Admins can view all profiles" ON public.profiles;
 CREATE POLICY "Admins can view all profiles" ON public.profiles FOR SELECT USING (public.is_admin(auth.uid()));
 
 
@@ -7003,6 +7111,7 @@ CREATE POLICY "Admins can view all profiles" ON public.profiles FOR SELECT USING
 -- Name: refill_requests Admins can view all refill requests; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Admins can view all refill requests" ON public.refill_requests;
 CREATE POLICY "Admins can view all refill requests" ON public.refill_requests FOR SELECT USING (public.is_admin(auth.uid()));
 
 
@@ -7010,6 +7119,7 @@ CREATE POLICY "Admins can view all refill requests" ON public.refill_requests FO
 -- Name: patient_risk_flags Admins can view all risk flags; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Admins can view all risk flags" ON public.patient_risk_flags;
 CREATE POLICY "Admins can view all risk flags" ON public.patient_risk_flags FOR SELECT USING (public.is_admin(auth.uid()));
 
 
@@ -7017,6 +7127,7 @@ CREATE POLICY "Admins can view all risk flags" ON public.patient_risk_flags FOR 
 -- Name: user_roles Admins can view all roles; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Admins can view all roles" ON public.user_roles;
 CREATE POLICY "Admins can view all roles" ON public.user_roles FOR SELECT USING (public.is_admin(auth.uid()));
 
 
@@ -7024,6 +7135,7 @@ CREATE POLICY "Admins can view all roles" ON public.user_roles FOR SELECT USING 
 -- Name: security_events Admins can view all security events; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Admins can view all security events" ON public.security_events;
 CREATE POLICY "Admins can view all security events" ON public.security_events FOR SELECT USING (public.is_admin(auth.uid()));
 
 
@@ -7031,6 +7143,7 @@ CREATE POLICY "Admins can view all security events" ON public.security_events FO
 -- Name: user_sessions Admins can view all sessions; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Admins can view all sessions" ON public.user_sessions;
 CREATE POLICY "Admins can view all sessions" ON public.user_sessions FOR SELECT USING (public.is_admin(auth.uid()));
 
 
@@ -7038,6 +7151,7 @@ CREATE POLICY "Admins can view all sessions" ON public.user_sessions FOR SELECT 
 -- Name: drug_transfers Admins can view all transfers; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Admins can view all transfers" ON public.drug_transfers;
 CREATE POLICY "Admins can view all transfers" ON public.drug_transfers FOR SELECT USING (public.is_admin(auth.uid()));
 
 
@@ -7045,6 +7159,7 @@ CREATE POLICY "Admins can view all transfers" ON public.drug_transfers FOR SELEC
 -- Name: video_rooms Admins can view all video rooms; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Admins can view all video rooms" ON public.video_rooms;
 CREATE POLICY "Admins can view all video rooms" ON public.video_rooms FOR SELECT USING (public.is_admin(auth.uid()));
 
 
@@ -7052,6 +7167,7 @@ CREATE POLICY "Admins can view all video rooms" ON public.video_rooms FOR SELECT
 -- Name: notification_settings Admins can view notification settings; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Admins can view notification settings" ON public.notification_settings;
 CREATE POLICY "Admins can view notification settings" ON public.notification_settings FOR SELECT USING (public.is_admin(auth.uid()));
 
 
@@ -7059,6 +7175,7 @@ CREATE POLICY "Admins can view notification settings" ON public.notification_set
 -- Name: drug_interactions Anyone can view drug interactions; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Anyone can view drug interactions" ON public.drug_interactions;
 CREATE POLICY "Anyone can view drug interactions" ON public.drug_interactions FOR SELECT USING (true);
 
 
@@ -7066,6 +7183,7 @@ CREATE POLICY "Anyone can view drug interactions" ON public.drug_interactions FO
 -- Name: audit_log Audit logs inserted via trigger only; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Audit logs inserted via trigger only" ON public.audit_log;
 CREATE POLICY "Audit logs inserted via trigger only" ON public.audit_log FOR INSERT WITH CHECK (((user_id = auth.uid()) OR (user_id IS NULL)));
 
 
@@ -7073,6 +7191,7 @@ CREATE POLICY "Audit logs inserted via trigger only" ON public.audit_log FOR INS
 -- Name: medication_catalog Authenticated users can view active medications; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Authenticated users can view active medications" ON public.medication_catalog;
 CREATE POLICY "Authenticated users can view active medications" ON public.medication_catalog FOR SELECT USING ((is_active = true));
 
 
@@ -7080,6 +7199,7 @@ CREATE POLICY "Authenticated users can view active medications" ON public.medica
 -- Name: prescription_status_history Authorized users can insert history; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Authorized users can insert history" ON public.prescription_status_history;
 CREATE POLICY "Authorized users can insert history" ON public.prescription_status_history FOR INSERT WITH CHECK ((EXISTS ( SELECT 1
    FROM public.prescriptions p
   WHERE ((p.id = prescription_status_history.prescription_id) AND ((p.clinician_user_id = auth.uid()) OR public.is_pharmacist(auth.uid()))))));
@@ -7089,6 +7209,7 @@ CREATE POLICY "Authorized users can insert history" ON public.prescription_statu
 -- Name: caregiver_messages Caregivers can mark patient messages as read; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Caregivers can mark patient messages as read" ON public.caregiver_messages;
 CREATE POLICY "Caregivers can mark patient messages as read" ON public.caregiver_messages FOR UPDATE USING (((auth.uid() = caregiver_user_id) AND (sender_type = 'patient'::text))) WITH CHECK (((auth.uid() = caregiver_user_id) AND (sender_type = 'patient'::text)));
 
 
@@ -7096,6 +7217,7 @@ CREATE POLICY "Caregivers can mark patient messages as read" ON public.caregiver
 -- Name: caregiver_messages Caregivers can send messages to their patients; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Caregivers can send messages to their patients" ON public.caregiver_messages;
 CREATE POLICY "Caregivers can send messages to their patients" ON public.caregiver_messages FOR INSERT WITH CHECK (((auth.uid() = caregiver_user_id) AND public.is_caregiver_for_patient(patient_user_id, auth.uid())));
 
 
@@ -7103,6 +7225,7 @@ CREATE POLICY "Caregivers can send messages to their patients" ON public.caregiv
 -- Name: caregiver_invitations Caregivers can update invitation status; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Caregivers can update invitation status" ON public.caregiver_invitations;
 CREATE POLICY "Caregivers can update invitation status" ON public.caregiver_invitations FOR UPDATE USING (((auth.uid() = caregiver_user_id) AND (status = 'pending'::text))) WITH CHECK (((auth.uid() = caregiver_user_id) AND (status = ANY (ARRAY['accepted'::text, 'declined'::text]))));
 
 
@@ -7110,6 +7233,7 @@ CREATE POLICY "Caregivers can update invitation status" ON public.caregiver_invi
 -- Name: patient_allergies Caregivers can view patient allergies; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Caregivers can view patient allergies" ON public.patient_allergies;
 CREATE POLICY "Caregivers can view patient allergies" ON public.patient_allergies FOR SELECT USING (public.is_caregiver_for_patient(user_id, auth.uid()));
 
 
@@ -7117,6 +7241,7 @@ CREATE POLICY "Caregivers can view patient allergies" ON public.patient_allergie
 -- Name: patient_chronic_conditions Caregivers can view patient conditions; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Caregivers can view patient conditions" ON public.patient_chronic_conditions;
 CREATE POLICY "Caregivers can view patient conditions" ON public.patient_chronic_conditions FOR SELECT USING (public.is_caregiver_for_patient(user_id, auth.uid()));
 
 
@@ -7124,6 +7249,7 @@ CREATE POLICY "Caregivers can view patient conditions" ON public.patient_chronic
 -- Name: patient_emergency_contacts Caregivers can view patient emergency contacts; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Caregivers can view patient emergency contacts" ON public.patient_emergency_contacts;
 CREATE POLICY "Caregivers can view patient emergency contacts" ON public.patient_emergency_contacts FOR SELECT USING (public.is_caregiver_for_patient(user_id, auth.uid()));
 
 
@@ -7131,6 +7257,7 @@ CREATE POLICY "Caregivers can view patient emergency contacts" ON public.patient
 -- Name: lab_results Caregivers can view patient lab results; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Caregivers can view patient lab results" ON public.lab_results;
 CREATE POLICY "Caregivers can view patient lab results" ON public.lab_results FOR SELECT USING (public.is_caregiver_for_patient(user_id, auth.uid()));
 
 
@@ -7138,6 +7265,7 @@ CREATE POLICY "Caregivers can view patient lab results" ON public.lab_results FO
 -- Name: medication_logs Caregivers can view patient logs; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Caregivers can view patient logs" ON public.medication_logs;
 CREATE POLICY "Caregivers can view patient logs" ON public.medication_logs FOR SELECT USING (public.is_caregiver_for_patient(user_id, auth.uid()));
 
 
@@ -7145,6 +7273,7 @@ CREATE POLICY "Caregivers can view patient logs" ON public.medication_logs FOR S
 -- Name: medications Caregivers can view patient medications; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Caregivers can view patient medications" ON public.medications;
 CREATE POLICY "Caregivers can view patient medications" ON public.medications FOR SELECT USING (public.is_caregiver_for_patient(user_id, auth.uid()));
 
 
@@ -7152,6 +7281,7 @@ CREATE POLICY "Caregivers can view patient medications" ON public.medications FO
 -- Name: profiles Caregivers can view patient profiles; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Caregivers can view patient profiles" ON public.profiles;
 CREATE POLICY "Caregivers can view patient profiles" ON public.profiles FOR SELECT USING (public.is_caregiver_for_patient(user_id, auth.uid()));
 
 
@@ -7159,6 +7289,7 @@ CREATE POLICY "Caregivers can view patient profiles" ON public.profiles FOR SELE
 -- Name: symptom_entries Caregivers can view patient symptoms; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Caregivers can view patient symptoms" ON public.symptom_entries;
 CREATE POLICY "Caregivers can view patient symptoms" ON public.symptom_entries FOR SELECT USING (public.is_caregiver_for_patient(user_id, auth.uid()));
 
 
@@ -7166,6 +7297,7 @@ CREATE POLICY "Caregivers can view patient symptoms" ON public.symptom_entries F
 -- Name: patient_vitals Caregivers can view patient vitals; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Caregivers can view patient vitals" ON public.patient_vitals;
 CREATE POLICY "Caregivers can view patient vitals" ON public.patient_vitals FOR SELECT USING (public.is_caregiver_for_patient(user_id, auth.uid()));
 
 
@@ -7173,6 +7305,7 @@ CREATE POLICY "Caregivers can view patient vitals" ON public.patient_vitals FOR 
 -- Name: caregiver_invitations Caregivers can view their invitations; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Caregivers can view their invitations" ON public.caregiver_invitations;
 CREATE POLICY "Caregivers can view their invitations" ON public.caregiver_invitations FOR SELECT USING ((auth.uid() = caregiver_user_id));
 
 
@@ -7180,6 +7313,7 @@ CREATE POLICY "Caregivers can view their invitations" ON public.caregiver_invita
 -- Name: caregiver_messages Caregivers can view their sent messages; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Caregivers can view their sent messages" ON public.caregiver_messages;
 CREATE POLICY "Caregivers can view their sent messages" ON public.caregiver_messages FOR SELECT USING ((auth.uid() = caregiver_user_id));
 
 
@@ -7187,6 +7321,7 @@ CREATE POLICY "Caregivers can view their sent messages" ON public.caregiver_mess
 -- Name: vitals_alerts Clinicians can acknowledge alerts; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Clinicians can acknowledge alerts" ON public.vitals_alerts;
 CREATE POLICY "Clinicians can acknowledge alerts" ON public.vitals_alerts FOR UPDATE USING (public.is_clinician_assigned(user_id, auth.uid()));
 
 
@@ -7194,6 +7329,7 @@ CREATE POLICY "Clinicians can acknowledge alerts" ON public.vitals_alerts FOR UP
 -- Name: appointments Clinicians can create appointments for assigned patients; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Clinicians can create appointments for assigned patients" ON public.appointments;
 CREATE POLICY "Clinicians can create appointments for assigned patients" ON public.appointments FOR INSERT WITH CHECK (((auth.uid() = clinician_user_id) AND public.is_clinician_assigned(patient_user_id, auth.uid())));
 
 
@@ -7201,6 +7337,7 @@ CREATE POLICY "Clinicians can create appointments for assigned patients" ON publ
 -- Name: soap_notes Clinicians can create notes for assigned patients; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Clinicians can create notes for assigned patients" ON public.soap_notes;
 CREATE POLICY "Clinicians can create notes for assigned patients" ON public.soap_notes FOR INSERT WITH CHECK (((auth.uid() = clinician_user_id) AND public.is_clinician_assigned(patient_user_id, auth.uid())));
 
 
@@ -7208,6 +7345,7 @@ CREATE POLICY "Clinicians can create notes for assigned patients" ON public.soap
 -- Name: clinician_patient_assignments Clinicians can create own assignments; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Clinicians can create own assignments" ON public.clinician_patient_assignments;
 CREATE POLICY "Clinicians can create own assignments" ON public.clinician_patient_assignments FOR INSERT WITH CHECK ((public.is_clinician(auth.uid()) AND (auth.uid() = clinician_user_id)));
 
 
@@ -7215,6 +7353,7 @@ CREATE POLICY "Clinicians can create own assignments" ON public.clinician_patien
 -- Name: prescriptions Clinicians can create prescriptions for assigned patients; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Clinicians can create prescriptions for assigned patients" ON public.prescriptions;
 CREATE POLICY "Clinicians can create prescriptions for assigned patients" ON public.prescriptions FOR INSERT WITH CHECK (((auth.uid() = clinician_user_id) AND public.is_clinician(auth.uid()) AND public.is_clinician_assigned(patient_user_id, auth.uid())));
 
 
@@ -7222,6 +7361,7 @@ CREATE POLICY "Clinicians can create prescriptions for assigned patients" ON pub
 -- Name: video_rooms Clinicians can create video rooms; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Clinicians can create video rooms" ON public.video_rooms;
 CREATE POLICY "Clinicians can create video rooms" ON public.video_rooms FOR INSERT WITH CHECK (((auth.uid() = clinician_user_id) AND public.is_clinician(auth.uid())));
 
 
@@ -7229,6 +7369,7 @@ CREATE POLICY "Clinicians can create video rooms" ON public.video_rooms FOR INSE
 -- Name: clinician_patient_assignments Clinicians can delete own assignments; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Clinicians can delete own assignments" ON public.clinician_patient_assignments;
 CREATE POLICY "Clinicians can delete own assignments" ON public.clinician_patient_assignments FOR DELETE USING ((public.is_clinician(auth.uid()) AND (auth.uid() = clinician_user_id)));
 
 
@@ -7236,6 +7377,7 @@ CREATE POLICY "Clinicians can delete own assignments" ON public.clinician_patien
 -- Name: appointments Clinicians can delete their appointments; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Clinicians can delete their appointments" ON public.appointments;
 CREATE POLICY "Clinicians can delete their appointments" ON public.appointments FOR DELETE USING ((auth.uid() = clinician_user_id));
 
 
@@ -7243,6 +7385,7 @@ CREATE POLICY "Clinicians can delete their appointments" ON public.appointments 
 -- Name: soap_notes Clinicians can delete their own notes; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Clinicians can delete their own notes" ON public.soap_notes;
 CREATE POLICY "Clinicians can delete their own notes" ON public.soap_notes FOR DELETE USING ((auth.uid() = clinician_user_id));
 
 
@@ -7250,6 +7393,7 @@ CREATE POLICY "Clinicians can delete their own notes" ON public.soap_notes FOR D
 -- Name: patient_vitals Clinicians can insert vitals for assigned patients; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Clinicians can insert vitals for assigned patients" ON public.patient_vitals;
 CREATE POLICY "Clinicians can insert vitals for assigned patients" ON public.patient_vitals FOR INSERT WITH CHECK ((public.is_clinician_assigned(user_id, auth.uid()) AND (recorded_by = auth.uid())));
 
 
@@ -7257,6 +7401,7 @@ CREATE POLICY "Clinicians can insert vitals for assigned patients" ON public.pat
 -- Name: lab_results Clinicians can manage labs for assigned patients; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Clinicians can manage labs for assigned patients" ON public.lab_results;
 CREATE POLICY "Clinicians can manage labs for assigned patients" ON public.lab_results USING (public.is_clinician_assigned(user_id, auth.uid()));
 
 
@@ -7264,6 +7409,7 @@ CREATE POLICY "Clinicians can manage labs for assigned patients" ON public.lab_r
 -- Name: post_call_summaries Clinicians can manage summaries; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Clinicians can manage summaries" ON public.post_call_summaries;
 CREATE POLICY "Clinicians can manage summaries" ON public.post_call_summaries USING ((auth.uid() = clinician_user_id));
 
 
@@ -7271,6 +7417,7 @@ CREATE POLICY "Clinicians can manage summaries" ON public.post_call_summaries US
 -- Name: video_call_notes Clinicians can manage their call notes; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Clinicians can manage their call notes" ON public.video_call_notes;
 CREATE POLICY "Clinicians can manage their call notes" ON public.video_call_notes USING ((auth.uid() = clinician_user_id));
 
 
@@ -7278,6 +7425,7 @@ CREATE POLICY "Clinicians can manage their call notes" ON public.video_call_note
 -- Name: waiting_room_queue Clinicians can manage their queue; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Clinicians can manage their queue" ON public.waiting_room_queue;
 CREATE POLICY "Clinicians can manage their queue" ON public.waiting_room_queue USING ((auth.uid() = clinician_user_id));
 
 
@@ -7285,6 +7433,7 @@ CREATE POLICY "Clinicians can manage their queue" ON public.waiting_room_queue U
 -- Name: clinician_messages Clinicians can mark patient messages as read; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Clinicians can mark patient messages as read" ON public.clinician_messages;
 CREATE POLICY "Clinicians can mark patient messages as read" ON public.clinician_messages FOR UPDATE USING (((auth.uid() = clinician_user_id) AND (sender_type = 'patient'::text))) WITH CHECK (((auth.uid() = clinician_user_id) AND (sender_type = 'patient'::text)));
 
 
@@ -7292,6 +7441,7 @@ CREATE POLICY "Clinicians can mark patient messages as read" ON public.clinician
 -- Name: clinician_messages Clinicians can send messages to assigned patients; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Clinicians can send messages to assigned patients" ON public.clinician_messages;
 CREATE POLICY "Clinicians can send messages to assigned patients" ON public.clinician_messages FOR INSERT WITH CHECK (((auth.uid() = clinician_user_id) AND (sender_type = 'clinician'::text) AND public.is_clinician_assigned(patient_user_id, auth.uid())));
 
 
@@ -7299,6 +7449,7 @@ CREATE POLICY "Clinicians can send messages to assigned patients" ON public.clin
 -- Name: red_flag_alerts Clinicians can update alerts they can see; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Clinicians can update alerts they can see" ON public.red_flag_alerts;
 CREATE POLICY "Clinicians can update alerts they can see" ON public.red_flag_alerts FOR UPDATE USING (((auth.uid() = clinician_user_id) OR public.is_clinician_assigned(patient_user_id, auth.uid())));
 
 
@@ -7306,6 +7457,7 @@ CREATE POLICY "Clinicians can update alerts they can see" ON public.red_flag_ale
 -- Name: video_room_participants Clinicians can update participant status; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Clinicians can update participant status" ON public.video_room_participants;
 CREATE POLICY "Clinicians can update participant status" ON public.video_room_participants FOR UPDATE USING ((EXISTS ( SELECT 1
    FROM public.video_rooms
   WHERE ((video_rooms.id = video_room_participants.room_id) AND (video_rooms.clinician_user_id = auth.uid())))));
@@ -7315,6 +7467,7 @@ CREATE POLICY "Clinicians can update participant status" ON public.video_room_pa
 -- Name: polypharmacy_warnings Clinicians can update polypharmacy warnings; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Clinicians can update polypharmacy warnings" ON public.polypharmacy_warnings;
 CREATE POLICY "Clinicians can update polypharmacy warnings" ON public.polypharmacy_warnings FOR UPDATE USING (public.is_clinician_assigned(patient_user_id, auth.uid()));
 
 
@@ -7322,6 +7475,7 @@ CREATE POLICY "Clinicians can update polypharmacy warnings" ON public.polypharma
 -- Name: patient_risk_flags Clinicians can update risk flags they can see; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Clinicians can update risk flags they can see" ON public.patient_risk_flags;
 CREATE POLICY "Clinicians can update risk flags they can see" ON public.patient_risk_flags FOR UPDATE USING (((auth.uid() = clinician_user_id) OR public.is_clinician_assigned(patient_user_id, auth.uid())));
 
 
@@ -7329,6 +7483,7 @@ CREATE POLICY "Clinicians can update risk flags they can see" ON public.patient_
 -- Name: appointments Clinicians can update their appointments; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Clinicians can update their appointments" ON public.appointments;
 CREATE POLICY "Clinicians can update their appointments" ON public.appointments FOR UPDATE USING ((auth.uid() = clinician_user_id)) WITH CHECK ((auth.uid() = clinician_user_id));
 
 
@@ -7336,6 +7491,7 @@ CREATE POLICY "Clinicians can update their appointments" ON public.appointments 
 -- Name: soap_notes Clinicians can update their own notes; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Clinicians can update their own notes" ON public.soap_notes;
 CREATE POLICY "Clinicians can update their own notes" ON public.soap_notes FOR UPDATE USING ((auth.uid() = clinician_user_id)) WITH CHECK ((auth.uid() = clinician_user_id));
 
 
@@ -7343,6 +7499,7 @@ CREATE POLICY "Clinicians can update their own notes" ON public.soap_notes FOR U
 -- Name: prescriptions Clinicians can update their own prescriptions; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Clinicians can update their own prescriptions" ON public.prescriptions;
 CREATE POLICY "Clinicians can update their own prescriptions" ON public.prescriptions FOR UPDATE USING (((auth.uid() = clinician_user_id) AND public.is_clinician(auth.uid()))) WITH CHECK ((auth.uid() = clinician_user_id));
 
 
@@ -7350,6 +7507,7 @@ CREATE POLICY "Clinicians can update their own prescriptions" ON public.prescrip
 -- Name: video_rooms Clinicians can update their video rooms; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Clinicians can update their video rooms" ON public.video_rooms;
 CREATE POLICY "Clinicians can update their video rooms" ON public.video_rooms FOR UPDATE USING ((auth.uid() = clinician_user_id));
 
 
@@ -7357,6 +7515,7 @@ CREATE POLICY "Clinicians can update their video rooms" ON public.video_rooms FO
 -- Name: red_flag_alerts Clinicians can view alerts for their patients; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Clinicians can view alerts for their patients" ON public.red_flag_alerts;
 CREATE POLICY "Clinicians can view alerts for their patients" ON public.red_flag_alerts FOR SELECT USING (((auth.uid() = clinician_user_id) OR public.is_clinician_assigned(patient_user_id, auth.uid())));
 
 
@@ -7364,6 +7523,7 @@ CREATE POLICY "Clinicians can view alerts for their patients" ON public.red_flag
 -- Name: profiles Clinicians can view all patient profiles; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Clinicians can view all patient profiles" ON public.profiles;
 CREATE POLICY "Clinicians can view all patient profiles" ON public.profiles FOR SELECT USING ((public.is_clinician(auth.uid()) AND (EXISTS ( SELECT 1
    FROM public.user_roles
   WHERE ((user_roles.user_id = profiles.user_id) AND (user_roles.role = 'patient'::public.app_role))))));
@@ -7373,6 +7533,7 @@ CREATE POLICY "Clinicians can view all patient profiles" ON public.profiles FOR 
 -- Name: patient_activity_log Clinicians can view assigned patient activity; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Clinicians can view assigned patient activity" ON public.patient_activity_log;
 CREATE POLICY "Clinicians can view assigned patient activity" ON public.patient_activity_log FOR SELECT USING (public.is_clinician_assigned(user_id, auth.uid()));
 
 
@@ -7380,6 +7541,7 @@ CREATE POLICY "Clinicians can view assigned patient activity" ON public.patient_
 -- Name: vitals_alerts Clinicians can view assigned patient alerts; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Clinicians can view assigned patient alerts" ON public.vitals_alerts;
 CREATE POLICY "Clinicians can view assigned patient alerts" ON public.vitals_alerts FOR SELECT USING (public.is_clinician_assigned(user_id, auth.uid()));
 
 
@@ -7387,6 +7549,7 @@ CREATE POLICY "Clinicians can view assigned patient alerts" ON public.vitals_ale
 -- Name: patient_allergies Clinicians can view assigned patient allergies; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Clinicians can view assigned patient allergies" ON public.patient_allergies;
 CREATE POLICY "Clinicians can view assigned patient allergies" ON public.patient_allergies FOR SELECT USING (public.is_clinician_assigned(user_id, auth.uid()));
 
 
@@ -7394,6 +7557,7 @@ CREATE POLICY "Clinicians can view assigned patient allergies" ON public.patient
 -- Name: patient_chronic_conditions Clinicians can view assigned patient conditions; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Clinicians can view assigned patient conditions" ON public.patient_chronic_conditions;
 CREATE POLICY "Clinicians can view assigned patient conditions" ON public.patient_chronic_conditions FOR SELECT USING (public.is_clinician_assigned(user_id, auth.uid()));
 
 
@@ -7401,6 +7565,7 @@ CREATE POLICY "Clinicians can view assigned patient conditions" ON public.patien
 -- Name: patient_emergency_contacts Clinicians can view assigned patient emergency contacts; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Clinicians can view assigned patient emergency contacts" ON public.patient_emergency_contacts;
 CREATE POLICY "Clinicians can view assigned patient emergency contacts" ON public.patient_emergency_contacts FOR SELECT USING (public.is_clinician_assigned(user_id, auth.uid()));
 
 
@@ -7408,6 +7573,7 @@ CREATE POLICY "Clinicians can view assigned patient emergency contacts" ON publi
 -- Name: lab_results Clinicians can view assigned patient labs; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Clinicians can view assigned patient labs" ON public.lab_results;
 CREATE POLICY "Clinicians can view assigned patient labs" ON public.lab_results FOR SELECT USING (public.is_clinician_assigned(user_id, auth.uid()));
 
 
@@ -7415,6 +7581,7 @@ CREATE POLICY "Clinicians can view assigned patient labs" ON public.lab_results 
 -- Name: medication_logs Clinicians can view assigned patient logs; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Clinicians can view assigned patient logs" ON public.medication_logs;
 CREATE POLICY "Clinicians can view assigned patient logs" ON public.medication_logs FOR SELECT USING (public.is_clinician_assigned(user_id, auth.uid()));
 
 
@@ -7422,6 +7589,7 @@ CREATE POLICY "Clinicians can view assigned patient logs" ON public.medication_l
 -- Name: medications Clinicians can view assigned patient medications; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Clinicians can view assigned patient medications" ON public.medications;
 CREATE POLICY "Clinicians can view assigned patient medications" ON public.medications FOR SELECT USING (public.is_clinician_assigned(user_id, auth.uid()));
 
 
@@ -7429,6 +7597,7 @@ CREATE POLICY "Clinicians can view assigned patient medications" ON public.medic
 -- Name: profiles Clinicians can view assigned patient profiles; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Clinicians can view assigned patient profiles" ON public.profiles;
 CREATE POLICY "Clinicians can view assigned patient profiles" ON public.profiles FOR SELECT USING (public.is_clinician_assigned(user_id, auth.uid()));
 
 
@@ -7436,6 +7605,7 @@ CREATE POLICY "Clinicians can view assigned patient profiles" ON public.profiles
 -- Name: medication_schedules Clinicians can view assigned patient schedules; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Clinicians can view assigned patient schedules" ON public.medication_schedules;
 CREATE POLICY "Clinicians can view assigned patient schedules" ON public.medication_schedules FOR SELECT USING (public.is_clinician_assigned(user_id, auth.uid()));
 
 
@@ -7443,6 +7613,7 @@ CREATE POLICY "Clinicians can view assigned patient schedules" ON public.medicat
 -- Name: patient_engagement_scores Clinicians can view assigned patient scores; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Clinicians can view assigned patient scores" ON public.patient_engagement_scores;
 CREATE POLICY "Clinicians can view assigned patient scores" ON public.patient_engagement_scores FOR SELECT USING (public.is_clinician_assigned(user_id, auth.uid()));
 
 
@@ -7450,6 +7621,7 @@ CREATE POLICY "Clinicians can view assigned patient scores" ON public.patient_en
 -- Name: symptom_entries Clinicians can view assigned patient symptoms; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Clinicians can view assigned patient symptoms" ON public.symptom_entries;
 CREATE POLICY "Clinicians can view assigned patient symptoms" ON public.symptom_entries FOR SELECT USING (public.is_clinician_assigned(user_id, auth.uid()));
 
 
@@ -7457,6 +7629,7 @@ CREATE POLICY "Clinicians can view assigned patient symptoms" ON public.symptom_
 -- Name: patient_vitals Clinicians can view assigned patient vitals; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Clinicians can view assigned patient vitals" ON public.patient_vitals;
 CREATE POLICY "Clinicians can view assigned patient vitals" ON public.patient_vitals FOR SELECT USING (public.is_clinician_assigned(user_id, auth.uid()));
 
 
@@ -7464,6 +7637,7 @@ CREATE POLICY "Clinicians can view assigned patient vitals" ON public.patient_vi
 -- Name: clinician_patient_assignments Clinicians can view own assignments; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Clinicians can view own assignments" ON public.clinician_patient_assignments;
 CREATE POLICY "Clinicians can view own assignments" ON public.clinician_patient_assignments FOR SELECT USING ((auth.uid() = clinician_user_id));
 
 
@@ -7471,6 +7645,7 @@ CREATE POLICY "Clinicians can view own assignments" ON public.clinician_patient_
 -- Name: user_roles Clinicians can view patient roles; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Clinicians can view patient roles" ON public.user_roles;
 CREATE POLICY "Clinicians can view patient roles" ON public.user_roles FOR SELECT USING ((public.is_clinician(auth.uid()) AND (role = 'patient'::public.app_role)));
 
 
@@ -7478,6 +7653,7 @@ CREATE POLICY "Clinicians can view patient roles" ON public.user_roles FOR SELEC
 -- Name: polypharmacy_warnings Clinicians can view polypharmacy warnings for assigned patients; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Clinicians can view polypharmacy warnings for assigned patients" ON public.polypharmacy_warnings;
 CREATE POLICY "Clinicians can view polypharmacy warnings for assigned patients" ON public.polypharmacy_warnings FOR SELECT USING (public.is_clinician_assigned(patient_user_id, auth.uid()));
 
 
@@ -7485,6 +7661,7 @@ CREATE POLICY "Clinicians can view polypharmacy warnings for assigned patients" 
 -- Name: prescriptions Clinicians can view prescriptions they wrote; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Clinicians can view prescriptions they wrote" ON public.prescriptions;
 CREATE POLICY "Clinicians can view prescriptions they wrote" ON public.prescriptions FOR SELECT USING ((auth.uid() = clinician_user_id));
 
 
@@ -7492,6 +7669,7 @@ CREATE POLICY "Clinicians can view prescriptions they wrote" ON public.prescript
 -- Name: patient_risk_flags Clinicians can view risk flags for their patients; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Clinicians can view risk flags for their patients" ON public.patient_risk_flags;
 CREATE POLICY "Clinicians can view risk flags for their patients" ON public.patient_risk_flags FOR SELECT USING (((auth.uid() = clinician_user_id) OR public.is_clinician_assigned(patient_user_id, auth.uid())));
 
 
@@ -7499,6 +7677,7 @@ CREATE POLICY "Clinicians can view risk flags for their patients" ON public.pati
 -- Name: appointments Clinicians can view their appointments; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Clinicians can view their appointments" ON public.appointments;
 CREATE POLICY "Clinicians can view their appointments" ON public.appointments FOR SELECT USING ((auth.uid() = clinician_user_id));
 
 
@@ -7506,6 +7685,7 @@ CREATE POLICY "Clinicians can view their appointments" ON public.appointments FO
 -- Name: data_access_log Clinicians can view their data access; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Clinicians can view their data access" ON public.data_access_log;
 CREATE POLICY "Clinicians can view their data access" ON public.data_access_log FOR SELECT USING (((auth.uid() = user_id) AND public.is_clinician(auth.uid())));
 
 
@@ -7513,6 +7693,7 @@ CREATE POLICY "Clinicians can view their data access" ON public.data_access_log 
 -- Name: clinician_messages Clinicians can view their messages; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Clinicians can view their messages" ON public.clinician_messages;
 CREATE POLICY "Clinicians can view their messages" ON public.clinician_messages FOR SELECT USING ((auth.uid() = clinician_user_id));
 
 
@@ -7520,6 +7701,7 @@ CREATE POLICY "Clinicians can view their messages" ON public.clinician_messages 
 -- Name: soap_notes Clinicians can view their own notes; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Clinicians can view their own notes" ON public.soap_notes;
 CREATE POLICY "Clinicians can view their own notes" ON public.soap_notes FOR SELECT USING ((auth.uid() = clinician_user_id));
 
 
@@ -7527,6 +7709,7 @@ CREATE POLICY "Clinicians can view their own notes" ON public.soap_notes FOR SEL
 -- Name: video_rooms Clinicians can view their video rooms; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Clinicians can view their video rooms" ON public.video_rooms;
 CREATE POLICY "Clinicians can view their video rooms" ON public.video_rooms FOR SELECT USING ((auth.uid() = clinician_user_id));
 
 
@@ -7534,6 +7717,7 @@ CREATE POLICY "Clinicians can view their video rooms" ON public.video_rooms FOR 
 -- Name: medication_availability Everyone can view available medications; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Everyone can view available medications" ON public.medication_availability;
 CREATE POLICY "Everyone can view available medications" ON public.medication_availability FOR SELECT USING ((is_available = true));
 
 
@@ -7541,6 +7725,7 @@ CREATE POLICY "Everyone can view available medications" ON public.medication_ava
 -- Name: user_roles Managers can delete org user roles; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Managers can delete org user roles" ON public.user_roles;
 CREATE POLICY "Managers can delete org user roles" ON public.user_roles FOR DELETE USING ((public.manager_can_access_user(auth.uid(), user_id) AND (role <> ALL (ARRAY['admin'::public.app_role, 'manager'::public.app_role]))));
 
 
@@ -7548,6 +7733,7 @@ CREATE POLICY "Managers can delete org user roles" ON public.user_roles FOR DELE
 -- Name: user_roles Managers can insert org user roles; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Managers can insert org user roles" ON public.user_roles;
 CREATE POLICY "Managers can insert org user roles" ON public.user_roles FOR INSERT WITH CHECK ((public.manager_can_access_user(auth.uid(), user_id) AND (role <> ALL (ARRAY['admin'::public.app_role, 'manager'::public.app_role]))));
 
 
@@ -7555,6 +7741,7 @@ CREATE POLICY "Managers can insert org user roles" ON public.user_roles FOR INSE
 -- Name: organization_members Managers can manage org members; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Managers can manage org members" ON public.organization_members;
 CREATE POLICY "Managers can manage org members" ON public.organization_members USING (public.is_manager_for_org(auth.uid(), organization_id));
 
 
@@ -7562,6 +7749,7 @@ CREATE POLICY "Managers can manage org members" ON public.organization_members U
 -- Name: organization_branding Managers can update org branding; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Managers can update org branding" ON public.organization_branding;
 CREATE POLICY "Managers can update org branding" ON public.organization_branding FOR UPDATE USING ((public.is_manager(auth.uid()) AND (organization_id = public.get_user_organization_id(auth.uid()))));
 
 
@@ -7569,6 +7757,7 @@ CREATE POLICY "Managers can update org branding" ON public.organization_branding
 -- Name: profiles Managers can update org profiles; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Managers can update org profiles" ON public.profiles;
 CREATE POLICY "Managers can update org profiles" ON public.profiles FOR UPDATE USING (public.manager_can_access_user(auth.uid(), user_id));
 
 
@@ -7576,6 +7765,7 @@ CREATE POLICY "Managers can update org profiles" ON public.profiles FOR UPDATE U
 -- Name: organizations Managers can update own organization; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Managers can update own organization" ON public.organizations;
 CREATE POLICY "Managers can update own organization" ON public.organizations FOR UPDATE USING ((public.is_manager(auth.uid()) AND (id = public.get_user_organization_id(auth.uid()))));
 
 
@@ -7583,6 +7773,7 @@ CREATE POLICY "Managers can update own organization" ON public.organizations FOR
 -- Name: appointments Managers can view org appointments; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Managers can view org appointments" ON public.appointments;
 CREATE POLICY "Managers can view org appointments" ON public.appointments FOR SELECT USING ((public.manager_can_access_user(auth.uid(), patient_user_id) OR public.manager_can_access_user(auth.uid(), clinician_user_id)));
 
 
@@ -7590,6 +7781,7 @@ CREATE POLICY "Managers can view org appointments" ON public.appointments FOR SE
 -- Name: audit_log Managers can view org audit logs; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Managers can view org audit logs" ON public.audit_log;
 CREATE POLICY "Managers can view org audit logs" ON public.audit_log FOR SELECT USING (public.manager_can_access_user(auth.uid(), user_id));
 
 
@@ -7597,6 +7789,7 @@ CREATE POLICY "Managers can view org audit logs" ON public.audit_log FOR SELECT 
 -- Name: organization_branding Managers can view org branding; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Managers can view org branding" ON public.organization_branding;
 CREATE POLICY "Managers can view org branding" ON public.organization_branding FOR SELECT USING ((public.is_manager(auth.uid()) AND (organization_id = public.get_user_organization_id(auth.uid()))));
 
 
@@ -7604,6 +7797,7 @@ CREATE POLICY "Managers can view org branding" ON public.organization_branding F
 -- Name: medications Managers can view org medications; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Managers can view org medications" ON public.medications;
 CREATE POLICY "Managers can view org medications" ON public.medications FOR SELECT USING (public.manager_can_access_user(auth.uid(), user_id));
 
 
@@ -7611,6 +7805,7 @@ CREATE POLICY "Managers can view org medications" ON public.medications FOR SELE
 -- Name: profiles Managers can view org profiles; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Managers can view org profiles" ON public.profiles;
 CREATE POLICY "Managers can view org profiles" ON public.profiles FOR SELECT USING (public.manager_can_access_user(auth.uid(), user_id));
 
 
@@ -7618,6 +7813,7 @@ CREATE POLICY "Managers can view org profiles" ON public.profiles FOR SELECT USI
 -- Name: user_roles Managers can view org user roles; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Managers can view org user roles" ON public.user_roles;
 CREATE POLICY "Managers can view org user roles" ON public.user_roles FOR SELECT USING (public.manager_can_access_user(auth.uid(), user_id));
 
 
@@ -7625,6 +7821,7 @@ CREATE POLICY "Managers can view org user roles" ON public.user_roles FOR SELECT
 -- Name: organizations Managers can view own organization; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Managers can view own organization" ON public.organizations;
 CREATE POLICY "Managers can view own organization" ON public.organizations FOR SELECT USING ((public.is_manager(auth.uid()) AND (id = public.get_user_organization_id(auth.uid()))));
 
 
@@ -7632,6 +7829,7 @@ CREATE POLICY "Managers can view own organization" ON public.organizations FOR S
 -- Name: organization_branding Members can view org branding; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Members can view org branding" ON public.organization_branding;
 CREATE POLICY "Members can view org branding" ON public.organization_branding FOR SELECT USING (public.user_belongs_to_org(auth.uid(), organization_id));
 
 
@@ -7639,6 +7837,7 @@ CREATE POLICY "Members can view org branding" ON public.organization_branding FO
 -- Name: organizations Members can view their organization; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Members can view their organization" ON public.organizations;
 CREATE POLICY "Members can view their organization" ON public.organizations FOR SELECT USING (public.user_belongs_to_org(auth.uid(), id));
 
 
@@ -7646,6 +7845,7 @@ CREATE POLICY "Members can view their organization" ON public.organizations FOR 
 -- Name: login_attempts No direct inserts allowed; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "No direct inserts allowed" ON public.login_attempts;
 CREATE POLICY "No direct inserts allowed" ON public.login_attempts FOR INSERT WITH CHECK (false);
 
 
@@ -7653,6 +7853,7 @@ CREATE POLICY "No direct inserts allowed" ON public.login_attempts FOR INSERT WI
 -- Name: account_lockouts No direct lockout deletes; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "No direct lockout deletes" ON public.account_lockouts;
 CREATE POLICY "No direct lockout deletes" ON public.account_lockouts FOR DELETE USING (false);
 
 
@@ -7660,6 +7861,7 @@ CREATE POLICY "No direct lockout deletes" ON public.account_lockouts FOR DELETE 
 -- Name: account_lockouts No direct lockout modifications; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "No direct lockout modifications" ON public.account_lockouts;
 CREATE POLICY "No direct lockout modifications" ON public.account_lockouts FOR INSERT WITH CHECK (false);
 
 
@@ -7667,6 +7869,7 @@ CREATE POLICY "No direct lockout modifications" ON public.account_lockouts FOR I
 -- Name: account_lockouts No direct lockout updates; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "No direct lockout updates" ON public.account_lockouts;
 CREATE POLICY "No direct lockout updates" ON public.account_lockouts FOR UPDATE USING (false);
 
 
@@ -7674,6 +7877,7 @@ CREATE POLICY "No direct lockout updates" ON public.account_lockouts FOR UPDATE 
 -- Name: billing_events Only platform admins can create billing events; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Only platform admins can create billing events" ON public.billing_events;
 CREATE POLICY "Only platform admins can create billing events" ON public.billing_events FOR INSERT WITH CHECK (public.is_admin(auth.uid()));
 
 
@@ -7681,6 +7885,7 @@ CREATE POLICY "Only platform admins can create billing events" ON public.billing
 -- Name: organization_invoices Only platform admins can modify invoices; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Only platform admins can modify invoices" ON public.organization_invoices;
 CREATE POLICY "Only platform admins can modify invoices" ON public.organization_invoices USING (public.is_admin(auth.uid()));
 
 
@@ -7688,6 +7893,7 @@ CREATE POLICY "Only platform admins can modify invoices" ON public.organization_
 -- Name: organization_payment_methods Only platform admins can modify payment methods; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Only platform admins can modify payment methods" ON public.organization_payment_methods;
 CREATE POLICY "Only platform admins can modify payment methods" ON public.organization_payment_methods USING (public.is_admin(auth.uid()));
 
 
@@ -7695,6 +7901,7 @@ CREATE POLICY "Only platform admins can modify payment methods" ON public.organi
 -- Name: organization_subscriptions Only platform admins can modify subscriptions; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Only platform admins can modify subscriptions" ON public.organization_subscriptions;
 CREATE POLICY "Only platform admins can modify subscriptions" ON public.organization_subscriptions USING (public.is_admin(auth.uid()));
 
 
@@ -7702,6 +7909,7 @@ CREATE POLICY "Only platform admins can modify subscriptions" ON public.organiza
 -- Name: organization_branding Org admins can manage branding; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Org admins can manage branding" ON public.organization_branding;
 CREATE POLICY "Org admins can manage branding" ON public.organization_branding USING (public.is_org_admin_for(auth.uid(), organization_id));
 
 
@@ -7709,6 +7917,7 @@ CREATE POLICY "Org admins can manage branding" ON public.organization_branding U
 -- Name: billing_events Org admins can view their billing events; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Org admins can view their billing events" ON public.billing_events;
 CREATE POLICY "Org admins can view their billing events" ON public.billing_events FOR SELECT USING ((public.is_admin(auth.uid()) OR public.is_org_admin_for(auth.uid(), organization_id) OR public.is_manager_for_org(auth.uid(), organization_id)));
 
 
@@ -7716,6 +7925,7 @@ CREATE POLICY "Org admins can view their billing events" ON public.billing_event
 -- Name: organization_invoices Org admins can view their invoices; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Org admins can view their invoices" ON public.organization_invoices;
 CREATE POLICY "Org admins can view their invoices" ON public.organization_invoices FOR SELECT USING ((public.is_admin(auth.uid()) OR public.is_org_admin_for(auth.uid(), organization_id) OR public.is_manager_for_org(auth.uid(), organization_id)));
 
 
@@ -7723,6 +7933,7 @@ CREATE POLICY "Org admins can view their invoices" ON public.organization_invoic
 -- Name: organization_payment_methods Org admins can view their payment methods; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Org admins can view their payment methods" ON public.organization_payment_methods;
 CREATE POLICY "Org admins can view their payment methods" ON public.organization_payment_methods FOR SELECT USING ((public.is_admin(auth.uid()) OR public.is_org_admin_for(auth.uid(), organization_id)));
 
 
@@ -7730,6 +7941,7 @@ CREATE POLICY "Org admins can view their payment methods" ON public.organization
 -- Name: organization_subscriptions Org admins can view their subscription; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Org admins can view their subscription" ON public.organization_subscriptions;
 CREATE POLICY "Org admins can view their subscription" ON public.organization_subscriptions FOR SELECT USING ((public.is_admin(auth.uid()) OR public.is_org_admin_for(auth.uid(), organization_id) OR public.is_manager_for_org(auth.uid(), organization_id)));
 
 
@@ -7737,6 +7949,7 @@ CREATE POLICY "Org admins can view their subscription" ON public.organization_su
 -- Name: organizations Org owners can update their organization; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Org owners can update their organization" ON public.organizations;
 CREATE POLICY "Org owners can update their organization" ON public.organizations FOR UPDATE USING (public.is_org_admin_for(auth.uid(), id));
 
 
@@ -7744,6 +7957,7 @@ CREATE POLICY "Org owners can update their organization" ON public.organizations
 -- Name: appointments Patients can confirm or cancel their appointments; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Patients can confirm or cancel their appointments" ON public.appointments;
 CREATE POLICY "Patients can confirm or cancel their appointments" ON public.appointments FOR UPDATE USING ((auth.uid() = patient_user_id)) WITH CHECK (((auth.uid() = patient_user_id) AND (status = ANY (ARRAY['confirmed'::text, 'cancelled'::text]))));
 
 
@@ -7751,6 +7965,7 @@ CREATE POLICY "Patients can confirm or cancel their appointments" ON public.appo
 -- Name: caregiver_invitations Patients can create caregiver invitations; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Patients can create caregiver invitations" ON public.caregiver_invitations;
 CREATE POLICY "Patients can create caregiver invitations" ON public.caregiver_invitations FOR INSERT WITH CHECK ((public.is_patient(auth.uid()) AND (auth.uid() = patient_user_id)));
 
 
@@ -7758,6 +7973,7 @@ CREATE POLICY "Patients can create caregiver invitations" ON public.caregiver_in
 -- Name: refill_requests Patients can create refill requests; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Patients can create refill requests" ON public.refill_requests;
 CREATE POLICY "Patients can create refill requests" ON public.refill_requests FOR INSERT WITH CHECK (((auth.uid() = patient_user_id) AND (EXISTS ( SELECT 1
    FROM public.medications
   WHERE ((medications.id = refill_requests.medication_id) AND (medications.user_id = auth.uid()))))));
@@ -7767,6 +7983,7 @@ CREATE POLICY "Patients can create refill requests" ON public.refill_requests FO
 -- Name: caregiver_invitations Patients can delete own invitations; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Patients can delete own invitations" ON public.caregiver_invitations;
 CREATE POLICY "Patients can delete own invitations" ON public.caregiver_invitations FOR DELETE USING ((auth.uid() = patient_user_id));
 
 
@@ -7774,6 +7991,7 @@ CREATE POLICY "Patients can delete own invitations" ON public.caregiver_invitati
 -- Name: patient_vitals Patients can delete own vitals; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Patients can delete own vitals" ON public.patient_vitals;
 CREATE POLICY "Patients can delete own vitals" ON public.patient_vitals FOR DELETE USING ((auth.uid() = user_id));
 
 
@@ -7781,6 +7999,7 @@ CREATE POLICY "Patients can delete own vitals" ON public.patient_vitals FOR DELE
 -- Name: patient_vitals Patients can insert own vitals; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Patients can insert own vitals" ON public.patient_vitals;
 CREATE POLICY "Patients can insert own vitals" ON public.patient_vitals FOR INSERT WITH CHECK ((auth.uid() = user_id));
 
 
@@ -7788,6 +8007,7 @@ CREATE POLICY "Patients can insert own vitals" ON public.patient_vitals FOR INSE
 -- Name: waiting_room_queue Patients can join queue; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Patients can join queue" ON public.waiting_room_queue;
 CREATE POLICY "Patients can join queue" ON public.waiting_room_queue FOR INSERT WITH CHECK ((auth.uid() = patient_user_id));
 
 
@@ -7795,6 +8015,7 @@ CREATE POLICY "Patients can join queue" ON public.waiting_room_queue FOR INSERT 
 -- Name: medication_availability_alerts Patients can manage their availability alerts; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Patients can manage their availability alerts" ON public.medication_availability_alerts;
 CREATE POLICY "Patients can manage their availability alerts" ON public.medication_availability_alerts USING ((public.is_patient(auth.uid()) AND (auth.uid() = patient_user_id)));
 
 
@@ -7802,6 +8023,7 @@ CREATE POLICY "Patients can manage their availability alerts" ON public.medicati
 -- Name: patient_preferred_pharmacies Patients can manage their preferred pharmacies; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Patients can manage their preferred pharmacies" ON public.patient_preferred_pharmacies;
 CREATE POLICY "Patients can manage their preferred pharmacies" ON public.patient_preferred_pharmacies USING ((public.is_patient(auth.uid()) AND (auth.uid() = patient_user_id)));
 
 
@@ -7809,6 +8031,7 @@ CREATE POLICY "Patients can manage their preferred pharmacies" ON public.patient
 -- Name: clinician_messages Patients can mark clinician messages as read; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Patients can mark clinician messages as read" ON public.clinician_messages;
 CREATE POLICY "Patients can mark clinician messages as read" ON public.clinician_messages FOR UPDATE USING (((auth.uid() = patient_user_id) AND (sender_type = 'clinician'::text))) WITH CHECK (((auth.uid() = patient_user_id) AND (sender_type = 'clinician'::text)));
 
 
@@ -7816,6 +8039,7 @@ CREATE POLICY "Patients can mark clinician messages as read" ON public.clinician
 -- Name: caregiver_messages Patients can mark messages as read; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Patients can mark messages as read" ON public.caregiver_messages;
 CREATE POLICY "Patients can mark messages as read" ON public.caregiver_messages FOR UPDATE USING ((auth.uid() = patient_user_id)) WITH CHECK ((auth.uid() = patient_user_id));
 
 
@@ -7823,6 +8047,7 @@ CREATE POLICY "Patients can mark messages as read" ON public.caregiver_messages 
 -- Name: clinician_messages Patients can reply to their clinicians; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Patients can reply to their clinicians" ON public.clinician_messages;
 CREATE POLICY "Patients can reply to their clinicians" ON public.clinician_messages FOR INSERT WITH CHECK (((auth.uid() = patient_user_id) AND (sender_type = 'patient'::text) AND public.is_clinician_assigned(patient_user_id, clinician_user_id)));
 
 
@@ -7830,6 +8055,7 @@ CREATE POLICY "Patients can reply to their clinicians" ON public.clinician_messa
 -- Name: caregiver_messages Patients can send replies to their caregivers; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Patients can send replies to their caregivers" ON public.caregiver_messages;
 CREATE POLICY "Patients can send replies to their caregivers" ON public.caregiver_messages FOR INSERT WITH CHECK (((auth.uid() = patient_user_id) AND (sender_type = 'patient'::text) AND public.is_caregiver_for_patient(patient_user_id, caregiver_user_id)));
 
 
@@ -7837,6 +8063,7 @@ CREATE POLICY "Patients can send replies to their caregivers" ON public.caregive
 -- Name: caregiver_invitations Patients can update own invitations; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Patients can update own invitations" ON public.caregiver_invitations;
 CREATE POLICY "Patients can update own invitations" ON public.caregiver_invitations FOR UPDATE USING ((auth.uid() = patient_user_id)) WITH CHECK ((auth.uid() = patient_user_id));
 
 
@@ -7844,6 +8071,7 @@ CREATE POLICY "Patients can update own invitations" ON public.caregiver_invitati
 -- Name: patient_vitals Patients can update own vitals; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Patients can update own vitals" ON public.patient_vitals;
 CREATE POLICY "Patients can update own vitals" ON public.patient_vitals FOR UPDATE USING ((auth.uid() = user_id));
 
 
@@ -7851,6 +8079,7 @@ CREATE POLICY "Patients can update own vitals" ON public.patient_vitals FOR UPDA
 -- Name: pharmacy_locations Patients can view active pharmacies; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Patients can view active pharmacies" ON public.pharmacy_locations;
 CREATE POLICY "Patients can view active pharmacies" ON public.pharmacy_locations FOR SELECT USING (((is_active = true) AND (public.is_patient(auth.uid()) OR public.is_pharmacist(auth.uid()) OR public.is_admin(auth.uid()) OR public.is_clinician(auth.uid()))));
 
 
@@ -7858,6 +8087,7 @@ CREATE POLICY "Patients can view active pharmacies" ON public.pharmacy_locations
 -- Name: video_call_notes Patients can view finalized notes; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Patients can view finalized notes" ON public.video_call_notes;
 CREATE POLICY "Patients can view finalized notes" ON public.video_call_notes FOR SELECT USING (((auth.uid() = patient_user_id) AND (is_draft = false)));
 
 
@@ -7865,6 +8095,7 @@ CREATE POLICY "Patients can view finalized notes" ON public.video_call_notes FOR
 -- Name: caregiver_invitations Patients can view own caregiver invitations; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Patients can view own caregiver invitations" ON public.caregiver_invitations;
 CREATE POLICY "Patients can view own caregiver invitations" ON public.caregiver_invitations FOR SELECT USING ((auth.uid() = patient_user_id));
 
 
@@ -7872,6 +8103,7 @@ CREATE POLICY "Patients can view own caregiver invitations" ON public.caregiver_
 -- Name: lab_results Patients can view own lab results; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Patients can view own lab results" ON public.lab_results;
 CREATE POLICY "Patients can view own lab results" ON public.lab_results FOR SELECT USING ((auth.uid() = user_id));
 
 
@@ -7879,6 +8111,7 @@ CREATE POLICY "Patients can view own lab results" ON public.lab_results FOR SELE
 -- Name: refill_requests Patients can view own refill requests; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Patients can view own refill requests" ON public.refill_requests;
 CREATE POLICY "Patients can view own refill requests" ON public.refill_requests FOR SELECT USING ((auth.uid() = patient_user_id));
 
 
@@ -7886,6 +8119,7 @@ CREATE POLICY "Patients can view own refill requests" ON public.refill_requests 
 -- Name: patient_vitals Patients can view own vitals; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Patients can view own vitals" ON public.patient_vitals;
 CREATE POLICY "Patients can view own vitals" ON public.patient_vitals FOR SELECT USING ((auth.uid() = user_id));
 
 
@@ -7893,6 +8127,7 @@ CREATE POLICY "Patients can view own vitals" ON public.patient_vitals FOR SELECT
 -- Name: vitals_alerts Patients can view own vitals alerts; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Patients can view own vitals alerts" ON public.vitals_alerts;
 CREATE POLICY "Patients can view own vitals alerts" ON public.vitals_alerts FOR SELECT USING ((auth.uid() = user_id));
 
 
@@ -7900,6 +8135,7 @@ CREATE POLICY "Patients can view own vitals alerts" ON public.vitals_alerts FOR 
 -- Name: appointments Patients can view their appointments; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Patients can view their appointments" ON public.appointments;
 CREATE POLICY "Patients can view their appointments" ON public.appointments FOR SELECT USING ((auth.uid() = patient_user_id));
 
 
@@ -7907,6 +8143,7 @@ CREATE POLICY "Patients can view their appointments" ON public.appointments FOR 
 -- Name: clinician_patient_assignments Patients can view their assignments; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Patients can view their assignments" ON public.clinician_patient_assignments;
 CREATE POLICY "Patients can view their assignments" ON public.clinician_patient_assignments FOR SELECT USING ((auth.uid() = patient_user_id));
 
 
@@ -7914,6 +8151,7 @@ CREATE POLICY "Patients can view their assignments" ON public.clinician_patient_
 -- Name: clinician_messages Patients can view their messages; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Patients can view their messages" ON public.clinician_messages;
 CREATE POLICY "Patients can view their messages" ON public.clinician_messages FOR SELECT USING ((auth.uid() = patient_user_id));
 
 
@@ -7921,6 +8159,7 @@ CREATE POLICY "Patients can view their messages" ON public.clinician_messages FO
 -- Name: availability_notification_history Patients can view their notification history; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Patients can view their notification history" ON public.availability_notification_history;
 CREATE POLICY "Patients can view their notification history" ON public.availability_notification_history FOR SELECT USING ((auth.uid() = patient_user_id));
 
 
@@ -7928,6 +8167,7 @@ CREATE POLICY "Patients can view their notification history" ON public.availabil
 -- Name: red_flag_alerts Patients can view their own alerts; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Patients can view their own alerts" ON public.red_flag_alerts;
 CREATE POLICY "Patients can view their own alerts" ON public.red_flag_alerts FOR SELECT USING ((auth.uid() = patient_user_id));
 
 
@@ -7935,6 +8175,7 @@ CREATE POLICY "Patients can view their own alerts" ON public.red_flag_alerts FOR
 -- Name: prescriptions Patients can view their own prescriptions; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Patients can view their own prescriptions" ON public.prescriptions;
 CREATE POLICY "Patients can view their own prescriptions" ON public.prescriptions FOR SELECT USING ((auth.uid() = patient_user_id));
 
 
@@ -7942,6 +8183,7 @@ CREATE POLICY "Patients can view their own prescriptions" ON public.prescription
 -- Name: waiting_room_queue Patients can view their queue position; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Patients can view their queue position" ON public.waiting_room_queue;
 CREATE POLICY "Patients can view their queue position" ON public.waiting_room_queue FOR SELECT USING ((auth.uid() = patient_user_id));
 
 
@@ -7949,6 +8191,7 @@ CREATE POLICY "Patients can view their queue position" ON public.waiting_room_qu
 -- Name: caregiver_messages Patients can view their received messages; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Patients can view their received messages" ON public.caregiver_messages;
 CREATE POLICY "Patients can view their received messages" ON public.caregiver_messages FOR SELECT USING ((auth.uid() = patient_user_id));
 
 
@@ -7956,6 +8199,7 @@ CREATE POLICY "Patients can view their received messages" ON public.caregiver_me
 -- Name: post_call_summaries Patients can view their summaries; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Patients can view their summaries" ON public.post_call_summaries;
 CREATE POLICY "Patients can view their summaries" ON public.post_call_summaries FOR SELECT USING ((auth.uid() = patient_user_id));
 
 
@@ -7963,6 +8207,7 @@ CREATE POLICY "Patients can view their summaries" ON public.post_call_summaries 
 -- Name: video_rooms Patients can view their video rooms; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Patients can view their video rooms" ON public.video_rooms;
 CREATE POLICY "Patients can view their video rooms" ON public.video_rooms FOR SELECT USING ((auth.uid() = patient_user_id));
 
 
@@ -7970,6 +8215,7 @@ CREATE POLICY "Patients can view their video rooms" ON public.video_rooms FOR SE
 -- Name: drug_recalls Pharmacists and admins can create recalls; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Pharmacists and admins can create recalls" ON public.drug_recalls;
 CREATE POLICY "Pharmacists and admins can create recalls" ON public.drug_recalls FOR INSERT WITH CHECK ((public.is_pharmacist(auth.uid()) OR public.is_admin(auth.uid())));
 
 
@@ -7977,6 +8223,7 @@ CREATE POLICY "Pharmacists and admins can create recalls" ON public.drug_recalls
 -- Name: medication_catalog Pharmacists and admins can manage medication catalog; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Pharmacists and admins can manage medication catalog" ON public.medication_catalog;
 CREATE POLICY "Pharmacists and admins can manage medication catalog" ON public.medication_catalog USING ((public.is_pharmacist(auth.uid()) OR public.is_admin(auth.uid())));
 
 
@@ -7984,6 +8231,7 @@ CREATE POLICY "Pharmacists and admins can manage medication catalog" ON public.m
 -- Name: drug_recalls Pharmacists and admins can update recalls; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Pharmacists and admins can update recalls" ON public.drug_recalls;
 CREATE POLICY "Pharmacists and admins can update recalls" ON public.drug_recalls FOR UPDATE USING ((public.is_pharmacist(auth.uid()) OR public.is_admin(auth.uid())));
 
 
@@ -7991,6 +8239,7 @@ CREATE POLICY "Pharmacists and admins can update recalls" ON public.drug_recalls
 -- Name: drug_recalls Pharmacists and admins can view all recalls; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Pharmacists and admins can view all recalls" ON public.drug_recalls;
 CREATE POLICY "Pharmacists and admins can view all recalls" ON public.drug_recalls FOR SELECT USING ((public.is_pharmacist(auth.uid()) OR public.is_admin(auth.uid())));
 
 
@@ -7998,6 +8247,7 @@ CREATE POLICY "Pharmacists and admins can view all recalls" ON public.drug_recal
 -- Name: drug_recall_notifications Pharmacists can acknowledge notifications; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Pharmacists can acknowledge notifications" ON public.drug_recall_notifications;
 CREATE POLICY "Pharmacists can acknowledge notifications" ON public.drug_recall_notifications FOR UPDATE USING ((public.is_pharmacist(auth.uid()) OR public.is_admin(auth.uid())));
 
 
@@ -8005,6 +8255,7 @@ CREATE POLICY "Pharmacists can acknowledge notifications" ON public.drug_recall_
 -- Name: controlled_drug_adjustments Pharmacists can create adjustments; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Pharmacists can create adjustments" ON public.controlled_drug_adjustments;
 CREATE POLICY "Pharmacists can create adjustments" ON public.controlled_drug_adjustments FOR INSERT WITH CHECK ((public.is_pharmacist(auth.uid()) AND (auth.uid() = performed_by)));
 
 
@@ -8012,6 +8263,7 @@ CREATE POLICY "Pharmacists can create adjustments" ON public.controlled_drug_adj
 -- Name: controlled_drugs Pharmacists can create controlled drugs; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Pharmacists can create controlled drugs" ON public.controlled_drugs;
 CREATE POLICY "Pharmacists can create controlled drugs" ON public.controlled_drugs FOR INSERT WITH CHECK (public.is_pharmacist(auth.uid()));
 
 
@@ -8019,6 +8271,7 @@ CREATE POLICY "Pharmacists can create controlled drugs" ON public.controlled_dru
 -- Name: controlled_drug_dispensing Pharmacists can create dispensing records; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Pharmacists can create dispensing records" ON public.controlled_drug_dispensing;
 CREATE POLICY "Pharmacists can create dispensing records" ON public.controlled_drug_dispensing FOR INSERT WITH CHECK ((public.is_pharmacist(auth.uid()) AND (auth.uid() = dispensing_pharmacist_id)));
 
 
@@ -8026,6 +8279,7 @@ CREATE POLICY "Pharmacists can create dispensing records" ON public.controlled_d
 -- Name: drug_transfers Pharmacists can create transfer requests from their pharmacies; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Pharmacists can create transfer requests from their pharmacies" ON public.drug_transfers;
 CREATE POLICY "Pharmacists can create transfer requests from their pharmacies" ON public.drug_transfers FOR INSERT WITH CHECK ((public.is_pharmacist(auth.uid()) AND (auth.uid() = requested_by) AND (EXISTS ( SELECT 1
    FROM public.pharmacy_locations
   WHERE ((pharmacy_locations.id = drug_transfers.source_pharmacy_id) AND (pharmacy_locations.pharmacist_user_id = auth.uid()))))));
@@ -8035,6 +8289,7 @@ CREATE POLICY "Pharmacists can create transfer requests from their pharmacies" O
 -- Name: medication_availability Pharmacists can manage availability at their pharmacies; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Pharmacists can manage availability at their pharmacies" ON public.medication_availability;
 CREATE POLICY "Pharmacists can manage availability at their pharmacies" ON public.medication_availability USING ((public.is_pharmacist(auth.uid()) AND (EXISTS ( SELECT 1
    FROM public.pharmacy_locations
   WHERE ((pharmacy_locations.id = medication_availability.pharmacy_id) AND (pharmacy_locations.pharmacist_user_id = auth.uid()))))));
@@ -8044,6 +8299,7 @@ CREATE POLICY "Pharmacists can manage availability at their pharmacies" ON publi
 -- Name: pharmacy_locations Pharmacists can manage their pharmacies; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Pharmacists can manage their pharmacies" ON public.pharmacy_locations;
 CREATE POLICY "Pharmacists can manage their pharmacies" ON public.pharmacy_locations USING ((public.is_pharmacist(auth.uid()) AND (auth.uid() = pharmacist_user_id)));
 
 
@@ -8051,6 +8307,7 @@ CREATE POLICY "Pharmacists can manage their pharmacies" ON public.pharmacy_locat
 -- Name: pharmacy_locations Pharmacists can manage their pharmacy locations; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Pharmacists can manage their pharmacy locations" ON public.pharmacy_locations;
 CREATE POLICY "Pharmacists can manage their pharmacy locations" ON public.pharmacy_locations USING (((pharmacist_user_id = auth.uid()) OR public.is_admin(auth.uid()))) WITH CHECK (((pharmacist_user_id = auth.uid()) OR public.is_admin(auth.uid())));
 
 
@@ -8058,6 +8315,7 @@ CREATE POLICY "Pharmacists can manage their pharmacy locations" ON public.pharma
 -- Name: controlled_drugs Pharmacists can update controlled drugs; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Pharmacists can update controlled drugs" ON public.controlled_drugs;
 CREATE POLICY "Pharmacists can update controlled drugs" ON public.controlled_drugs FOR UPDATE USING (public.is_pharmacist(auth.uid()));
 
 
@@ -8065,6 +8323,7 @@ CREATE POLICY "Pharmacists can update controlled drugs" ON public.controlled_dru
 -- Name: medications Pharmacists can update prescription status; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Pharmacists can update prescription status" ON public.medications;
 CREATE POLICY "Pharmacists can update prescription status" ON public.medications FOR UPDATE USING (public.is_pharmacist(auth.uid())) WITH CHECK (public.is_pharmacist(auth.uid()));
 
 
@@ -8072,6 +8331,7 @@ CREATE POLICY "Pharmacists can update prescription status" ON public.medications
 -- Name: prescriptions Pharmacists can update prescription status; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Pharmacists can update prescription status" ON public.prescriptions;
 CREATE POLICY "Pharmacists can update prescription status" ON public.prescriptions FOR UPDATE USING ((public.is_pharmacist(auth.uid()) AND (pharmacy_id IN ( SELECT pharmacy_locations.id
    FROM public.pharmacy_locations
   WHERE (pharmacy_locations.pharmacist_user_id = auth.uid())))));
@@ -8081,6 +8341,7 @@ CREATE POLICY "Pharmacists can update prescription status" ON public.prescriptio
 -- Name: refill_requests Pharmacists can update refill requests; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Pharmacists can update refill requests" ON public.refill_requests;
 CREATE POLICY "Pharmacists can update refill requests" ON public.refill_requests FOR UPDATE USING (public.is_pharmacist(auth.uid()));
 
 
@@ -8088,6 +8349,7 @@ CREATE POLICY "Pharmacists can update refill requests" ON public.refill_requests
 -- Name: drug_transfers Pharmacists can update transfers for their pharmacies; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Pharmacists can update transfers for their pharmacies" ON public.drug_transfers;
 CREATE POLICY "Pharmacists can update transfers for their pharmacies" ON public.drug_transfers FOR UPDATE USING ((public.is_pharmacist(auth.uid()) AND ((EXISTS ( SELECT 1
    FROM public.pharmacy_locations
   WHERE ((pharmacy_locations.id = drug_transfers.source_pharmacy_id) AND (pharmacy_locations.pharmacist_user_id = auth.uid())))) OR (EXISTS ( SELECT 1
@@ -8099,6 +8361,7 @@ CREATE POLICY "Pharmacists can update transfers for their pharmacies" ON public.
 -- Name: controlled_drug_adjustments Pharmacists can view all adjustments; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Pharmacists can view all adjustments" ON public.controlled_drug_adjustments;
 CREATE POLICY "Pharmacists can view all adjustments" ON public.controlled_drug_adjustments FOR SELECT USING ((public.is_pharmacist(auth.uid()) OR public.is_admin(auth.uid())));
 
 
@@ -8106,6 +8369,7 @@ CREATE POLICY "Pharmacists can view all adjustments" ON public.controlled_drug_a
 -- Name: controlled_drugs Pharmacists can view all controlled drugs; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Pharmacists can view all controlled drugs" ON public.controlled_drugs;
 CREATE POLICY "Pharmacists can view all controlled drugs" ON public.controlled_drugs FOR SELECT USING ((public.is_pharmacist(auth.uid()) OR public.is_admin(auth.uid())));
 
 
@@ -8113,6 +8377,7 @@ CREATE POLICY "Pharmacists can view all controlled drugs" ON public.controlled_d
 -- Name: controlled_drug_dispensing Pharmacists can view all dispensing records; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Pharmacists can view all dispensing records" ON public.controlled_drug_dispensing;
 CREATE POLICY "Pharmacists can view all dispensing records" ON public.controlled_drug_dispensing FOR SELECT USING ((public.is_pharmacist(auth.uid()) OR public.is_admin(auth.uid())));
 
 
@@ -8120,6 +8385,7 @@ CREATE POLICY "Pharmacists can view all dispensing records" ON public.controlled
 -- Name: medications Pharmacists can view all prescriptions; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Pharmacists can view all prescriptions" ON public.medications;
 CREATE POLICY "Pharmacists can view all prescriptions" ON public.medications FOR SELECT USING (public.is_pharmacist(auth.uid()));
 
 
@@ -8127,6 +8393,7 @@ CREATE POLICY "Pharmacists can view all prescriptions" ON public.medications FOR
 -- Name: refill_requests Pharmacists can view all refill requests; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Pharmacists can view all refill requests" ON public.refill_requests;
 CREATE POLICY "Pharmacists can view all refill requests" ON public.refill_requests FOR SELECT USING (public.is_pharmacist(auth.uid()));
 
 
@@ -8134,6 +8401,7 @@ CREATE POLICY "Pharmacists can view all refill requests" ON public.refill_reques
 -- Name: prescription_status_history Pharmacists can view history of their prescriptions; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Pharmacists can view history of their prescriptions" ON public.prescription_status_history;
 CREATE POLICY "Pharmacists can view history of their prescriptions" ON public.prescription_status_history FOR SELECT USING ((public.is_pharmacist(auth.uid()) AND (EXISTS ( SELECT 1
    FROM public.prescriptions p
   WHERE ((p.id = prescription_status_history.prescription_id) AND (p.pharmacy_id IN ( SELECT pharmacy_locations.id
@@ -8145,6 +8413,7 @@ CREATE POLICY "Pharmacists can view history of their prescriptions" ON public.pr
 -- Name: drug_recall_notifications Pharmacists can view pharmacy notifications; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Pharmacists can view pharmacy notifications" ON public.drug_recall_notifications;
 CREATE POLICY "Pharmacists can view pharmacy notifications" ON public.drug_recall_notifications FOR SELECT USING ((public.is_pharmacist(auth.uid()) OR public.is_admin(auth.uid()) OR (auth.uid() = patient_user_id)));
 
 
@@ -8152,6 +8421,7 @@ CREATE POLICY "Pharmacists can view pharmacy notifications" ON public.drug_recal
 -- Name: profiles Pharmacists can view prescription patient profiles; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Pharmacists can view prescription patient profiles" ON public.profiles;
 CREATE POLICY "Pharmacists can view prescription patient profiles" ON public.profiles FOR SELECT USING ((public.is_pharmacist(auth.uid()) AND (EXISTS ( SELECT 1
    FROM (public.prescriptions p
      JOIN public.pharmacy_locations pl ON ((pl.id = p.pharmacy_id)))
@@ -8162,6 +8432,7 @@ CREATE POLICY "Pharmacists can view prescription patient profiles" ON public.pro
 -- Name: prescriptions Pharmacists can view prescriptions for their pharmacy; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Pharmacists can view prescriptions for their pharmacy" ON public.prescriptions;
 CREATE POLICY "Pharmacists can view prescriptions for their pharmacy" ON public.prescriptions FOR SELECT USING ((public.is_pharmacist(auth.uid()) AND (pharmacy_id IN ( SELECT pharmacy_locations.id
    FROM public.pharmacy_locations
   WHERE (pharmacy_locations.pharmacist_user_id = auth.uid())))));
@@ -8171,6 +8442,7 @@ CREATE POLICY "Pharmacists can view prescriptions for their pharmacy" ON public.
 -- Name: drug_transfers Pharmacists can view transfers for their pharmacies; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Pharmacists can view transfers for their pharmacies" ON public.drug_transfers;
 CREATE POLICY "Pharmacists can view transfers for their pharmacies" ON public.drug_transfers FOR SELECT USING ((public.is_pharmacist(auth.uid()) AND ((EXISTS ( SELECT 1
    FROM public.pharmacy_locations
   WHERE ((pharmacy_locations.id = drug_transfers.source_pharmacy_id) AND (pharmacy_locations.pharmacist_user_id = auth.uid())))) OR (EXISTS ( SELECT 1
@@ -8182,6 +8454,7 @@ CREATE POLICY "Pharmacists can view transfers for their pharmacies" ON public.dr
 -- Name: organization_branding Platform admins can manage all branding; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Platform admins can manage all branding" ON public.organization_branding;
 CREATE POLICY "Platform admins can manage all branding" ON public.organization_branding USING (public.is_admin(auth.uid()));
 
 
@@ -8189,6 +8462,7 @@ CREATE POLICY "Platform admins can manage all branding" ON public.organization_b
 -- Name: organization_members Platform admins can manage all members; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Platform admins can manage all members" ON public.organization_members;
 CREATE POLICY "Platform admins can manage all members" ON public.organization_members USING (public.is_admin(auth.uid()));
 
 
@@ -8196,6 +8470,7 @@ CREATE POLICY "Platform admins can manage all members" ON public.organization_me
 -- Name: organizations Platform admins can manage organizations; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Platform admins can manage organizations" ON public.organizations;
 CREATE POLICY "Platform admins can manage organizations" ON public.organizations USING (public.is_admin(auth.uid()));
 
 
@@ -8203,6 +8478,7 @@ CREATE POLICY "Platform admins can manage organizations" ON public.organizations
 -- Name: organizations Platform admins can view all organizations; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Platform admins can view all organizations" ON public.organizations;
 CREATE POLICY "Platform admins can view all organizations" ON public.organizations FOR SELECT USING (public.is_admin(auth.uid()));
 
 
@@ -8210,6 +8486,7 @@ CREATE POLICY "Platform admins can view all organizations" ON public.organizatio
 -- Name: video_room_participants Room participants can view participants; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Room participants can view participants" ON public.video_room_participants;
 CREATE POLICY "Room participants can view participants" ON public.video_room_participants FOR SELECT USING ((EXISTS ( SELECT 1
    FROM public.video_rooms
   WHERE ((video_rooms.id = video_room_participants.room_id) AND ((video_rooms.clinician_user_id = auth.uid()) OR (video_rooms.patient_user_id = auth.uid()))))));
@@ -8219,6 +8496,7 @@ CREATE POLICY "Room participants can view participants" ON public.video_room_par
 -- Name: patient_allergies Users can delete own allergies; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Users can delete own allergies" ON public.patient_allergies;
 CREATE POLICY "Users can delete own allergies" ON public.patient_allergies FOR DELETE USING ((auth.uid() = user_id));
 
 
@@ -8226,6 +8504,7 @@ CREATE POLICY "Users can delete own allergies" ON public.patient_allergies FOR D
 -- Name: patient_chronic_conditions Users can delete own chronic conditions; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Users can delete own chronic conditions" ON public.patient_chronic_conditions;
 CREATE POLICY "Users can delete own chronic conditions" ON public.patient_chronic_conditions FOR DELETE USING ((auth.uid() = user_id));
 
 
@@ -8233,6 +8512,7 @@ CREATE POLICY "Users can delete own chronic conditions" ON public.patient_chroni
 -- Name: patient_emergency_contacts Users can delete own emergency contacts; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Users can delete own emergency contacts" ON public.patient_emergency_contacts;
 CREATE POLICY "Users can delete own emergency contacts" ON public.patient_emergency_contacts FOR DELETE USING ((auth.uid() = user_id));
 
 
@@ -8240,6 +8520,7 @@ CREATE POLICY "Users can delete own emergency contacts" ON public.patient_emerge
 -- Name: medications Users can delete own medications; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Users can delete own medications" ON public.medications;
 CREATE POLICY "Users can delete own medications" ON public.medications FOR DELETE USING ((auth.uid() = user_id));
 
 
@@ -8247,6 +8528,7 @@ CREATE POLICY "Users can delete own medications" ON public.medications FOR DELET
 -- Name: push_subscriptions Users can delete own push subscriptions; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Users can delete own push subscriptions" ON public.push_subscriptions;
 CREATE POLICY "Users can delete own push subscriptions" ON public.push_subscriptions FOR DELETE USING ((auth.uid() = user_id));
 
 
@@ -8254,6 +8536,7 @@ CREATE POLICY "Users can delete own push subscriptions" ON public.push_subscript
 -- Name: mfa_recovery_codes Users can delete own recovery codes; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Users can delete own recovery codes" ON public.mfa_recovery_codes;
 CREATE POLICY "Users can delete own recovery codes" ON public.mfa_recovery_codes FOR DELETE USING ((auth.uid() = user_id));
 
 
@@ -8261,6 +8544,7 @@ CREATE POLICY "Users can delete own recovery codes" ON public.mfa_recovery_codes
 -- Name: medication_schedules Users can delete own schedules; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Users can delete own schedules" ON public.medication_schedules;
 CREATE POLICY "Users can delete own schedules" ON public.medication_schedules FOR DELETE USING ((auth.uid() = user_id));
 
 
@@ -8268,6 +8552,7 @@ CREATE POLICY "Users can delete own schedules" ON public.medication_schedules FO
 -- Name: symptom_entries Users can delete own symptoms; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Users can delete own symptoms" ON public.symptom_entries;
 CREATE POLICY "Users can delete own symptoms" ON public.symptom_entries FOR DELETE USING ((auth.uid() = user_id));
 
 
@@ -8275,6 +8560,7 @@ CREATE POLICY "Users can delete own symptoms" ON public.symptom_entries FOR DELE
 -- Name: trusted_devices Users can delete own trusted devices; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Users can delete own trusted devices" ON public.trusted_devices;
 CREATE POLICY "Users can delete own trusted devices" ON public.trusted_devices FOR DELETE USING ((auth.uid() = user_id));
 
 
@@ -8282,6 +8568,7 @@ CREATE POLICY "Users can delete own trusted devices" ON public.trusted_devices F
 -- Name: patient_activity_log Users can insert own activity; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Users can insert own activity" ON public.patient_activity_log;
 CREATE POLICY "Users can insert own activity" ON public.patient_activity_log FOR INSERT WITH CHECK ((auth.uid() = user_id));
 
 
@@ -8289,6 +8576,7 @@ CREATE POLICY "Users can insert own activity" ON public.patient_activity_log FOR
 -- Name: patient_allergies Users can insert own allergies; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Users can insert own allergies" ON public.patient_allergies;
 CREATE POLICY "Users can insert own allergies" ON public.patient_allergies FOR INSERT WITH CHECK ((auth.uid() = user_id));
 
 
@@ -8296,6 +8584,7 @@ CREATE POLICY "Users can insert own allergies" ON public.patient_allergies FOR I
 -- Name: patient_chronic_conditions Users can insert own chronic conditions; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Users can insert own chronic conditions" ON public.patient_chronic_conditions;
 CREATE POLICY "Users can insert own chronic conditions" ON public.patient_chronic_conditions FOR INSERT WITH CHECK ((auth.uid() = user_id));
 
 
@@ -8303,6 +8592,7 @@ CREATE POLICY "Users can insert own chronic conditions" ON public.patient_chroni
 -- Name: patient_emergency_contacts Users can insert own emergency contacts; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Users can insert own emergency contacts" ON public.patient_emergency_contacts;
 CREATE POLICY "Users can insert own emergency contacts" ON public.patient_emergency_contacts FOR INSERT WITH CHECK ((auth.uid() = user_id));
 
 
@@ -8310,6 +8600,7 @@ CREATE POLICY "Users can insert own emergency contacts" ON public.patient_emerge
 -- Name: medication_logs Users can insert own logs; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Users can insert own logs" ON public.medication_logs;
 CREATE POLICY "Users can insert own logs" ON public.medication_logs FOR INSERT WITH CHECK ((auth.uid() = user_id));
 
 
@@ -8317,6 +8608,7 @@ CREATE POLICY "Users can insert own logs" ON public.medication_logs FOR INSERT W
 -- Name: medications Users can insert own medications; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Users can insert own medications" ON public.medications;
 CREATE POLICY "Users can insert own medications" ON public.medications FOR INSERT WITH CHECK ((auth.uid() = user_id));
 
 
@@ -8324,6 +8616,7 @@ CREATE POLICY "Users can insert own medications" ON public.medications FOR INSER
 -- Name: patient_notification_preferences Users can insert own notification preferences; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Users can insert own notification preferences" ON public.patient_notification_preferences;
 CREATE POLICY "Users can insert own notification preferences" ON public.patient_notification_preferences FOR INSERT WITH CHECK ((auth.uid() = user_id));
 
 
@@ -8331,6 +8624,7 @@ CREATE POLICY "Users can insert own notification preferences" ON public.patient_
 -- Name: push_subscriptions Users can insert own push subscriptions; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Users can insert own push subscriptions" ON public.push_subscriptions;
 CREATE POLICY "Users can insert own push subscriptions" ON public.push_subscriptions FOR INSERT WITH CHECK ((auth.uid() = user_id));
 
 
@@ -8338,6 +8632,7 @@ CREATE POLICY "Users can insert own push subscriptions" ON public.push_subscript
 -- Name: mfa_recovery_codes Users can insert own recovery codes; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Users can insert own recovery codes" ON public.mfa_recovery_codes;
 CREATE POLICY "Users can insert own recovery codes" ON public.mfa_recovery_codes FOR INSERT WITH CHECK ((auth.uid() = user_id));
 
 
@@ -8345,6 +8640,7 @@ CREATE POLICY "Users can insert own recovery codes" ON public.mfa_recovery_codes
 -- Name: medication_schedules Users can insert own schedules; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Users can insert own schedules" ON public.medication_schedules;
 CREATE POLICY "Users can insert own schedules" ON public.medication_schedules FOR INSERT WITH CHECK ((auth.uid() = user_id));
 
 
@@ -8352,6 +8648,7 @@ CREATE POLICY "Users can insert own schedules" ON public.medication_schedules FO
 -- Name: security_notification_preferences Users can insert own security notification preferences; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Users can insert own security notification preferences" ON public.security_notification_preferences;
 CREATE POLICY "Users can insert own security notification preferences" ON public.security_notification_preferences FOR INSERT WITH CHECK ((auth.uid() = user_id));
 
 
@@ -8359,6 +8656,7 @@ CREATE POLICY "Users can insert own security notification preferences" ON public
 -- Name: symptom_entries Users can insert own symptoms; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Users can insert own symptoms" ON public.symptom_entries;
 CREATE POLICY "Users can insert own symptoms" ON public.symptom_entries FOR INSERT WITH CHECK ((auth.uid() = user_id));
 
 
@@ -8366,6 +8664,7 @@ CREATE POLICY "Users can insert own symptoms" ON public.symptom_entries FOR INSE
 -- Name: trusted_devices Users can insert own trusted devices; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Users can insert own trusted devices" ON public.trusted_devices;
 CREATE POLICY "Users can insert own trusted devices" ON public.trusted_devices FOR INSERT WITH CHECK ((auth.uid() = user_id));
 
 
@@ -8373,6 +8672,7 @@ CREATE POLICY "Users can insert own trusted devices" ON public.trusted_devices F
 -- Name: video_room_participants Users can insert themselves as participants; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Users can insert themselves as participants" ON public.video_room_participants;
 CREATE POLICY "Users can insert themselves as participants" ON public.video_room_participants FOR INSERT WITH CHECK ((user_id = auth.uid()));
 
 
@@ -8380,6 +8680,7 @@ CREATE POLICY "Users can insert themselves as participants" ON public.video_room
 -- Name: patient_allergies Users can update own allergies; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Users can update own allergies" ON public.patient_allergies;
 CREATE POLICY "Users can update own allergies" ON public.patient_allergies FOR UPDATE USING ((auth.uid() = user_id));
 
 
@@ -8387,6 +8688,7 @@ CREATE POLICY "Users can update own allergies" ON public.patient_allergies FOR U
 -- Name: patient_chronic_conditions Users can update own chronic conditions; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Users can update own chronic conditions" ON public.patient_chronic_conditions;
 CREATE POLICY "Users can update own chronic conditions" ON public.patient_chronic_conditions FOR UPDATE USING ((auth.uid() = user_id));
 
 
@@ -8394,6 +8696,7 @@ CREATE POLICY "Users can update own chronic conditions" ON public.patient_chroni
 -- Name: patient_emergency_contacts Users can update own emergency contacts; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Users can update own emergency contacts" ON public.patient_emergency_contacts;
 CREATE POLICY "Users can update own emergency contacts" ON public.patient_emergency_contacts FOR UPDATE USING ((auth.uid() = user_id));
 
 
@@ -8401,6 +8704,7 @@ CREATE POLICY "Users can update own emergency contacts" ON public.patient_emerge
 -- Name: user_login_locations Users can update own login locations; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Users can update own login locations" ON public.user_login_locations;
 CREATE POLICY "Users can update own login locations" ON public.user_login_locations FOR UPDATE USING ((auth.uid() = user_id));
 
 
@@ -8408,6 +8712,7 @@ CREATE POLICY "Users can update own login locations" ON public.user_login_locati
 -- Name: medication_logs Users can update own logs; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Users can update own logs" ON public.medication_logs;
 CREATE POLICY "Users can update own logs" ON public.medication_logs FOR UPDATE USING ((auth.uid() = user_id));
 
 
@@ -8415,6 +8720,7 @@ CREATE POLICY "Users can update own logs" ON public.medication_logs FOR UPDATE U
 -- Name: medications Users can update own medications; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Users can update own medications" ON public.medications;
 CREATE POLICY "Users can update own medications" ON public.medications FOR UPDATE USING ((auth.uid() = user_id));
 
 
@@ -8422,6 +8728,7 @@ CREATE POLICY "Users can update own medications" ON public.medications FOR UPDAT
 -- Name: patient_notification_preferences Users can update own notification preferences; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Users can update own notification preferences" ON public.patient_notification_preferences;
 CREATE POLICY "Users can update own notification preferences" ON public.patient_notification_preferences FOR UPDATE USING ((auth.uid() = user_id)) WITH CHECK ((auth.uid() = user_id));
 
 
@@ -8429,6 +8736,7 @@ CREATE POLICY "Users can update own notification preferences" ON public.patient_
 -- Name: video_room_participants Users can update own participation; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Users can update own participation" ON public.video_room_participants;
 CREATE POLICY "Users can update own participation" ON public.video_room_participants FOR UPDATE USING ((user_id = auth.uid()));
 
 
@@ -8436,6 +8744,7 @@ CREATE POLICY "Users can update own participation" ON public.video_room_particip
 -- Name: profiles Users can update own profile; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Users can update own profile" ON public.profiles;
 CREATE POLICY "Users can update own profile" ON public.profiles FOR UPDATE USING ((auth.uid() = user_id)) WITH CHECK ((auth.uid() = user_id));
 
 
@@ -8443,6 +8752,7 @@ CREATE POLICY "Users can update own profile" ON public.profiles FOR UPDATE USING
 -- Name: push_subscriptions Users can update own push subscriptions; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Users can update own push subscriptions" ON public.push_subscriptions;
 CREATE POLICY "Users can update own push subscriptions" ON public.push_subscriptions FOR UPDATE USING ((auth.uid() = user_id));
 
 
@@ -8450,6 +8760,7 @@ CREATE POLICY "Users can update own push subscriptions" ON public.push_subscript
 -- Name: mfa_recovery_codes Users can update own recovery codes; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Users can update own recovery codes" ON public.mfa_recovery_codes;
 CREATE POLICY "Users can update own recovery codes" ON public.mfa_recovery_codes FOR UPDATE USING ((auth.uid() = user_id));
 
 
@@ -8457,6 +8768,7 @@ CREATE POLICY "Users can update own recovery codes" ON public.mfa_recovery_codes
 -- Name: medication_schedules Users can update own schedules; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Users can update own schedules" ON public.medication_schedules;
 CREATE POLICY "Users can update own schedules" ON public.medication_schedules FOR UPDATE USING ((auth.uid() = user_id));
 
 
@@ -8464,6 +8776,7 @@ CREATE POLICY "Users can update own schedules" ON public.medication_schedules FO
 -- Name: security_notification_preferences Users can update own security notification preferences; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Users can update own security notification preferences" ON public.security_notification_preferences;
 CREATE POLICY "Users can update own security notification preferences" ON public.security_notification_preferences FOR UPDATE USING ((auth.uid() = user_id)) WITH CHECK ((auth.uid() = user_id));
 
 
@@ -8471,6 +8784,7 @@ CREATE POLICY "Users can update own security notification preferences" ON public
 -- Name: symptom_entries Users can update own symptoms; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Users can update own symptoms" ON public.symptom_entries;
 CREATE POLICY "Users can update own symptoms" ON public.symptom_entries FOR UPDATE USING ((auth.uid() = user_id));
 
 
@@ -8478,6 +8792,7 @@ CREATE POLICY "Users can update own symptoms" ON public.symptom_entries FOR UPDA
 -- Name: trusted_devices Users can update own trusted devices; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Users can update own trusted devices" ON public.trusted_devices;
 CREATE POLICY "Users can update own trusted devices" ON public.trusted_devices FOR UPDATE USING ((auth.uid() = user_id));
 
 
@@ -8485,6 +8800,7 @@ CREATE POLICY "Users can update own trusted devices" ON public.trusted_devices F
 -- Name: prescription_status_history Users can view history of their prescriptions; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Users can view history of their prescriptions" ON public.prescription_status_history;
 CREATE POLICY "Users can view history of their prescriptions" ON public.prescription_status_history FOR SELECT USING ((EXISTS ( SELECT 1
    FROM public.prescriptions p
   WHERE ((p.id = prescription_status_history.prescription_id) AND ((p.patient_user_id = auth.uid()) OR (p.clinician_user_id = auth.uid()))))));
@@ -8494,6 +8810,7 @@ CREATE POLICY "Users can view history of their prescriptions" ON public.prescrip
 -- Name: patient_activity_log Users can view own activity; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Users can view own activity" ON public.patient_activity_log;
 CREATE POLICY "Users can view own activity" ON public.patient_activity_log FOR SELECT USING ((auth.uid() = user_id));
 
 
@@ -8501,6 +8818,7 @@ CREATE POLICY "Users can view own activity" ON public.patient_activity_log FOR S
 -- Name: patient_allergies Users can view own allergies; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Users can view own allergies" ON public.patient_allergies;
 CREATE POLICY "Users can view own allergies" ON public.patient_allergies FOR SELECT USING ((auth.uid() = user_id));
 
 
@@ -8508,6 +8826,7 @@ CREATE POLICY "Users can view own allergies" ON public.patient_allergies FOR SEL
 -- Name: audit_log Users can view own audit logs; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Users can view own audit logs" ON public.audit_log;
 CREATE POLICY "Users can view own audit logs" ON public.audit_log FOR SELECT USING ((auth.uid() = user_id));
 
 
@@ -8515,6 +8834,7 @@ CREATE POLICY "Users can view own audit logs" ON public.audit_log FOR SELECT USI
 -- Name: patient_chronic_conditions Users can view own chronic conditions; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Users can view own chronic conditions" ON public.patient_chronic_conditions;
 CREATE POLICY "Users can view own chronic conditions" ON public.patient_chronic_conditions FOR SELECT USING ((auth.uid() = user_id));
 
 
@@ -8522,6 +8842,7 @@ CREATE POLICY "Users can view own chronic conditions" ON public.patient_chronic_
 -- Name: patient_emergency_contacts Users can view own emergency contacts; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Users can view own emergency contacts" ON public.patient_emergency_contacts;
 CREATE POLICY "Users can view own emergency contacts" ON public.patient_emergency_contacts FOR SELECT USING ((auth.uid() = user_id));
 
 
@@ -8529,6 +8850,7 @@ CREATE POLICY "Users can view own emergency contacts" ON public.patient_emergenc
 -- Name: patient_engagement_scores Users can view own engagement scores; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Users can view own engagement scores" ON public.patient_engagement_scores;
 CREATE POLICY "Users can view own engagement scores" ON public.patient_engagement_scores FOR SELECT USING ((auth.uid() = user_id));
 
 
@@ -8536,6 +8858,7 @@ CREATE POLICY "Users can view own engagement scores" ON public.patient_engagemen
 -- Name: user_login_locations Users can view own login locations; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Users can view own login locations" ON public.user_login_locations;
 CREATE POLICY "Users can view own login locations" ON public.user_login_locations FOR SELECT USING ((auth.uid() = user_id));
 
 
@@ -8543,6 +8866,7 @@ CREATE POLICY "Users can view own login locations" ON public.user_login_location
 -- Name: medication_logs Users can view own logs; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Users can view own logs" ON public.medication_logs;
 CREATE POLICY "Users can view own logs" ON public.medication_logs FOR SELECT USING ((auth.uid() = user_id));
 
 
@@ -8550,6 +8874,7 @@ CREATE POLICY "Users can view own logs" ON public.medication_logs FOR SELECT USI
 -- Name: medications Users can view own medications; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Users can view own medications" ON public.medications;
 CREATE POLICY "Users can view own medications" ON public.medications FOR SELECT USING ((auth.uid() = user_id));
 
 
@@ -8557,6 +8882,7 @@ CREATE POLICY "Users can view own medications" ON public.medications FOR SELECT 
 -- Name: organization_members Users can view own membership; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Users can view own membership" ON public.organization_members;
 CREATE POLICY "Users can view own membership" ON public.organization_members FOR SELECT USING ((user_id = auth.uid()));
 
 
@@ -8564,6 +8890,7 @@ CREATE POLICY "Users can view own membership" ON public.organization_members FOR
 -- Name: notification_history Users can view own notification history; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Users can view own notification history" ON public.notification_history;
 CREATE POLICY "Users can view own notification history" ON public.notification_history FOR SELECT USING ((auth.uid() = user_id));
 
 
@@ -8571,6 +8898,7 @@ CREATE POLICY "Users can view own notification history" ON public.notification_h
 -- Name: patient_notification_preferences Users can view own notification preferences; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Users can view own notification preferences" ON public.patient_notification_preferences;
 CREATE POLICY "Users can view own notification preferences" ON public.patient_notification_preferences FOR SELECT USING ((auth.uid() = user_id));
 
 
@@ -8578,6 +8906,7 @@ CREATE POLICY "Users can view own notification preferences" ON public.patient_no
 -- Name: profiles Users can view own profile; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Users can view own profile" ON public.profiles;
 CREATE POLICY "Users can view own profile" ON public.profiles FOR SELECT USING ((auth.uid() = user_id));
 
 
@@ -8585,6 +8914,7 @@ CREATE POLICY "Users can view own profile" ON public.profiles FOR SELECT USING (
 -- Name: push_subscriptions Users can view own push subscriptions; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Users can view own push subscriptions" ON public.push_subscriptions;
 CREATE POLICY "Users can view own push subscriptions" ON public.push_subscriptions FOR SELECT USING ((auth.uid() = user_id));
 
 
@@ -8592,6 +8922,7 @@ CREATE POLICY "Users can view own push subscriptions" ON public.push_subscriptio
 -- Name: mfa_recovery_codes Users can view own recovery codes; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Users can view own recovery codes" ON public.mfa_recovery_codes;
 CREATE POLICY "Users can view own recovery codes" ON public.mfa_recovery_codes FOR SELECT USING ((auth.uid() = user_id));
 
 
@@ -8599,6 +8930,7 @@ CREATE POLICY "Users can view own recovery codes" ON public.mfa_recovery_codes F
 -- Name: user_roles Users can view own roles; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Users can view own roles" ON public.user_roles;
 CREATE POLICY "Users can view own roles" ON public.user_roles FOR SELECT USING ((auth.uid() = user_id));
 
 
@@ -8606,6 +8938,7 @@ CREATE POLICY "Users can view own roles" ON public.user_roles FOR SELECT USING (
 -- Name: medication_schedules Users can view own schedules; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Users can view own schedules" ON public.medication_schedules;
 CREATE POLICY "Users can view own schedules" ON public.medication_schedules FOR SELECT USING ((auth.uid() = user_id));
 
 
@@ -8613,6 +8946,7 @@ CREATE POLICY "Users can view own schedules" ON public.medication_schedules FOR 
 -- Name: security_events Users can view own security events; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Users can view own security events" ON public.security_events;
 CREATE POLICY "Users can view own security events" ON public.security_events FOR SELECT USING ((auth.uid() = user_id));
 
 
@@ -8620,6 +8954,7 @@ CREATE POLICY "Users can view own security events" ON public.security_events FOR
 -- Name: security_notification_preferences Users can view own security notification preferences; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Users can view own security notification preferences" ON public.security_notification_preferences;
 CREATE POLICY "Users can view own security notification preferences" ON public.security_notification_preferences FOR SELECT USING ((auth.uid() = user_id));
 
 
@@ -8627,6 +8962,7 @@ CREATE POLICY "Users can view own security notification preferences" ON public.s
 -- Name: user_sessions Users can view own sessions; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Users can view own sessions" ON public.user_sessions;
 CREATE POLICY "Users can view own sessions" ON public.user_sessions FOR SELECT USING ((auth.uid() = user_id));
 
 
@@ -8634,6 +8970,7 @@ CREATE POLICY "Users can view own sessions" ON public.user_sessions FOR SELECT U
 -- Name: symptom_entries Users can view own symptoms; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Users can view own symptoms" ON public.symptom_entries;
 CREATE POLICY "Users can view own symptoms" ON public.symptom_entries FOR SELECT USING ((auth.uid() = user_id));
 
 
@@ -8641,6 +8978,7 @@ CREATE POLICY "Users can view own symptoms" ON public.symptom_entries FOR SELECT
 -- Name: trusted_devices Users can view own trusted devices; Type: POLICY; Schema: public; Owner: -
 --
 
+DROP POLICY IF EXISTS "Users can view own trusted devices" ON public.trusted_devices;
 CREATE POLICY "Users can view own trusted devices" ON public.trusted_devices FOR SELECT USING ((auth.uid() = user_id));
 
 
