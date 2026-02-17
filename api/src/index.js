@@ -1223,7 +1223,45 @@ app.get('/rest/:table', async (req, res) => {
   // Phase 3: transparent read-through for profiles -> profiles_with_email view
   const readTable = (table === 'profiles') ? 'profiles_with_email' : table;
 
+  // Check if client wants count (PostgREST Prefer: count=exact header)
+  const preferHeader = req.get('Prefer') || '';
+  const wantsCount = preferHeader.includes('count=exact');
+  const headOnly = preferHeader.includes('head');
+
   try {
+    let totalCount = null;
+
+    // If count requested, execute COUNT query with same filters
+    if (wantsCount) {
+      let countSql = `SELECT COUNT(*) FROM public."${readTable}"`;
+      if (filters.length > 0) {
+        if (joins && joins.length > 0) {
+          // For joins, need to count on base table with filter prefix
+          const prefixedFilters = filters.map((f) => f.replace(/"([a-zA-Z0-9_]+)"/g, '__base."$1"'));
+          countSql += ` AS __base WHERE ${prefixedFilters.join(' AND ')}`;
+        } else {
+          countSql += ` WHERE ${filters.join(' AND ')}`;
+        }
+      }
+      const countResult = await secureQuery(req.userId, countSql, values);
+      totalCount = parseInt(countResult.rows[0].count, 10);
+
+      // Set Content-Range header (PostgREST standard)
+      // Format: "0-24/3573" means rows 0-24 of 3573 total
+      // For head requests, use "*/count"
+      if (headOnly) {
+        res.set('Content-Range', `*/${totalCount}`);
+      } else {
+        const endIndex = Math.min(limit - 1, totalCount - 1);
+        res.set('Content-Range', `0-${endIndex}/${totalCount}`);
+      }
+    }
+
+    // If head=true, only return count (no data)
+    if (headOnly) {
+      return res.status(200).send();
+    }
+
     if (joins && joins.length > 0) {
       // ── Build a join query ──
       const { joinClauses, joinSelectCols, joinMeta } = await resolveJoins(table, joins);

@@ -123,12 +123,19 @@ function buildError(res: Response, data?: unknown): Error | null {
 
 type FilterEntry = { col: string; op: string; val: string };
 
+type SelectOptions = {
+  count?: 'exact' | 'planned' | 'estimated';
+  head?: boolean;
+};
+
 class QueryBuilder {
   private _table: string;
   private _selectCols = '*';
   private _filters: FilterEntry[] = [];
   private _order: string | null = null;
   private _limitN: number | null = null;
+  private _wantsCount: 'exact' | 'planned' | 'estimated' | null = null;
+  private _headOnly = false;
 
   constructor(table: string) {
     this._table = table;
@@ -136,8 +143,14 @@ class QueryBuilder {
 
   /* ── Column selection ────────────────────────────── */
 
-  select(columns: string): this {
+  select(columns: string, options?: SelectOptions): this {
     this._selectCols = columns.replace(/\s+/g, '');
+    if (options?.count) {
+      this._wantsCount = options.count;
+    }
+    if (options?.head) {
+      this._headOnly = true;
+    }
     return this;
   }
 
@@ -235,15 +248,42 @@ class QueryBuilder {
 
   /** Fetch multiple rows */
   async then(
-    resolve: (value: { data: unknown[]; error: Error | null }) => void,
+    resolve: (value: { data: unknown[]; error: Error | null; count?: number }) => void,
     reject?: (err: Error) => void
   ): Promise<void> {
     try {
-      const res = await fetchApi(`/rest/${this._table}${this._buildQs()}`);
+      // Build Prefer header for count requests
+      const preferParts: string[] = [];
+      if (this._wantsCount) {
+        preferParts.push(`count=${this._wantsCount}`);
+      }
+      if (this._headOnly) {
+        preferParts.push('head');
+      }
+
+      const headers: Record<string, string> = {};
+      if (preferParts.length > 0) {
+        headers['Prefer'] = preferParts.join(',');
+      }
+
+      const res = await fetchApi(`/rest/${this._table}${this._buildQs()}`, { headers });
+
+      // Parse Content-Range header for count (PostgREST standard)
+      // Format: "0-24/3573" or "*/3573"
+      let count: number | undefined;
+      const contentRange = res.headers.get('Content-Range');
+      if (contentRange) {
+        const match = contentRange.match(/\/(\d+)$/);
+        if (match) {
+          count = parseInt(match[1], 10);
+        }
+      }
+
       const data = await parseJson(res);
       resolve({
         data: Array.isArray(data) ? data : [],
         error: buildError(res, data),
+        count,
       });
     } catch (err) {
       if (reject) reject(err instanceof Error ? err : new Error(String(err)));
