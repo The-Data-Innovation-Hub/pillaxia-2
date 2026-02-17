@@ -18,11 +18,11 @@ export interface AzureStorageClient {
   };
 }
 
-async function getAuthHeaders(): Promise<HeadersInit> {
+async function getAuthHeaders(contentType?: string): Promise<HeadersInit> {
   const { acquireTokenSilent } = await import('@/lib/azure-auth');
   const token = await acquireTokenSilent();
   const headers: Record<string, string> = {
-    'Content-Type': 'application/octet-stream',
+    'Content-Type': contentType || 'application/octet-stream',
   };
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
@@ -39,7 +39,9 @@ export function createAzureStorageClient(): AzureStorageClient {
         _options?: { upsert?: boolean }
       ) => {
         try {
-          const headers = await getAuthHeaders();
+          // Get the file's actual MIME type
+          const contentType = file.type || 'application/octet-stream';
+          const headers = await getAuthHeaders(contentType);
           const res = await fetch(`${API_URL}/storage/${bucket}/${path}`, {
             method: 'PUT',
             headers,

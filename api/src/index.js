@@ -187,14 +187,14 @@ const TABLE_ACL = {
   drug_transfers:                  { roles: ['pharmacist', 'admin'] },
 
   // ── Reference / read-only for everyone ────────
-  user_roles:                      { roles: ['admin', 'manager'] }, // admins/managers can assign roles in User Management
+  user_roles:                      { ownership_col: 'user_id' }, // users can read their own roles
   medication_catalog:              { readonly: true },
   drug_interactions:               { readonly: true },
   notification_settings:           { readonly: true },
 
   // ── Organization ──────────────────────────────
   organizations:                   { roles: ['admin', 'manager'] },
-  organization_members:            { roles: ['admin', 'manager'] },
+  organization_members:            { ownership_col: 'user_id' }, // users can read their own org memberships
   organization_branding:           { roles: ['admin', 'manager'] },
   organization_subscriptions:      { admin_only: true },
   organization_invoices:           { admin_only: true },
@@ -202,7 +202,7 @@ const TABLE_ACL = {
   billing_events:                  { admin_only: true },
 
   // ── Admin-only ────────────────────────────────
-  security_settings:               { admin_only: true },
+  security_settings:               { readonly: true }, // all users can read security settings (session timeout, etc)
   security_events:                 { admin_only: true, readonly: true },
   audit_log:                       { admin_only: true, readonly: true },
   data_access_log:                 { admin_only: true, readonly: true },
@@ -997,9 +997,14 @@ function parsePostgrestFilters(query) {
       filters.push(`"${colName}" <= $${values.length}`);
     } else if (typeof val === 'string' && val.startsWith('in.')) {
       const inner = val.slice(3).replace(/^\(/, '').replace(/\)$/, '');
-      const items = inner.split(',').map((s) => s.trim().replace(/^"|"$/g, ''));
-      values.push(items);
-      filters.push(`"${colName}" = ANY($${values.length})`);
+      const items = inner.split(',').map((s) => s.trim().replace(/^"|"$/g, '')).filter(Boolean);
+      // Skip empty IN clauses (would be invalid SQL)
+      if (items.length === 0) {
+        filters.push('1=0'); // Always false - no results
+      } else {
+        values.push(items);
+        filters.push(`"${colName}" = ANY($${values.length})`);
+      }
     } else if (typeof val === 'string' && val.startsWith('is.')) {
       const v = val.slice(3).toLowerCase();
       if (v === 'null') filters.push(`"${colName}" IS NULL`);
