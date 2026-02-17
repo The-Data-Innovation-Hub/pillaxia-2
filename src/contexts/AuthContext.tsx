@@ -13,7 +13,6 @@ import {
 } from "@/lib/azure-auth";
 import { apiClient } from "@/integrations/api/client";
 import { toast } from "sonner";
-import { setSentryUser, clearSentryUser, setSentryContext } from "@/lib/sentry";
 import type { Database } from "@/types/database";
 
 export type AppRole = Database["public"]["Enums"]["app_role"];
@@ -124,26 +123,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const token = (await acquireTokenSilent()) ?? "";
       setSession({ user: appUser, access_token: token });
 
-      setSentryUser({
-        id: userId,
-        email: account.username ?? undefined,
-        role: rolesData.includes("admin") ? "admin" : rolesData[0] || "patient",
-      });
-      setSentryContext("user_roles", {
-        roles: rolesData,
-        isAdmin: rolesData.includes("admin"),
-        isManager: rolesData.includes("manager"),
-        isClinician: rolesData.includes("clinician"),
-        isPharmacist: rolesData.includes("pharmacist"),
-      });
-      if (profileData) {
-        setSentryContext("profile", {
-          firstName: profileData.first_name,
-          lastName: profileData.last_name,
-          organizationId: profileData.organization_id,
-        });
-      }
-
       // Notify LanguageProvider (avoids circular context dependency)
       (window as any).__pillaxia_userId = userId;
       window.dispatchEvent(
@@ -176,7 +155,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setSession(null);
           setProfile(null);
           setRoles([]);
-          clearSentryUser();
         }
       })
       .catch((err) => {
@@ -217,7 +195,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(null);
       setProfile(null);
       setRoles([]);
-      clearSentryUser();
     };
     window.addEventListener("pillaxia:auth-expired", handler);
     return () => window.removeEventListener("pillaxia:auth-expired", handler);
@@ -268,7 +245,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSession(null);
     setProfile(null);
     setRoles([]);
-    clearSentryUser();
     (window as any).__pillaxia_userId = null;
     window.dispatchEvent(
       new CustomEvent("pillaxia:auth-change", { detail: { userId: null } })
