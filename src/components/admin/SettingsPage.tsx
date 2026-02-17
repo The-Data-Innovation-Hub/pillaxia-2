@@ -38,7 +38,6 @@ import {
   Database,
   Users,
 } from "lucide-react";
-import { captureError, captureMessage } from "@/lib/sentry";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { AdminProfileTab } from "./AdminProfileTab";
@@ -74,20 +73,12 @@ const NOTIFICATION_CONFIG = {
 
 const ONBOARDING_DISABLED_KEY = "progressive_onboarding_disabled";
 
-function CrashOnRender({ enabled }: { enabled: boolean }) {
-  if (enabled) {
-    throw new Error("This is your first Sentry test error!");
-  }
-  return null;
-}
-
 export function SettingsPage() {
   const [testingWhatsApp, setTestingWhatsApp] = useState(false);
   const [testingEmail, setTestingEmail] = useState(false);
   const [testingPush, setTestingPush] = useState(false);
   const [pushTestUserId, setPushTestUserId] = useState("");
   const [onboardingEnabled, setOnboardingEnabled] = useState(false);
-  const [shouldThrowError, setShouldThrowError] = useState(false);
   const [seedingUsers, setSeedingUsers] = useState(false);
   const queryClient = useQueryClient();
   const { user, isManager, isAdmin, getToken } = useAuth();
@@ -307,7 +298,6 @@ export function SettingsPage() {
 
   return (
     <div className="space-y-6">
-      <CrashOnRender enabled={shouldThrowError} />
       <div>
         <h1 className="text-2xl font-bold flex items-center gap-2">
           <Settings className="h-6 w-6" />
@@ -744,84 +734,6 @@ export function SettingsPage() {
             </CardContent>
           </Card>
 
-          {/* Sentry Error Tracking Test */}
-          <Card>
-            <CardHeader>
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-destructive/10">
-                  <Bug className="h-5 w-5 text-destructive" />
-                </div>
-                <div>
-                  <CardTitle>Error Tracking (Sentry)</CardTitle>
-                  <CardDescription>
-                    Test Sentry integration by triggering a sample error
-                  </CardDescription>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <Alert>
-                <Info className="h-4 w-4" />
-                <AlertTitle>Sentry Integration</AlertTitle>
-                <AlertDescription>
-                  Sentry captures errors and performance data. Use these buttons to verify
-                  the integration is working correctly.
-                </AlertDescription>
-              </Alert>
-
-              <div className="flex flex-wrap items-center gap-3">
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={() => setShouldThrowError(true)}
-                >
-                  <Bug className="h-4 w-4 mr-2" />
-                  Break the World
-                </Button>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => {
-                    const testError = new Error("Test error from Admin Settings - Sentry integration check");
-                    captureError(testError, { 
-                      source: "admin_settings_test",
-                      timestamp: new Date().toISOString()
-                    });
-                    toast.success("Test error sent to Sentry!", {
-                      description: "Check your Sentry dashboard for the error.",
-                    });
-                  }}
-                >
-                  <Send className="h-4 w-4 mr-2" />
-                  Send Captured Error
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    captureMessage("Test message from Admin Settings", "info");
-                    toast.success("Test message sent to Sentry!", {
-                      description: "Check your Sentry dashboard for the message.",
-                    });
-                  }}
-                >
-                  <Send className="h-4 w-4 mr-2" />
-                  Send Test Message
-                </Button>
-                <Button variant="ghost" size="sm" asChild>
-                  <a
-                    href="https://sentry.io"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="gap-1"
-                  >
-                    Open Sentry Dashboard
-                    <ExternalLink className="h-3 w-3" />
-                  </a>
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
           <Card>
             <CardHeader>
               <div className="flex items-center gap-3">
