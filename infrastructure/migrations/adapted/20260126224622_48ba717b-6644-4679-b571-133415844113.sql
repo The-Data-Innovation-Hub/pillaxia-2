@@ -287,37 +287,44 @@ ALTER TABLE public.caregiver_invitations ENABLE ROW LEVEL SECURITY;
 -- =============================================
 
 -- Users can view their own profile
+DROP POLICY IF EXISTS "Users can view own profile" ON public.profiles;
 CREATE POLICY "Users can view own profile"
   ON public.profiles FOR SELECT
   USING (auth.uid() = user_id);
 
 -- Admins can view all profiles
+DROP POLICY IF EXISTS "Admins can view all profiles" ON public.profiles;
 CREATE POLICY "Admins can view all profiles"
   ON public.profiles FOR SELECT
   USING (public.is_admin(auth.uid()));
 
 -- Clinicians can view assigned patient profiles
+DROP POLICY IF EXISTS "Clinicians can view assigned patient profiles" ON public.profiles;
 CREATE POLICY "Clinicians can view assigned patient profiles"
   ON public.profiles FOR SELECT
   USING (public.is_clinician_assigned(user_id, auth.uid()));
 
 -- Caregivers can view patient profiles they care for
+DROP POLICY IF EXISTS "Caregivers can view patient profiles" ON public.profiles;
 CREATE POLICY "Caregivers can view patient profiles"
   ON public.profiles FOR SELECT
   USING (public.is_caregiver_for_patient(user_id, auth.uid()));
 
 -- Users can update their own profile
+DROP POLICY IF EXISTS "Users can update own profile" ON public.profiles;
 CREATE POLICY "Users can update own profile"
   ON public.profiles FOR UPDATE
   USING (auth.uid() = user_id)
   WITH CHECK (auth.uid() = user_id);
 
 -- Admins can update all profiles
+DROP POLICY IF EXISTS "Admins can update all profiles" ON public.profiles;
 CREATE POLICY "Admins can update all profiles"
   ON public.profiles FOR UPDATE
   USING (public.is_admin(auth.uid()));
 
 -- Admins can insert profiles
+DROP POLICY IF EXISTS "Admins can insert profiles" ON public.profiles;
 CREATE POLICY "Admins can insert profiles"
   ON public.profiles FOR INSERT
   WITH CHECK (public.is_admin(auth.uid()));
@@ -327,24 +334,29 @@ CREATE POLICY "Admins can insert profiles"
 -- =============================================
 
 -- Users can view their own roles
+DROP POLICY IF EXISTS "Users can view own roles" ON public.user_roles;
 CREATE POLICY "Users can view own roles"
   ON public.user_roles FOR SELECT
   USING (auth.uid() = user_id);
 
 -- Admins can view all roles
+DROP POLICY IF EXISTS "Admins can view all roles" ON public.user_roles;
 CREATE POLICY "Admins can view all roles"
   ON public.user_roles FOR SELECT
   USING (public.is_admin(auth.uid()));
 
 -- Only admins can manage roles
+DROP POLICY IF EXISTS "Admins can insert roles" ON public.user_roles;
 CREATE POLICY "Admins can insert roles"
   ON public.user_roles FOR INSERT
   WITH CHECK (public.is_admin(auth.uid()));
 
+DROP POLICY IF EXISTS "Admins can update roles" ON public.user_roles;
 CREATE POLICY "Admins can update roles"
   ON public.user_roles FOR UPDATE
   USING (public.is_admin(auth.uid()));
 
+DROP POLICY IF EXISTS "Admins can delete roles" ON public.user_roles;
 CREATE POLICY "Admins can delete roles"
   ON public.user_roles FOR DELETE
   USING (public.is_admin(auth.uid()));
@@ -354,16 +366,19 @@ CREATE POLICY "Admins can delete roles"
 -- =============================================
 
 -- Users can view their own audit entries
+DROP POLICY IF EXISTS "Users can view own audit logs" ON public.audit_log;
 CREATE POLICY "Users can view own audit logs"
   ON public.audit_log FOR SELECT
   USING (auth.uid() = user_id);
 
 -- Admins can view all audit logs
+DROP POLICY IF EXISTS "Admins can view all audit logs" ON public.audit_log;
 CREATE POLICY "Admins can view all audit logs"
   ON public.audit_log FOR SELECT
   USING (public.is_admin(auth.uid()));
 
 -- Audit log insert is handled by security definer trigger
+DROP POLICY IF EXISTS "System can insert audit logs" ON public.audit_log;
 CREATE POLICY "System can insert audit logs"
   ON public.audit_log FOR INSERT
   WITH CHECK (true);
@@ -376,42 +391,49 @@ CREATE POLICY "System can insert audit logs"
 -- =============================================
 
 -- Clinicians can view their own assignments
+DROP POLICY IF EXISTS "Clinicians can view own assignments" ON public.clinician_patient_assignments;
 CREATE POLICY "Clinicians can view own assignments"
   ON public.clinician_patient_assignments FOR SELECT
   USING (auth.uid() = clinician_user_id);
 
 -- Patients can view who is assigned to them
+DROP POLICY IF EXISTS "Patients can view their assignments" ON public.clinician_patient_assignments;
 CREATE POLICY "Patients can view their assignments"
   ON public.clinician_patient_assignments FOR SELECT
   USING (auth.uid() = patient_user_id);
 
 -- Admins can view all assignments
+DROP POLICY IF EXISTS "Admins can view all assignments" ON public.clinician_patient_assignments;
 CREATE POLICY "Admins can view all assignments"
   ON public.clinician_patient_assignments FOR SELECT
   USING (public.is_admin(auth.uid()));
 
 -- Clinicians can create assignments for themselves
+DROP POLICY IF EXISTS "Clinicians can create own assignments" ON public.clinician_patient_assignments;
 CREATE POLICY "Clinicians can create own assignments"
   ON public.clinician_patient_assignments FOR INSERT
   WITH CHECK (
-    public.is_clinician(auth.uid()) 
+    public.is_clinician(auth.uid())
     AND auth.uid() = clinician_user_id
   );
 
 -- Admins can create any assignment
+DROP POLICY IF EXISTS "Admins can create assignments" ON public.clinician_patient_assignments;
 CREATE POLICY "Admins can create assignments"
   ON public.clinician_patient_assignments FOR INSERT
   WITH CHECK (public.is_admin(auth.uid()));
 
 -- Clinicians can delete their own assignments
+DROP POLICY IF EXISTS "Clinicians can delete own assignments" ON public.clinician_patient_assignments;
 CREATE POLICY "Clinicians can delete own assignments"
   ON public.clinician_patient_assignments FOR DELETE
   USING (
-    public.is_clinician(auth.uid()) 
+    public.is_clinician(auth.uid())
     AND auth.uid() = clinician_user_id
   );
 
 -- Admins can delete any assignment
+DROP POLICY IF EXISTS "Admins can delete assignments" ON public.clinician_patient_assignments;
 CREATE POLICY "Admins can delete assignments"
   ON public.clinician_patient_assignments FOR DELETE
   USING (public.is_admin(auth.uid()));
@@ -421,46 +443,54 @@ CREATE POLICY "Admins can delete assignments"
 -- =============================================
 
 -- Patients can view their own invitations
+DROP POLICY IF EXISTS "Patients can view own caregiver invitations" ON public.caregiver_invitations;
 CREATE POLICY "Patients can view own caregiver invitations"
   ON public.caregiver_invitations FOR SELECT
   USING (auth.uid() = patient_user_id);
 
 -- Caregivers can view invitations sent to them
+DROP POLICY IF EXISTS "Caregivers can view their invitations" ON public.caregiver_invitations;
 CREATE POLICY "Caregivers can view their invitations"
   ON public.caregiver_invitations FOR SELECT
   USING (auth.uid() = caregiver_user_id);
 
 -- Admins can view all invitations
+DROP POLICY IF EXISTS "Admins can view all caregiver invitations" ON public.caregiver_invitations;
 CREATE POLICY "Admins can view all caregiver invitations"
   ON public.caregiver_invitations FOR SELECT
   USING (public.is_admin(auth.uid()));
 
 -- Patients can create invitations
+DROP POLICY IF EXISTS "Patients can create caregiver invitations" ON public.caregiver_invitations;
 CREATE POLICY "Patients can create caregiver invitations"
   ON public.caregiver_invitations FOR INSERT
   WITH CHECK (
-    public.is_patient(auth.uid()) 
+    public.is_patient(auth.uid())
     AND auth.uid() = patient_user_id
   );
 
 -- Caregivers can update invitation status (accept/decline)
+DROP POLICY IF EXISTS "Caregivers can update invitation status" ON public.caregiver_invitations;
 CREATE POLICY "Caregivers can update invitation status"
   ON public.caregiver_invitations FOR UPDATE
   USING (auth.uid() = caregiver_user_id AND status = 'pending')
   WITH CHECK (auth.uid() = caregiver_user_id AND status IN ('accepted', 'declined'));
 
 -- Patients can revoke invitations
+DROP POLICY IF EXISTS "Patients can update own invitations" ON public.caregiver_invitations;
 CREATE POLICY "Patients can update own invitations"
   ON public.caregiver_invitations FOR UPDATE
   USING (auth.uid() = patient_user_id)
   WITH CHECK (auth.uid() = patient_user_id);
 
 -- Patients can delete their invitations
+DROP POLICY IF EXISTS "Patients can delete own invitations" ON public.caregiver_invitations;
 CREATE POLICY "Patients can delete own invitations"
   ON public.caregiver_invitations FOR DELETE
   USING (auth.uid() = patient_user_id);
 
 -- Admins can manage all invitations
+DROP POLICY IF EXISTS "Admins can manage all invitations" ON public.caregiver_invitations;
 CREATE POLICY "Admins can manage all invitations"
   ON public.caregiver_invitations FOR ALL
   USING (public.is_admin(auth.uid()));
