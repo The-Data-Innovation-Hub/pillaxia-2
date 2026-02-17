@@ -1970,6 +1970,7 @@ CREATE TABLE IF NOT EXISTS public.controlled_drugs (
 -- Name: controlled_drug_dispensing_full_view; Type: MATERIALIZED VIEW; Schema: public; Owner: -
 --
 
+DROP MATERIALIZED VIEW IF EXISTS public;
 CREATE MATERIALIZED VIEW public.controlled_drug_dispensing_full_view AS
  SELECT cdd.id,
     cdd.controlled_drug_id,
@@ -2184,6 +2185,7 @@ CREATE TABLE IF NOT EXISTS public.pharmacy_locations (
 -- Name: drug_transfers_full_view; Type: MATERIALIZED VIEW; Schema: public; Owner: -
 --
 
+DROP MATERIALIZED VIEW IF EXISTS public;
 CREATE MATERIALIZED VIEW public.drug_transfers_full_view AS
  SELECT dt.id,
     dt.source_pharmacy_id,
@@ -2355,6 +2357,7 @@ CREATE TABLE IF NOT EXISTS public.medication_availability_alerts (
 -- Name: medication_availability_view; Type: MATERIALIZED VIEW; Schema: public; Owner: -
 --
 
+DROP MATERIALIZED VIEW IF EXISTS public;
 CREATE MATERIALIZED VIEW public.medication_availability_view AS
  SELECT ma.id,
     ma.pharmacy_id,
@@ -2487,6 +2490,7 @@ CREATE OR REPLACE VIEW public.medication_schedules_with_user AS
 -- Name: medications_full_view; Type: MATERIALIZED VIEW; Schema: public; Owner: -
 --
 
+DROP MATERIALIZED VIEW IF EXISTS public;
 CREATE MATERIALIZED VIEW public.medications_full_view AS
  SELECT m.id,
     m.user_id,
@@ -2726,6 +2730,7 @@ CREATE TABLE IF NOT EXISTS public.organizations (
 -- Name: organization_invoices_full_view; Type: MATERIALIZED VIEW; Schema: public; Owner: -
 --
 
+DROP MATERIALIZED VIEW IF EXISTS public;
 CREATE MATERIALIZED VIEW public.organization_invoices_full_view AS
  SELECT oi.id,
     oi.organization_id,
@@ -2996,6 +3001,7 @@ CREATE OR REPLACE VIEW public.patient_vitals_with_bmi AS
 -- Name: patient_vitals_with_bmi_view; Type: MATERIALIZED VIEW; Schema: public; Owner: -
 --
 
+DROP MATERIALIZED VIEW IF EXISTS public;
 CREATE MATERIALIZED VIEW public.patient_vitals_with_bmi_view AS
  SELECT pv.id,
     pv.user_id,
