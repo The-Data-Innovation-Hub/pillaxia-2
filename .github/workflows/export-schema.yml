@@ -11,13 +11,19 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup PostgreSQL client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+
+      - name: Create consolidated migrations directory
+        run: mkdir -p infrastructure/migrations/consolidated
+
       - name: Export schema from Azure PostgreSQL
         env:
-          PGHOST: ${{ secrets.POSTGRES_HOST }}
+          PGHOST: ${{ secrets.AZURE_PG_HOST }}
           PGPORT: 5432
           PGDATABASE: pillaxia
-          PGUSER: ${{ secrets.POSTGRES_USER }}
-          PGPASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          PGUSER: ${{ secrets.AZURE_PG_USER }}
+          PGPASSWORD: ${{ secrets.AZURE_PG_PASSWORD }}
         run: |
           # Export schema only (no data)
           pg_dump --schema-only --no-owner --no-privileges --no-comments \
@@ -25,10 +31,6 @@ jobs:
 
           echo "Schema exported successfully"
           wc -l infrastructure/migrations/consolidated/00000000000000_consolidated_schema.sql
-
-      - name: Create consolidated migrations directory
-        run: |
-          mkdir -p infrastructure/migrations/consolidated
 
       - name: Commit exported schema
         run: |
