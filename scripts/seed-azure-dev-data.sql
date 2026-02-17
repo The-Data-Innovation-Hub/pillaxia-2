@@ -27,10 +27,10 @@ BEGIN;
 -- ============================================================
 -- Using deterministic UUIDs for reproducibility
 
--- Admin user
+-- Admin user (platform-wide super admin)
 INSERT INTO public.users (id, email, raw_user_meta_data) VALUES
-  ('a0000000-0000-0000-0000-000000000001'::uuid, 'admin@pillaxia-dev.com',
-   '{"name": "Admin User", "given_name": "Admin", "family_name": "User"}'::jsonb)
+  ('a0000000-0000-0000-0000-000000000001'::uuid, 'pillaxia@thedatainnovationhub.com',
+   '{"name": "Pillaxia Admin", "given_name": "Pillaxia", "family_name": "Admin"}'::jsonb)
 ON CONFLICT (id) DO UPDATE SET email = EXCLUDED.email, raw_user_meta_data = EXCLUDED.raw_user_meta_data;
 
 -- Clinician user

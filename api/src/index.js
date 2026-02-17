@@ -292,8 +292,9 @@ const authMiddleware = (req, res, next) => {
   // TEMPORARY: Bypass auth for debugging
   if (process.env.DISABLE_AUTH === 'true') {
     logger.warn('⚠️  Authentication bypassed - DISABLE_AUTH is enabled');
-    // Using manager@demo.pillaxia.com from seed data (has manager role)
-    req.userId = 'a1000000-0000-0000-0000-000000000001';
+    // Using pillaxia@thedatainnovationhub.com (platform-wide admin)
+    // Change to 'a1000000-0000-0000-0000-000000000001' for manager@demo.pillaxia.com (org-level admin)
+    req.userId = 'a0000000-0000-0000-0000-000000000001';
     req.user = { oid: req.userId };
     req.jwtClaims = { oid: req.userId };
     return next();
