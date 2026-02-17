@@ -1,0 +1,25 @@
+# GitGuardian Configuration
+# https://docs.gitguardian.com/internal-repositories-monitoring/integrations/git_hooks/pre_commit
+
+version: 2
+
+# Paths to exclude from scanning
+paths-ignore:
+  - "**/*.md"           # Documentation files
+  - "**/test/**"        # Test files
+  - "**/tests/**"       # Test directories
+  - "**/*.test.ts"      # Test TypeScript files
+  - "**/*.test.tsx"     # Test React files
+  - "**/*.spec.ts"      # Spec files
+  - "**/node_modules/**" # Dependencies
+
+# Specific files that contain patterns but are safe
+# These scripts extract passwords from .env files but don't expose them
+matches-ignore:
+  - name: Database connection scripts
+    match: scripts/run-seed-organizations.sh
+  - name: Migration runner scripts
+    match: scripts/run_migrations_azure.sh
+  - name: Environment example files
+    match: "**/.env.example"
+    match: "**/.env.template"

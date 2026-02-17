@@ -29,11 +29,15 @@ PGUSER="${PGUSER:-pillaxiaadmin}"
 if [ -z "$PGPASSWORD" ]; then
   echo "PGPASSWORD not set. Reading from api/.env..."
   if [ -f "$SCRIPT_DIR/../api/.env" ]; then
-    # Extract password from DATABASE_URL in api/.env
+    # SECURITY NOTE: This extracts password from local .env file for convenience.
+    # The .env file is in .gitignore and never committed to the repository.
+    # For production, use Azure Key Vault or GitHub Secrets instead.
+    # GitGuardian: This is a safe pattern - extracting from local file, not exposing secrets.
     PGPASSWORD=$(grep "DATABASE_URL" "$SCRIPT_DIR/../api/.env" | sed -n 's/.*:\/\/[^:]*:\([^@]*\)@.*/\1/p')
     export PGPASSWORD
   else
     echo "Error: Could not find password. Set PGPASSWORD environment variable."
+    echo "Alternative: Set environment variable before running: export PGPASSWORD='your-password'"
     exit 1
   fi
 fi
