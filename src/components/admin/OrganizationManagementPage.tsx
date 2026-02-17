@@ -18,12 +18,13 @@ import { db } from "@/integrations/db";
 import { getStorageClient } from "@/lib/storage-client";
 import { toast } from "sonner";
 import { OrganizationBillingTab } from "./OrganizationBillingTab";
+import { PlatformOrganizationsList } from "./PlatformOrganizationsList";
 import { useSearchParams } from "react-router-dom";
 
 export function OrganizationManagementPage() {
   const { organization, branding, isOrgAdmin, updateBranding, refreshOrganization } = useOrganization();
   const { members, isLoading: membersLoading, updateMemberRole, removeMember, refetchMembers } = useOrganizationMembers();
-  const { isManager } = useAuth();
+  const { isManager, isAdmin } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   
   // Managers can also edit organization data
@@ -107,6 +108,12 @@ export function OrganizationManagementPage() {
     }
   }, [organization]);
 
+  // Platform admins see all organizations
+  if (!organization && isAdmin) {
+    return <PlatformOrganizationsList />;
+  }
+
+  // Non-admins without an organization see single-tenant message
   if (!organization) {
     return (
       <div className="space-y-6">
@@ -119,7 +126,7 @@ export function OrganizationManagementPage() {
             </p>
           </div>
         </div>
-        
+
         <Card>
           <CardContent className="py-12 text-center">
             <Building2 className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
