@@ -1,3 +1,27 @@
+-- Ensure tables have user_id column (in case they exist from old schema)
+DO $$ BEGIN
+  -- medication_schedules.user_id
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'medication_schedules')
+     AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'medication_schedules' AND column_name = 'user_id')
+  THEN
+    ALTER TABLE public.medication_schedules ADD COLUMN user_id UUID REFERENCES public.users(id) ON DELETE CASCADE;
+  END IF;
+
+  -- medication_logs.user_id
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'medication_logs')
+     AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'medication_logs' AND column_name = 'user_id')
+  THEN
+    ALTER TABLE public.medication_logs ADD COLUMN user_id UUID REFERENCES public.users(id) ON DELETE CASCADE;
+  END IF;
+
+  -- symptom_entries.user_id
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'symptom_entries')
+     AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'symptom_entries' AND column_name = 'user_id')
+  THEN
+    ALTER TABLE public.symptom_entries ADD COLUMN user_id UUID REFERENCES public.users(id) ON DELETE CASCADE;
+  END IF;
+END $$;
+
 -- Create medications table
 CREATE TABLE IF NOT EXISTS public.medications (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
