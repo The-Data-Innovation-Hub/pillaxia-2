@@ -216,12 +216,12 @@ DO $$ BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_constraint WHERE conname = 'profiles_user_id_key'
   ) THEN
-    -- First, clean up any duplicates
-    DELETE FROM public.profiles
-    WHERE id NOT IN (
-      SELECT MIN(id)
-      FROM public.profiles
-      GROUP BY user_id
+    -- First, clean up any duplicates (keep oldest by created_at)
+    DELETE FROM public.profiles p1
+    WHERE EXISTS (
+      SELECT 1 FROM public.profiles p2
+      WHERE p1.user_id = p2.user_id
+        AND p1.created_at > p2.created_at
     );
 
     ALTER TABLE public.profiles
@@ -234,12 +234,12 @@ DO $$ BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_constraint WHERE conname = 'external_user_mapping_user_id_key'
   ) THEN
-    -- Clean up duplicates
-    DELETE FROM public.external_user_mapping
-    WHERE external_id NOT IN (
-      SELECT MIN(external_id)
-      FROM public.external_user_mapping
-      GROUP BY user_id
+    -- Clean up duplicates (keep first by creation)
+    DELETE FROM public.external_user_mapping e1
+    WHERE EXISTS (
+      SELECT 1 FROM public.external_user_mapping e2
+      WHERE e1.user_id = e2.user_id
+        AND e1.created_at > e2.created_at
     );
 
     ALTER TABLE public.external_user_mapping
@@ -252,12 +252,13 @@ DO $$ BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_constraint WHERE conname = 'org_members_org_user_key'
   ) THEN
-    -- Clean up duplicates
-    DELETE FROM public.organization_members
-    WHERE id NOT IN (
-      SELECT MIN(id)
-      FROM public.organization_members
-      GROUP BY organization_id, user_id
+    -- Clean up duplicates (keep oldest)
+    DELETE FROM public.organization_members om1
+    WHERE EXISTS (
+      SELECT 1 FROM public.organization_members om2
+      WHERE om1.organization_id = om2.organization_id
+        AND om1.user_id = om2.user_id
+        AND om1.joined_at > om2.joined_at
     );
 
     ALTER TABLE public.organization_members
@@ -271,12 +272,13 @@ DO $$ BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_constraint WHERE conname = 'patient_pref_pharmacy_key'
   ) THEN
-    -- Clean up duplicates
-    DELETE FROM public.patient_preferred_pharmacies
-    WHERE id NOT IN (
-      SELECT MIN(id)
-      FROM public.patient_preferred_pharmacies
-      GROUP BY patient_user_id, pharmacy_id
+    -- Clean up duplicates (keep oldest)
+    DELETE FROM public.patient_preferred_pharmacies pp1
+    WHERE EXISTS (
+      SELECT 1 FROM public.patient_preferred_pharmacies pp2
+      WHERE pp1.patient_user_id = pp2.patient_user_id
+        AND pp1.pharmacy_id = pp2.pharmacy_id
+        AND pp1.created_at > pp2.created_at
     );
 
     ALTER TABLE public.patient_preferred_pharmacies
@@ -290,12 +292,13 @@ DO $$ BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_constraint WHERE conname = 'push_subs_user_endpoint_key'
   ) THEN
-    -- Clean up duplicates
-    DELETE FROM public.push_subscriptions
-    WHERE id NOT IN (
-      SELECT MIN(id)
-      FROM public.push_subscriptions
-      GROUP BY user_id, endpoint
+    -- Clean up duplicates (keep newest for subscriptions)
+    DELETE FROM public.push_subscriptions ps1
+    WHERE EXISTS (
+      SELECT 1 FROM public.push_subscriptions ps2
+      WHERE ps1.user_id = ps2.user_id
+        AND ps1.endpoint = ps2.endpoint
+        AND ps1.created_at < ps2.created_at
     );
 
     ALTER TABLE public.push_subscriptions
@@ -309,12 +312,13 @@ DO $$ BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_constraint WHERE conname = 'user_roles_user_id_role_key'
   ) THEN
-    -- Clean up duplicates
-    DELETE FROM public.user_roles
-    WHERE id NOT IN (
-      SELECT MIN(id)
-      FROM public.user_roles
-      GROUP BY user_id, role
+    -- Clean up duplicates (keep oldest)
+    DELETE FROM public.user_roles ur1
+    WHERE EXISTS (
+      SELECT 1 FROM public.user_roles ur2
+      WHERE ur1.user_id = ur2.user_id
+        AND ur1.role = ur2.role
+        AND ur1.created_at > ur2.created_at
     );
 
     ALTER TABLE public.user_roles
