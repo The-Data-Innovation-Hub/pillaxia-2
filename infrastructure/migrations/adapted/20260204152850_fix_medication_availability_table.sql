@@ -11,7 +11,7 @@ ALTER TABLE public.medication_availability
   ADD COLUMN IF NOT EXISTS medication_catalog_id UUID REFERENCES public.medication_catalog(id) ON DELETE SET NULL;
 
 -- Add index for performance
-CREATE INDEX IF NOT EXISTS idx_medication_availability_catalog_id ON public.medication_availability(medication_catalog_id);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_medication_availability_catalog_id ON public.medication_availability(medication_catalog_id);
 
 -- ============================================================
 -- Step 2: Create function to migrate existing data to catalog

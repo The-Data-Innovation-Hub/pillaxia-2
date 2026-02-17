@@ -1,6 +1,6 @@
 
 -- Create patient vitals table for tracking health measurements
-CREATE TABLE public.patient_vitals (
+CREATE TABLE IF NOT EXISTS public.patient_vitals (
   id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id UUID NOT NULL,
   recorded_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
@@ -28,7 +28,7 @@ CREATE TABLE public.patient_vitals (
 );
 
 -- Create lab results table
-CREATE TABLE public.lab_results (
+CREATE TABLE IF NOT EXISTS public.lab_results (
   id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id UUID NOT NULL,
   ordered_by UUID, -- clinician who ordered
@@ -61,7 +61,7 @@ CREATE TABLE public.lab_results (
 );
 
 -- Create vitals alerts table for abnormal readings
-CREATE TABLE public.vitals_alerts (
+CREATE TABLE IF NOT EXISTS public.vitals_alerts (
   id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id UUID NOT NULL,
   vital_id UUID REFERENCES public.patient_vitals(id) ON DELETE CASCADE,
@@ -83,77 +83,93 @@ ALTER TABLE public.lab_results ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.vitals_alerts ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policies for patient_vitals
+DROP POLICY IF EXISTS "Patients can view own vitals" ON public.patient_vitals;
 CREATE POLICY "Patients can view own vitals"
   ON public.patient_vitals FOR SELECT
   USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Patients can insert own vitals" ON public.patient_vitals;
 CREATE POLICY "Patients can insert own vitals"
   ON public.patient_vitals FOR INSERT
   WITH CHECK (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Patients can update own vitals" ON public.patient_vitals;
 CREATE POLICY "Patients can update own vitals"
   ON public.patient_vitals FOR UPDATE
   USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Patients can delete own vitals" ON public.patient_vitals;
 CREATE POLICY "Patients can delete own vitals"
   ON public.patient_vitals FOR DELETE
   USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Clinicians can view assigned patient vitals" ON public.patient_vitals;
 CREATE POLICY "Clinicians can view assigned patient vitals"
   ON public.patient_vitals FOR SELECT
   USING (is_clinician_assigned(user_id, auth.uid()));
 
+DROP POLICY IF EXISTS "Clinicians can insert vitals for assigned patients" ON public.patient_vitals;
 CREATE POLICY "Clinicians can insert vitals for assigned patients"
   ON public.patient_vitals FOR INSERT
   WITH CHECK (is_clinician_assigned(user_id, auth.uid()) AND recorded_by = auth.uid());
 
+DROP POLICY IF EXISTS "Caregivers can view patient vitals" ON public.patient_vitals;
 CREATE POLICY "Caregivers can view patient vitals"
   ON public.patient_vitals FOR SELECT
   USING (is_caregiver_for_patient(user_id, auth.uid()));
 
 -- RLS Policies for lab_results
+DROP POLICY IF EXISTS "Patients can view own lab results" ON public.lab_results;
 CREATE POLICY "Patients can view own lab results"
   ON public.lab_results FOR SELECT
   USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Clinicians can view assigned patient labs" ON public.lab_results;
 CREATE POLICY "Clinicians can view assigned patient labs"
   ON public.lab_results FOR SELECT
   USING (is_clinician_assigned(user_id, auth.uid()));
 
+DROP POLICY IF EXISTS "Clinicians can manage labs for assigned patients" ON public.lab_results;
 CREATE POLICY "Clinicians can manage labs for assigned patients"
   ON public.lab_results FOR ALL
   USING (is_clinician_assigned(user_id, auth.uid()));
 
+DROP POLICY IF EXISTS "Caregivers can view patient lab results" ON public.lab_results;
 CREATE POLICY "Caregivers can view patient lab results"
   ON public.lab_results FOR SELECT
   USING (is_caregiver_for_patient(user_id, auth.uid()));
 
 -- RLS Policies for vitals_alerts
+DROP POLICY IF EXISTS "Patients can view own vitals alerts" ON public.vitals_alerts;
 CREATE POLICY "Patients can view own vitals alerts"
   ON public.vitals_alerts FOR SELECT
   USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Clinicians can view assigned patient alerts" ON public.vitals_alerts;
 CREATE POLICY "Clinicians can view assigned patient alerts"
   ON public.vitals_alerts FOR SELECT
   USING (is_clinician_assigned(user_id, auth.uid()));
 
+DROP POLICY IF EXISTS "Clinicians can acknowledge alerts" ON public.vitals_alerts;
 CREATE POLICY "Clinicians can acknowledge alerts"
   ON public.vitals_alerts FOR UPDATE
   USING (is_clinician_assigned(user_id, auth.uid()));
 
 -- Indexes for performance
-CREATE INDEX idx_patient_vitals_user_id ON public.patient_vitals(user_id);
-CREATE INDEX idx_patient_vitals_recorded_at ON public.patient_vitals(recorded_at DESC);
-CREATE INDEX idx_lab_results_user_id ON public.lab_results(user_id);
-CREATE INDEX idx_lab_results_status ON public.lab_results(status);
-CREATE INDEX idx_vitals_alerts_user_id ON public.vitals_alerts(user_id);
-CREATE INDEX idx_vitals_alerts_severity ON public.vitals_alerts(severity);
+CREATE INDEX IF NOT EXISTS idx_patient_vitals_user_id ON public.patient_vitals(user_id);
+CREATE INDEX IF NOT EXISTS idx_patient_vitals_recorded_at ON public.patient_vitals(recorded_at DESC);
+CREATE INDEX IF NOT EXISTS idx_lab_results_user_id ON public.lab_results(user_id);
+CREATE INDEX IF NOT EXISTS idx_lab_results_status ON public.lab_results(status);
+CREATE INDEX IF NOT EXISTS idx_vitals_alerts_user_id ON public.vitals_alerts(user_id);
+CREATE INDEX IF NOT EXISTS idx_vitals_alerts_severity ON public.vitals_alerts(severity);
 
 -- Trigger for updated_at
+DROP TRIGGER IF EXISTS update_patient_vitals_updated_at ON public.patient_vitals;
 CREATE TRIGGER update_patient_vitals_updated_at
   BEFORE UPDATE ON public.patient_vitals
   FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_lab_results_updated_at ON public.lab_results;
 CREATE TRIGGER update_lab_results_updated_at
   BEFORE UPDATE ON public.lab_results
   FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();

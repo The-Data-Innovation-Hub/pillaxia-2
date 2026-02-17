@@ -1,6 +1,7 @@
 -- Add storage policy for organization logo uploads
 -- Allow org admins and managers to upload logos to their organization's folder
 
+DROP POLICY IF EXISTS "Org admins can upload organization logos" ON storage.objects;
 CREATE POLICY "Org admins can upload organization logos"
 ON storage.objects
 FOR INSERT
@@ -18,6 +19,7 @@ WITH CHECK (
 );
 
 -- Allow updating (upsert) organization logos
+DROP POLICY IF EXISTS "Org admins can update organization logos" ON storage.objects;
 CREATE POLICY "Org admins can update organization logos"
 ON storage.objects
 FOR UPDATE
@@ -33,6 +35,7 @@ USING (
 );
 
 -- Allow deleting old organization logos
+DROP POLICY IF EXISTS "Org admins can delete organization logos" ON storage.objects;
 CREATE POLICY "Org admins can delete organization logos"
 ON storage.objects
 FOR DELETE

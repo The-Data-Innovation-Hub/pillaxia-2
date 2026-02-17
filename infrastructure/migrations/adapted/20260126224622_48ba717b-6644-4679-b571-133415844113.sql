@@ -499,12 +499,12 @@ CREATE POLICY "Admins can manage all invitations"
 -- INDEXES FOR PERFORMANCE
 -- =============================================
 
-CREATE INDEX IF NOT EXISTS idx_profiles_user_id ON public.profiles(user_id);
-CREATE INDEX IF NOT EXISTS idx_user_roles_user_id ON public.user_roles(user_id);
-CREATE INDEX IF NOT EXISTS idx_user_roles_role ON public.user_roles(role);
-CREATE INDEX IF NOT EXISTS idx_audit_log_user_id ON public.audit_log(user_id);
-CREATE INDEX IF NOT EXISTS idx_audit_log_created_at ON public.audit_log(created_at);
-CREATE INDEX IF NOT EXISTS idx_clinician_assignments_clinician ON public.clinician_patient_assignments(clinician_user_id);
-CREATE INDEX IF NOT EXISTS idx_clinician_assignments_patient ON public.clinician_patient_assignments(patient_user_id);
-CREATE INDEX IF NOT EXISTS idx_caregiver_invitations_patient ON public.caregiver_invitations(patient_user_id);
-CREATE INDEX IF NOT EXISTS idx_caregiver_invitations_caregiver ON public.caregiver_invitations(caregiver_user_id);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_profiles_user_id ON public.profiles(user_id);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_user_roles_user_id ON public.user_roles(user_id);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_user_roles_role ON public.user_roles(role);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_audit_log_user_id ON public.audit_log(user_id);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_audit_log_created_at ON public.audit_log(created_at);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_clinician_assignments_clinician ON public.clinician_patient_assignments(clinician_user_id);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_clinician_assignments_patient ON public.clinician_patient_assignments(patient_user_id);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_caregiver_invitations_patient ON public.caregiver_invitations(patient_user_id);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_caregiver_invitations_caregiver ON public.caregiver_invitations(caregiver_user_id);

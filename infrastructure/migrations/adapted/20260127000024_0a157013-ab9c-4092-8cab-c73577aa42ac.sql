@@ -9,10 +9,11 @@ ALTER TABLE public.caregiver_messages
 ADD COLUMN updated_at timestamp with time zone DEFAULT now();
 
 -- Create index for conversation queries
-CREATE INDEX idx_caregiver_messages_conversation 
+CREATE INDEX IF NOT EXISTS idx_caregiver_messages_conversation 
 ON public.caregiver_messages (patient_user_id, caregiver_user_id, created_at DESC);
 
 -- Allow patients to insert messages (replies)
+DROP POLICY IF EXISTS "Patients can send replies to their caregivers" ON public.caregiver_messages;
 CREATE POLICY "Patients can send replies to their caregivers" 
 ON public.caregiver_messages 
 FOR INSERT 
@@ -23,6 +24,7 @@ WITH CHECK (
 );
 
 -- Allow caregivers to mark messages as read
+DROP POLICY IF EXISTS "Caregivers can mark patient messages as read" ON public.caregiver_messages;
 CREATE POLICY "Caregivers can mark patient messages as read" 
 ON public.caregiver_messages 
 FOR UPDATE 

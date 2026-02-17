@@ -78,6 +78,7 @@ DROP POLICY IF EXISTS "Users can delete own schedules" ON public.medication_sche
 DROP POLICY IF EXISTS "Clinicians can view assigned patient schedules" ON public.medication_schedules;
 
 -- Recreate policies using derived user_id from medications
+DROP POLICY IF EXISTS "Users can view own schedules" ON public.medication_schedules;
 CREATE POLICY "Users can view own schedules"
   ON public.medication_schedules FOR SELECT
   USING (
@@ -88,6 +89,7 @@ CREATE POLICY "Users can view own schedules"
     )
   );
 
+DROP POLICY IF EXISTS "Users can insert own schedules" ON public.medication_schedules;
 CREATE POLICY "Users can insert own schedules"
   ON public.medication_schedules FOR INSERT
   WITH CHECK (
@@ -98,6 +100,7 @@ CREATE POLICY "Users can insert own schedules"
     )
   );
 
+DROP POLICY IF EXISTS "Users can update own schedules" ON public.medication_schedules;
 CREATE POLICY "Users can update own schedules"
   ON public.medication_schedules FOR UPDATE
   USING (
@@ -108,6 +111,7 @@ CREATE POLICY "Users can update own schedules"
     )
   );
 
+DROP POLICY IF EXISTS "Users can delete own schedules" ON public.medication_schedules;
 CREATE POLICY "Users can delete own schedules"
   ON public.medication_schedules FOR DELETE
   USING (
@@ -118,6 +122,7 @@ CREATE POLICY "Users can delete own schedules"
     )
   );
 
+DROP POLICY IF EXISTS "Clinicians can view assigned patient schedules" ON public.medication_schedules;
 CREATE POLICY "Clinicians can view assigned patient schedules"
   ON public.medication_schedules FOR SELECT
   USING (

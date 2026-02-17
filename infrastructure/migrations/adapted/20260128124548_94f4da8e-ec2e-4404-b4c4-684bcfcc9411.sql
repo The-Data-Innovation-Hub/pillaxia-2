@@ -1,5 +1,5 @@
 -- Create table to track login attempts
-CREATE TABLE public.login_attempts (
+CREATE TABLE IF NOT EXISTS public.login_attempts (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   email TEXT NOT NULL,
   user_id UUID REFERENCES public.users(id) ON DELETE CASCADE,
@@ -10,11 +10,11 @@ CREATE TABLE public.login_attempts (
 );
 
 -- Create index for efficient lookups
-CREATE INDEX idx_login_attempts_email_created ON public.login_attempts(email, created_at DESC);
-CREATE INDEX idx_login_attempts_user_id ON public.login_attempts(user_id);
+CREATE INDEX IF NOT EXISTS idx_login_attempts_email_created ON public.login_attempts(email, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_login_attempts_user_id ON public.login_attempts(user_id);
 
 -- Create table to track account lockouts
-CREATE TABLE public.account_lockouts (
+CREATE TABLE IF NOT EXISTS public.account_lockouts (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   email TEXT NOT NULL UNIQUE,
   user_id UUID REFERENCES public.users(id) ON DELETE CASCADE,
@@ -28,31 +28,36 @@ CREATE TABLE public.account_lockouts (
 );
 
 -- Create index for lookups
-CREATE INDEX idx_account_lockouts_email ON public.account_lockouts(email);
-CREATE INDEX idx_account_lockouts_locked_until ON public.account_lockouts(locked_until);
+CREATE INDEX IF NOT EXISTS idx_account_lockouts_email ON public.account_lockouts(email);
+CREATE INDEX IF NOT EXISTS idx_account_lockouts_locked_until ON public.account_lockouts(locked_until);
 
 -- Enable RLS
 ALTER TABLE public.login_attempts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.account_lockouts ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policies for login_attempts (only admins can view, system can insert)
+DROP POLICY IF EXISTS "Admins can view all login attempts" ON public.login_attempts;
 CREATE POLICY "Admins can view all login attempts"
   ON public.login_attempts FOR SELECT
   USING (is_admin(auth.uid()));
 
+DROP POLICY IF EXISTS "System can insert login attempts" ON public.login_attempts;
 CREATE POLICY "System can insert login attempts"
   ON public.login_attempts FOR INSERT
   WITH CHECK (true);
 
 -- RLS Policies for account_lockouts
+DROP POLICY IF EXISTS "Admins can view all lockouts" ON public.account_lockouts;
 CREATE POLICY "Admins can view all lockouts"
   ON public.account_lockouts FOR SELECT
   USING (is_admin(auth.uid()));
 
+DROP POLICY IF EXISTS "Admins can update lockouts" ON public.account_lockouts;
 CREATE POLICY "Admins can update lockouts"
   ON public.account_lockouts FOR UPDATE
   USING (is_admin(auth.uid()));
 
+DROP POLICY IF EXISTS "System can manage lockouts" ON public.account_lockouts;
 CREATE POLICY "System can manage lockouts"
   ON public.account_lockouts FOR ALL
   USING (true);

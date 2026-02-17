@@ -35,15 +35,15 @@ LEFT JOIN public.pharmacy_locations pl ON ma.pharmacy_id = pl.id
 WHERE ma.is_available = true;
 
 -- Create unique index for refresh
-CREATE UNIQUE INDEX IF NOT EXISTS idx_medication_availability_view_id 
+CREATE UNIQUE INDEX IF NOT EXISTS IF NOT EXISTS idx_medication_availability_view_id 
   ON public.medication_availability_view(id);
 
 -- Create indexes for common queries
-CREATE INDEX IF NOT EXISTS idx_medication_availability_view_name 
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_medication_availability_view_name 
   ON public.medication_availability_view(medication_name);
-CREATE INDEX IF NOT EXISTS idx_medication_availability_view_pharmacy 
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_medication_availability_view_pharmacy 
   ON public.medication_availability_view(pharmacy_id);
-CREATE INDEX IF NOT EXISTS idx_medication_availability_view_city_state 
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_medication_availability_view_city_state 
   ON public.medication_availability_view(pharmacy_city, pharmacy_state);
 
 -- ============================================================
@@ -84,13 +84,13 @@ LEFT JOIN public.profiles p ON pv.user_id = p.user_id
 LEFT JOIN public.profiles pr ON pv.recorded_by = pr.user_id;
 
 -- Create unique index for refresh
-CREATE UNIQUE INDEX IF NOT EXISTS idx_patient_vitals_with_bmi_view_id 
+CREATE UNIQUE INDEX IF NOT EXISTS IF NOT EXISTS idx_patient_vitals_with_bmi_view_id 
   ON public.patient_vitals_with_bmi_view(id);
 
 -- Create indexes for common queries
-CREATE INDEX IF NOT EXISTS idx_patient_vitals_with_bmi_view_user_id 
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_patient_vitals_with_bmi_view_user_id 
   ON public.patient_vitals_with_bmi_view(user_id);
-CREATE INDEX IF NOT EXISTS idx_patient_vitals_with_bmi_view_recorded_at 
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_patient_vitals_with_bmi_view_recorded_at 
   ON public.patient_vitals_with_bmi_view(recorded_at DESC);
 
 -- ============================================================
@@ -128,15 +128,15 @@ LEFT JOIN public.profiles pres ON m.prescriber_user_id = pres.user_id
 LEFT JOIN public.pharmacy_locations pl ON m.pharmacy_id = pl.id;
 
 -- Create unique index for refresh
-CREATE UNIQUE INDEX IF NOT EXISTS idx_medications_full_view_id 
+CREATE UNIQUE INDEX IF NOT EXISTS IF NOT EXISTS idx_medications_full_view_id 
   ON public.medications_full_view(id);
 
 -- Create indexes for common queries
-CREATE INDEX IF NOT EXISTS idx_medications_full_view_user_id 
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_medications_full_view_user_id 
   ON public.medications_full_view(user_id);
-CREATE INDEX IF NOT EXISTS idx_medications_full_view_prescriber 
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_medications_full_view_prescriber 
   ON public.medications_full_view(prescriber_user_id);
-CREATE INDEX IF NOT EXISTS idx_medications_full_view_is_active 
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_medications_full_view_is_active 
   ON public.medications_full_view(is_active) WHERE is_active = true;
 
 -- ============================================================
@@ -180,15 +180,15 @@ LEFT JOIN public.profiles pharm ON cdd.dispensing_pharmacist_id = pharm.user_id
 LEFT JOIN public.profiles witness ON cdd.witness_pharmacist_id = witness.user_id;
 
 -- Create unique index for refresh
-CREATE UNIQUE INDEX IF NOT EXISTS idx_controlled_drug_dispensing_full_view_id 
+CREATE UNIQUE INDEX IF NOT EXISTS IF NOT EXISTS idx_controlled_drug_dispensing_full_view_id 
   ON public.controlled_drug_dispensing_full_view(id);
 
 -- Create indexes for common queries
-CREATE INDEX IF NOT EXISTS idx_controlled_drug_dispensing_full_view_patient 
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_controlled_drug_dispensing_full_view_patient 
   ON public.controlled_drug_dispensing_full_view(patient_user_id);
-CREATE INDEX IF NOT EXISTS idx_controlled_drug_dispensing_full_view_dispensed_at 
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_controlled_drug_dispensing_full_view_dispensed_at 
   ON public.controlled_drug_dispensing_full_view(dispensed_at DESC);
-CREATE INDEX IF NOT EXISTS idx_controlled_drug_dispensing_full_view_schedule 
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_controlled_drug_dispensing_full_view_schedule 
   ON public.controlled_drug_dispensing_full_view(controlled_drug_schedule);
 
 -- ============================================================
@@ -235,15 +235,15 @@ LEFT JOIN public.profiles app ON dt.approved_by = app.user_id
 LEFT JOIN public.profiles comp ON dt.completed_by = comp.user_id;
 
 -- Create unique index for refresh
-CREATE UNIQUE INDEX IF NOT EXISTS idx_drug_transfers_full_view_id 
+CREATE UNIQUE INDEX IF NOT EXISTS IF NOT EXISTS idx_drug_transfers_full_view_id 
   ON public.drug_transfers_full_view(id);
 
 -- Create indexes for common queries
-CREATE INDEX IF NOT EXISTS idx_drug_transfers_full_view_status 
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_drug_transfers_full_view_status 
   ON public.drug_transfers_full_view(status);
-CREATE INDEX IF NOT EXISTS idx_drug_transfers_full_view_source 
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_drug_transfers_full_view_source 
   ON public.drug_transfers_full_view(source_pharmacy_id);
-CREATE INDEX IF NOT EXISTS idx_drug_transfers_full_view_destination 
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_drug_transfers_full_view_destination 
   ON public.drug_transfers_full_view(destination_pharmacy_id);
 
 -- ============================================================
@@ -277,15 +277,15 @@ LEFT JOIN public.organizations o ON oi.organization_id = o.id
 LEFT JOIN public.organization_subscriptions os ON oi.organization_id = os.organization_id;
 
 -- Create unique index for refresh
-CREATE UNIQUE INDEX IF NOT EXISTS idx_organization_invoices_full_view_id 
+CREATE UNIQUE INDEX IF NOT EXISTS IF NOT EXISTS idx_organization_invoices_full_view_id 
   ON public.organization_invoices_full_view(id);
 
 -- Create indexes for common queries
-CREATE INDEX IF NOT EXISTS idx_organization_invoices_full_view_org_id 
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_organization_invoices_full_view_org_id 
   ON public.organization_invoices_full_view(organization_id);
-CREATE INDEX IF NOT EXISTS idx_organization_invoices_full_view_status 
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_organization_invoices_full_view_status 
   ON public.organization_invoices_full_view(status);
-CREATE INDEX IF NOT EXISTS idx_organization_invoices_full_view_due_date 
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_organization_invoices_full_view_due_date 
   ON public.organization_invoices_full_view(due_date);
 
 -- ============================================================

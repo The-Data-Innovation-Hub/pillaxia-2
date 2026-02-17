@@ -1,5 +1,5 @@
 -- Create prescriptions table for e-prescribing workflow
-CREATE TABLE public.prescriptions (
+CREATE TABLE IF NOT EXISTS public.prescriptions (
   id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   -- Prescription identifiers
   prescription_number TEXT NOT NULL UNIQUE,
@@ -40,7 +40,7 @@ CREATE TABLE public.prescriptions (
 );
 
 -- Create prescription status history for audit trail
-CREATE TABLE public.prescription_status_history (
+CREATE TABLE IF NOT EXISTS public.prescription_status_history (
   id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   prescription_id UUID NOT NULL REFERENCES public.prescriptions(id) ON DELETE CASCADE,
   previous_status TEXT,
@@ -55,14 +55,17 @@ ALTER TABLE public.prescriptions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.prescription_status_history ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policies for prescriptions
+DROP POLICY IF EXISTS "Patients can view their own prescriptions" ON public.prescriptions;
 CREATE POLICY "Patients can view their own prescriptions"
 ON public.prescriptions FOR SELECT
 USING (auth.uid() = patient_user_id);
 
+DROP POLICY IF EXISTS "Clinicians can view prescriptions they wrote" ON public.prescriptions;
 CREATE POLICY "Clinicians can view prescriptions they wrote"
 ON public.prescriptions FOR SELECT
 USING (auth.uid() = clinician_user_id);
 
+DROP POLICY IF EXISTS "Clinicians can create prescriptions for assigned patients" ON public.prescriptions;
 CREATE POLICY "Clinicians can create prescriptions for assigned patients"
 ON public.prescriptions FOR INSERT
 WITH CHECK (
@@ -71,11 +74,13 @@ WITH CHECK (
   AND is_clinician_assigned(patient_user_id, auth.uid())
 );
 
+DROP POLICY IF EXISTS "Clinicians can update their own prescriptions" ON public.prescriptions;
 CREATE POLICY "Clinicians can update their own prescriptions"
 ON public.prescriptions FOR UPDATE
 USING (auth.uid() = clinician_user_id AND is_clinician(auth.uid()))
 WITH CHECK (auth.uid() = clinician_user_id);
 
+DROP POLICY IF EXISTS "Pharmacists can view prescriptions for their pharmacy" ON public.prescriptions;
 CREATE POLICY "Pharmacists can view prescriptions for their pharmacy"
 ON public.prescriptions FOR SELECT
 USING (
@@ -83,6 +88,7 @@ USING (
   AND pharmacy_id IN (SELECT id FROM public.pharmacy_locations WHERE pharmacist_user_id = auth.uid())
 );
 
+DROP POLICY IF EXISTS "Pharmacists can update prescription status" ON public.prescriptions;
 CREATE POLICY "Pharmacists can update prescription status"
 ON public.prescriptions FOR UPDATE
 USING (
@@ -90,11 +96,13 @@ USING (
   AND pharmacy_id IN (SELECT id FROM public.pharmacy_locations WHERE pharmacist_user_id = auth.uid())
 );
 
+DROP POLICY IF EXISTS "Admins can view all prescriptions" ON public.prescriptions;
 CREATE POLICY "Admins can view all prescriptions"
 ON public.prescriptions FOR SELECT
 USING (is_admin(auth.uid()));
 
 -- RLS Policies for prescription history
+DROP POLICY IF EXISTS "Users can view history of their prescriptions" ON public.prescription_status_history;
 CREATE POLICY "Users can view history of their prescriptions"
 ON public.prescription_status_history FOR SELECT
 USING (
@@ -105,6 +113,7 @@ USING (
   )
 );
 
+DROP POLICY IF EXISTS "Pharmacists can view history of their prescriptions" ON public.prescription_status_history;
 CREATE POLICY "Pharmacists can view history of their prescriptions"
 ON public.prescription_status_history FOR SELECT
 USING (
@@ -115,6 +124,7 @@ USING (
   )
 );
 
+DROP POLICY IF EXISTS "Authorized users can insert history" ON public.prescription_status_history;
 CREATE POLICY "Authorized users can insert history"
 ON public.prescription_status_history FOR INSERT
 WITH CHECK (
@@ -126,13 +136,14 @@ WITH CHECK (
 );
 
 -- Indexes for performance
-CREATE INDEX idx_prescriptions_patient ON public.prescriptions(patient_user_id);
-CREATE INDEX idx_prescriptions_clinician ON public.prescriptions(clinician_user_id);
-CREATE INDEX idx_prescriptions_pharmacy ON public.prescriptions(pharmacy_id);
-CREATE INDEX idx_prescriptions_status ON public.prescriptions(status);
-CREATE INDEX idx_prescriptions_number ON public.prescriptions(prescription_number);
+CREATE INDEX IF NOT EXISTS idx_prescriptions_patient ON public.prescriptions(patient_user_id);
+CREATE INDEX IF NOT EXISTS idx_prescriptions_clinician ON public.prescriptions(clinician_user_id);
+CREATE INDEX IF NOT EXISTS idx_prescriptions_pharmacy ON public.prescriptions(pharmacy_id);
+CREATE INDEX IF NOT EXISTS idx_prescriptions_status ON public.prescriptions(status);
+CREATE INDEX IF NOT EXISTS idx_prescriptions_number ON public.prescriptions(prescription_number);
 
 -- Trigger for updated_at
+DROP TRIGGER IF EXISTS update_prescriptions_updated_at ON public.prescriptions;
 CREATE TRIGGER update_prescriptions_updated_at
 BEFORE UPDATE ON public.prescriptions
 FOR EACH ROW

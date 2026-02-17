@@ -1,4 +1,5 @@
 -- Create policy for pharmacists to manage their own locations
+DROP POLICY IF EXISTS "Pharmacists can manage their pharmacy locations" ON public.pharmacy_locations;
 CREATE POLICY "Pharmacists can manage their pharmacy locations"
 ON public.pharmacy_locations
 FOR ALL

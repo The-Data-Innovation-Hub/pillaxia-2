@@ -1,5 +1,5 @@
 -- Create patient risk flags table
-CREATE TABLE public.patient_risk_flags (
+CREATE TABLE IF NOT EXISTS public.patient_risk_flags (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   patient_user_id uuid NOT NULL,
   clinician_user_id uuid NOT NULL,
@@ -20,27 +20,31 @@ CREATE TABLE public.patient_risk_flags (
 ALTER TABLE public.patient_risk_flags ENABLE ROW LEVEL SECURITY;
 
 -- Indexes
-CREATE INDEX idx_patient_risk_flags_clinician ON public.patient_risk_flags(clinician_user_id);
-CREATE INDEX idx_patient_risk_flags_patient ON public.patient_risk_flags(patient_user_id);
-CREATE INDEX idx_patient_risk_flags_unresolved ON public.patient_risk_flags(is_resolved) WHERE is_resolved = false;
+CREATE INDEX IF NOT EXISTS idx_patient_risk_flags_clinician ON public.patient_risk_flags(clinician_user_id);
+CREATE INDEX IF NOT EXISTS idx_patient_risk_flags_patient ON public.patient_risk_flags(patient_user_id);
+CREATE INDEX IF NOT EXISTS idx_patient_risk_flags_unresolved ON public.patient_risk_flags(is_resolved) WHERE is_resolved = false;
 
 -- RLS Policies
+DROP POLICY IF EXISTS "Clinicians can view risk flags for their patients" ON public.patient_risk_flags;
 CREATE POLICY "Clinicians can view risk flags for their patients"
 ON public.patient_risk_flags
 FOR SELECT
 USING (auth.uid() = clinician_user_id OR is_clinician_assigned(patient_user_id, auth.uid()));
 
+DROP POLICY IF EXISTS "Clinicians can update risk flags they can see" ON public.patient_risk_flags;
 CREATE POLICY "Clinicians can update risk flags they can see"
 ON public.patient_risk_flags
 FOR UPDATE
 USING (auth.uid() = clinician_user_id OR is_clinician_assigned(patient_user_id, auth.uid()));
 
+DROP POLICY IF EXISTS "Admins can view all risk flags" ON public.patient_risk_flags;
 CREATE POLICY "Admins can view all risk flags"
 ON public.patient_risk_flags
 FOR SELECT
 USING (is_admin(auth.uid()));
 
 -- Timestamp trigger
+DROP TRIGGER IF EXISTS update_patient_risk_flags_updated_at ON public.patient_risk_flags;
 CREATE TRIGGER update_patient_risk_flags_updated_at
 BEFORE UPDATE ON public.patient_risk_flags
 FOR EACH ROW

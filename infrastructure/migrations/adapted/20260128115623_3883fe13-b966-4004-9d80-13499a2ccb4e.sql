@@ -2,7 +2,8 @@
 -- Adds session tracking, enhanced audit logging, and security events
 
 -- Create security event types enum
-CREATE TYPE public.security_event_type AS ENUM (
+DO $$ BEGIN
+  CREATE TYPE public.security_event_type AS ENUM (
   'login_success',
   'login_failure', 
   'logout',
@@ -19,9 +20,12 @@ CREATE TYPE public.security_event_type AS ENUM (
   'account_locked',
   'account_unlocked'
 );
+EXCEPTION
+  WHEN duplicate_object THEN null;
+END $$;
 
 -- Create user sessions table for tracking active sessions
-CREATE TABLE public.user_sessions (
+CREATE TABLE IF NOT EXISTS public.user_sessions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL,
   session_token TEXT NOT NULL UNIQUE,
@@ -40,7 +44,7 @@ CREATE TABLE public.user_sessions (
 ALTER TABLE public.user_sessions ENABLE ROW LEVEL SECURITY;
 
 -- Create security events table for comprehensive audit trail
-CREATE TABLE public.security_events (
+CREATE TABLE IF NOT EXISTS public.security_events (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID,
   event_type security_event_type NOT NULL,
@@ -60,7 +64,7 @@ CREATE TABLE public.security_events (
 ALTER TABLE public.security_events ENABLE ROW LEVEL SECURITY;
 
 -- Create data access log for HIPAA/NDPR compliance
-CREATE TABLE public.data_access_log (
+CREATE TABLE IF NOT EXISTS public.data_access_log (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL,
   accessed_table TEXT NOT NULL,
@@ -78,7 +82,7 @@ CREATE TABLE public.data_access_log (
 ALTER TABLE public.data_access_log ENABLE ROW LEVEL SECURITY;
 
 -- Create security settings table
-CREATE TABLE public.security_settings (
+CREATE TABLE IF NOT EXISTS public.security_settings (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   setting_key TEXT NOT NULL UNIQUE,
   setting_value JSONB NOT NULL DEFAULT '{}'::jsonb,
@@ -92,7 +96,7 @@ CREATE TABLE public.security_settings (
 ALTER TABLE public.security_settings ENABLE ROW LEVEL SECURITY;
 
 -- Create compliance reports table
-CREATE TABLE public.compliance_reports (
+CREATE TABLE IF NOT EXISTS public.compliance_reports (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   report_type TEXT NOT NULL CHECK (report_type IN ('access_audit', 'security_audit', 'hipaa_compliance', 'ndpr_compliance', 'data_retention')),
   report_period_start DATE NOT NULL,
@@ -107,42 +111,51 @@ CREATE TABLE public.compliance_reports (
 ALTER TABLE public.compliance_reports ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policies for user_sessions
+DROP POLICY IF EXISTS "Users can view own sessions" ON public.user_sessions;
 CREATE POLICY "Users can view own sessions"
   ON public.user_sessions FOR SELECT
   USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Admins can view all sessions" ON public.user_sessions;
 CREATE POLICY "Admins can view all sessions"
   ON public.user_sessions FOR SELECT
   USING (is_admin(auth.uid()));
 
+DROP POLICY IF EXISTS "Admins can manage sessions" ON public.user_sessions;
 CREATE POLICY "Admins can manage sessions"
   ON public.user_sessions FOR ALL
   USING (is_admin(auth.uid()));
 
 -- RLS Policies for security_events
+DROP POLICY IF EXISTS "Users can view own security events" ON public.security_events;
 CREATE POLICY "Users can view own security events"
   ON public.security_events FOR SELECT
   USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Admins can view all security events" ON public.security_events;
 CREATE POLICY "Admins can view all security events"
   ON public.security_events FOR SELECT
   USING (is_admin(auth.uid()));
 
 -- RLS Policies for data_access_log
+DROP POLICY IF EXISTS "Admins can view all data access logs" ON public.data_access_log;
 CREATE POLICY "Admins can view all data access logs"
   ON public.data_access_log FOR SELECT
   USING (is_admin(auth.uid()));
 
+DROP POLICY IF EXISTS "Clinicians can view their data access" ON public.data_access_log;
 CREATE POLICY "Clinicians can view their data access"
   ON public.data_access_log FOR SELECT
   USING (auth.uid() = user_id AND is_clinician(auth.uid()));
 
 -- RLS Policies for security_settings
+DROP POLICY IF EXISTS "Admins can manage security settings" ON public.security_settings;
 CREATE POLICY "Admins can manage security settings"
   ON public.security_settings FOR ALL
   USING (is_admin(auth.uid()));
 
 -- RLS Policies for compliance_reports
+DROP POLICY IF EXISTS "Admins can manage compliance reports" ON public.compliance_reports;
 CREATE POLICY "Admins can manage compliance reports"
   ON public.compliance_reports FOR ALL
   USING (is_admin(auth.uid()));
@@ -164,17 +177,17 @@ INSERT INTO public.security_settings (setting_key, setting_value, description) V
   ('require_mfa_for_clinician', '{"value": false}'::jsonb, 'Require MFA for clinician accounts');
 
 -- Create indexes for performance
-CREATE INDEX idx_user_sessions_user_id ON public.user_sessions(user_id);
-CREATE INDEX idx_user_sessions_is_active ON public.user_sessions(is_active) WHERE is_active = true;
-CREATE INDEX idx_user_sessions_expires_at ON public.user_sessions(expires_at);
-CREATE INDEX idx_security_events_user_id ON public.security_events(user_id);
-CREATE INDEX idx_security_events_event_type ON public.security_events(event_type);
-CREATE INDEX idx_security_events_created_at ON public.security_events(created_at);
-CREATE INDEX idx_security_events_severity ON public.security_events(severity);
-CREATE INDEX idx_data_access_log_user_id ON public.data_access_log(user_id);
-CREATE INDEX idx_data_access_log_patient_id ON public.data_access_log(patient_id);
-CREATE INDEX idx_data_access_log_created_at ON public.data_access_log(created_at);
-CREATE INDEX idx_data_access_log_data_category ON public.data_access_log(data_category);
+CREATE INDEX IF NOT EXISTS idx_user_sessions_user_id ON public.user_sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_sessions_is_active ON public.user_sessions(is_active) WHERE is_active = true;
+CREATE INDEX IF NOT EXISTS idx_user_sessions_expires_at ON public.user_sessions(expires_at);
+CREATE INDEX IF NOT EXISTS idx_security_events_user_id ON public.security_events(user_id);
+CREATE INDEX IF NOT EXISTS idx_security_events_event_type ON public.security_events(event_type);
+CREATE INDEX IF NOT EXISTS idx_security_events_created_at ON public.security_events(created_at);
+CREATE INDEX IF NOT EXISTS idx_security_events_severity ON public.security_events(severity);
+CREATE INDEX IF NOT EXISTS idx_data_access_log_user_id ON public.data_access_log(user_id);
+CREATE INDEX IF NOT EXISTS idx_data_access_log_patient_id ON public.data_access_log(patient_id);
+CREATE INDEX IF NOT EXISTS idx_data_access_log_created_at ON public.data_access_log(created_at);
+CREATE INDEX IF NOT EXISTS idx_data_access_log_data_category ON public.data_access_log(data_category);
 
 -- Create function to log security events
 CREATE OR REPLACE FUNCTION public.log_security_event(

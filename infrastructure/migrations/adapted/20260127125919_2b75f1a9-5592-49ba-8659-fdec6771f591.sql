@@ -6,7 +6,7 @@ ADD COLUMN IF NOT EXISTS next_retry_at timestamp with time zone,
 ADD COLUMN IF NOT EXISTS last_retry_at timestamp with time zone;
 
 -- Create index for efficient retry queries
-CREATE INDEX IF NOT EXISTS idx_notification_history_retry 
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_notification_history_retry 
 ON public.notification_history (next_retry_at, retry_count, status) 
 WHERE status = 'failed' AND next_retry_at IS NOT NULL;
 

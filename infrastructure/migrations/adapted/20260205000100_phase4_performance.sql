@@ -9,55 +9,55 @@
 -- ============================================================
 
 -- medication_logs: user + date range (schedule page, dashboard)
-CREATE INDEX IF NOT EXISTS idx_medication_logs_user_scheduled
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_medication_logs_user_scheduled
   ON public.medication_logs(user_id, scheduled_time DESC);
 
 -- symptom_entries: user + date range (symptom tracker)
-CREATE INDEX IF NOT EXISTS idx_symptom_entries_user_recorded
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_symptom_entries_user_recorded
   ON public.symptom_entries(user_id, recorded_at DESC);
 
 -- notification_history: user + date (notification center)
-CREATE INDEX IF NOT EXISTS idx_notification_history_user_created
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_notification_history_user_created
   ON public.notification_history(user_id, created_at DESC);
 
 -- medication_logs: status filtering (pending doses, missed doses)
-CREATE INDEX IF NOT EXISTS idx_medication_logs_user_status
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_medication_logs_user_status
   ON public.medication_logs(user_id, status)
   WHERE status IN ('pending', 'missed');
 
 -- clinician_patient_assignments: clinician lookup
-CREATE INDEX IF NOT EXISTS idx_cpa_clinician
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_cpa_clinician
   ON public.clinician_patient_assignments(clinician_user_id);
 
 -- clinician_patient_assignments: patient lookup
-CREATE INDEX IF NOT EXISTS idx_cpa_patient
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_cpa_patient
   ON public.clinician_patient_assignments(patient_user_id);
 
 -- security_events: user + date (security dashboard)
-CREATE INDEX IF NOT EXISTS idx_security_events_user_created
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_security_events_user_created
   ON public.security_events(user_id, created_at DESC);
 
 -- appointments: patient + date (calendar)
-CREATE INDEX IF NOT EXISTS idx_appointments_patient_date
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_appointments_patient_date
   ON public.appointments(patient_user_id, appointment_date DESC);
 
 -- appointments: clinician + date (clinician schedule)
-CREATE INDEX IF NOT EXISTS idx_appointments_clinician_date
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_appointments_clinician_date
   ON public.appointments(clinician_user_id, appointment_date DESC);
 
 -- ============================================================
 -- 2. Partial indexes for active records
 -- ============================================================
 
-CREATE INDEX IF NOT EXISTS idx_medications_user_active
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_medications_user_active
   ON public.medications(user_id)
   WHERE is_active = true;
 
-CREATE INDEX IF NOT EXISTS idx_controlled_drugs_active
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_controlled_drugs_active
   ON public.controlled_drugs(is_active)
   WHERE is_active = true;
 
-CREATE INDEX IF NOT EXISTS idx_trusted_devices_user_active
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_trusted_devices_user_active
   ON public.trusted_devices(user_id)
   WHERE is_active = true;
 
@@ -65,13 +65,13 @@ CREATE INDEX IF NOT EXISTS idx_trusted_devices_user_active
 -- 3. GIN indexes for JSONB columns
 -- ============================================================
 
-CREATE INDEX IF NOT EXISTS idx_security_events_metadata_gin
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_security_events_metadata_gin
   ON public.security_events USING gin(metadata);
 
-CREATE INDEX IF NOT EXISTS idx_user_sessions_device_info_gin
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_user_sessions_device_info_gin
   ON public.user_sessions USING gin(device_info);
 
-CREATE INDEX IF NOT EXISTS idx_caregiver_invitations_permissions_gin
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_caregiver_invitations_permissions_gin
   ON public.caregiver_invitations USING gin(permissions);
 
 -- ============================================================

@@ -1,5 +1,6 @@
 
 -- Allow clinicians to view all patient profiles (needed to see available patients for assignment)
+DROP POLICY IF EXISTS "Clinicians can view all patient profiles" ON public.profiles;
 CREATE POLICY "Clinicians can view all patient profiles"
 ON public.profiles
 FOR SELECT

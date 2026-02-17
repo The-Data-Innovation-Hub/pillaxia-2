@@ -8,7 +8,7 @@
 -- Normalizes medication information for reference by other tables
 -- ============================================================
 
-CREATE TABLE public.medication_catalog (
+CREATE TABLE IF NOT EXISTS public.medication_catalog (
   id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   name TEXT NOT NULL,
   generic_name TEXT,
@@ -29,22 +29,25 @@ ALTER TABLE public.medication_catalog ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policies for medication_catalog
 -- All authenticated users can view active medications
+DROP POLICY IF EXISTS "Authenticated users can view active medications" ON public.medication_catalog;
 CREATE POLICY "Authenticated users can view active medications"
   ON public.medication_catalog FOR SELECT
   TO authenticated
   USING (is_active = true);
 
 -- Pharmacists and admins can manage catalog
+DROP POLICY IF EXISTS "Pharmacists and admins can manage medication catalog" ON public.medication_catalog;
 CREATE POLICY "Pharmacists and admins can manage medication catalog"
   ON public.medication_catalog FOR ALL
   USING (is_pharmacist(auth.uid()) OR is_admin(auth.uid()));
 
 -- Create indexes for performance
-CREATE INDEX idx_medication_catalog_name ON public.medication_catalog(name);
-CREATE INDEX idx_medication_catalog_generic_name ON public.medication_catalog(generic_name);
-CREATE INDEX idx_medication_catalog_is_active ON public.medication_catalog(is_active) WHERE is_active = true;
+CREATE INDEX IF NOT EXISTS idx_medication_catalog_name ON public.medication_catalog(name);
+CREATE INDEX IF NOT EXISTS idx_medication_catalog_generic_name ON public.medication_catalog(generic_name);
+CREATE INDEX IF NOT EXISTS idx_medication_catalog_is_active ON public.medication_catalog(is_active) WHERE is_active = true;
 
 -- Trigger for updated_at
+DROP TRIGGER IF EXISTS update_medication_catalog_updated_at ON public.medication_catalog;
 CREATE TRIGGER update_medication_catalog_updated_at
   BEFORE UPDATE ON public.medication_catalog
   FOR EACH ROW

@@ -1,4 +1,5 @@
 -- Allow pharmacists to view profiles of patients and clinicians for prescriptions at their pharmacy
+DROP POLICY IF EXISTS "Pharmacists can view prescription patient profiles" ON public.profiles;
 CREATE POLICY "Pharmacists can view prescription patient profiles"
 ON public.profiles
 FOR SELECT

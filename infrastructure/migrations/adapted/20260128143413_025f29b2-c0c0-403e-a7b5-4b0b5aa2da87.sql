@@ -1,5 +1,5 @@
 -- Create email A/B tests table
-CREATE TABLE public.email_ab_tests (
+CREATE TABLE IF NOT EXISTS public.email_ab_tests (
   id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   test_name TEXT NOT NULL,
   notification_type TEXT NOT NULL,
@@ -15,7 +15,7 @@ CREATE TABLE public.email_ab_tests (
 );
 
 -- Create email A/B test assignments table (tracks which variant was sent to which notification)
-CREATE TABLE public.email_ab_assignments (
+CREATE TABLE IF NOT EXISTS public.email_ab_assignments (
   id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   test_id UUID NOT NULL REFERENCES public.email_ab_tests(id) ON DELETE CASCADE,
   notification_id UUID NOT NULL REFERENCES public.notification_history(id) ON DELETE CASCADE,
@@ -29,6 +29,7 @@ ALTER TABLE public.email_ab_tests ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.email_ab_assignments ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policies for email_ab_tests (admin only)
+DROP POLICY IF EXISTS "Admins can view all A/B tests" ON public.email_ab_tests;
 CREATE POLICY "Admins can view all A/B tests"
 ON public.email_ab_tests
 FOR SELECT
@@ -39,6 +40,7 @@ USING (
   )
 );
 
+DROP POLICY IF EXISTS "Admins can create A/B tests" ON public.email_ab_tests;
 CREATE POLICY "Admins can create A/B tests"
 ON public.email_ab_tests
 FOR INSERT
@@ -49,6 +51,7 @@ WITH CHECK (
   )
 );
 
+DROP POLICY IF EXISTS "Admins can update A/B tests" ON public.email_ab_tests;
 CREATE POLICY "Admins can update A/B tests"
 ON public.email_ab_tests
 FOR UPDATE
@@ -59,6 +62,7 @@ USING (
   )
 );
 
+DROP POLICY IF EXISTS "Admins can delete A/B tests" ON public.email_ab_tests;
 CREATE POLICY "Admins can delete A/B tests"
 ON public.email_ab_tests
 FOR DELETE
@@ -70,6 +74,7 @@ USING (
 );
 
 -- RLS Policies for email_ab_assignments (admin only for viewing)
+DROP POLICY IF EXISTS "Admins can view all A/B assignments" ON public.email_ab_assignments;
 CREATE POLICY "Admins can view all A/B assignments"
 ON public.email_ab_assignments
 FOR SELECT
@@ -80,13 +85,14 @@ USING (
   )
 );
 
+DROP POLICY IF EXISTS "System can insert A/B assignments" ON public.email_ab_assignments;
 CREATE POLICY "System can insert A/B assignments"
 ON public.email_ab_assignments
 FOR INSERT
 WITH CHECK (true);
 
 -- Create indexes for performance
-CREATE INDEX idx_email_ab_tests_active ON public.email_ab_tests(is_active);
-CREATE INDEX idx_email_ab_tests_notification_type ON public.email_ab_tests(notification_type);
-CREATE INDEX idx_email_ab_assignments_test_id ON public.email_ab_assignments(test_id);
-CREATE INDEX idx_email_ab_assignments_notification_id ON public.email_ab_assignments(notification_id);
+CREATE INDEX IF NOT EXISTS idx_email_ab_tests_active ON public.email_ab_tests(is_active);
+CREATE INDEX IF NOT EXISTS idx_email_ab_tests_notification_type ON public.email_ab_tests(notification_type);
+CREATE INDEX IF NOT EXISTS idx_email_ab_assignments_test_id ON public.email_ab_assignments(test_id);
+CREATE INDEX IF NOT EXISTS idx_email_ab_assignments_notification_id ON public.email_ab_assignments(notification_id);

@@ -7,6 +7,7 @@ ON public.profiles
 FOR SELECT 
 USING (manager_can_access_user(auth.uid(), user_id));
 
+DROP POLICY IF EXISTS "Managers can update org profiles" ON public.profiles;
 CREATE POLICY "Managers can update org profiles" 
 ON public.profiles 
 FOR UPDATE 

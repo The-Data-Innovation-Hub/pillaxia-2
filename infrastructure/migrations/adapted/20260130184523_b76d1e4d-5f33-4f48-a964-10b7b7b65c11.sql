@@ -3,6 +3,7 @@
 DROP POLICY IF EXISTS "Everyone can view active pharmacies" ON public.pharmacy_locations;
 
 -- Create a new policy that requires authentication
+DROP POLICY IF EXISTS "Authenticated users can view active pharmacies" ON public.pharmacy_locations;
 CREATE POLICY "Authenticated users can view active pharmacies"
 ON public.pharmacy_locations
 FOR SELECT

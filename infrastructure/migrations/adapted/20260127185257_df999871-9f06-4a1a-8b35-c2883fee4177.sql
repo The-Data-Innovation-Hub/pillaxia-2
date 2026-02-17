@@ -1,5 +1,5 @@
 -- Create appointments table
-CREATE TABLE public.appointments (
+CREATE TABLE IF NOT EXISTS public.appointments (
   id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   clinician_user_id UUID NOT NULL,
   patient_user_id UUID NOT NULL,
@@ -20,6 +20,7 @@ CREATE TABLE public.appointments (
 ALTER TABLE public.appointments ENABLE ROW LEVEL SECURITY;
 
 -- Clinicians can create appointments for their assigned patients
+DROP POLICY IF EXISTS "Clinicians can create appointments for assigned patients" ON public.appointments;
 CREATE POLICY "Clinicians can create appointments for assigned patients"
 ON public.appointments
 FOR INSERT
@@ -29,12 +30,14 @@ WITH CHECK (
 );
 
 -- Clinicians can view their own appointments
+DROP POLICY IF EXISTS "Clinicians can view their appointments" ON public.appointments;
 CREATE POLICY "Clinicians can view their appointments"
 ON public.appointments
 FOR SELECT
 USING (auth.uid() = clinician_user_id);
 
 -- Clinicians can update their own appointments
+DROP POLICY IF EXISTS "Clinicians can update their appointments" ON public.appointments;
 CREATE POLICY "Clinicians can update their appointments"
 ON public.appointments
 FOR UPDATE
@@ -42,18 +45,21 @@ USING (auth.uid() = clinician_user_id)
 WITH CHECK (auth.uid() = clinician_user_id);
 
 -- Clinicians can delete their own appointments
+DROP POLICY IF EXISTS "Clinicians can delete their appointments" ON public.appointments;
 CREATE POLICY "Clinicians can delete their appointments"
 ON public.appointments
 FOR DELETE
 USING (auth.uid() = clinician_user_id);
 
 -- Patients can view their own appointments
+DROP POLICY IF EXISTS "Patients can view their appointments" ON public.appointments;
 CREATE POLICY "Patients can view their appointments"
 ON public.appointments
 FOR SELECT
 USING (auth.uid() = patient_user_id);
 
 -- Patients can update status (confirm/cancel)
+DROP POLICY IF EXISTS "Patients can confirm or cancel their appointments" ON public.appointments;
 CREATE POLICY "Patients can confirm or cancel their appointments"
 ON public.appointments
 FOR UPDATE
@@ -61,19 +67,21 @@ USING (auth.uid() = patient_user_id)
 WITH CHECK (auth.uid() = patient_user_id AND status IN ('confirmed', 'cancelled'));
 
 -- Admins can view all appointments
+DROP POLICY IF EXISTS "Admins can view all appointments" ON public.appointments;
 CREATE POLICY "Admins can view all appointments"
 ON public.appointments
 FOR SELECT
 USING (is_admin(auth.uid()));
 
 -- Create trigger for updated_at
+DROP TRIGGER IF EXISTS update_appointments_updated_at ON public.appointments;
 CREATE TRIGGER update_appointments_updated_at
 BEFORE UPDATE ON public.appointments
 FOR EACH ROW
 EXECUTE FUNCTION public.update_updated_at_column();
 
 -- Create indexes for performance
-CREATE INDEX idx_appointments_clinician ON public.appointments(clinician_user_id);
-CREATE INDEX idx_appointments_patient ON public.appointments(patient_user_id);
-CREATE INDEX idx_appointments_date ON public.appointments(appointment_date);
-CREATE INDEX idx_appointments_status ON public.appointments(status);
+CREATE INDEX IF NOT EXISTS idx_appointments_clinician ON public.appointments(clinician_user_id);
+CREATE INDEX IF NOT EXISTS idx_appointments_patient ON public.appointments(patient_user_id);
+CREATE INDEX IF NOT EXISTS idx_appointments_date ON public.appointments(appointment_date);
+CREATE INDEX IF NOT EXISTS idx_appointments_status ON public.appointments(status);

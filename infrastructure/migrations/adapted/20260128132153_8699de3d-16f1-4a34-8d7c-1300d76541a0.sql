@@ -1,5 +1,5 @@
 -- Create video_rooms table for telemedicine sessions
-CREATE TABLE public.video_rooms (
+CREATE TABLE IF NOT EXISTS public.video_rooms (
   id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   room_name TEXT NOT NULL UNIQUE,
   room_sid TEXT, -- Twilio room SID
@@ -19,7 +19,7 @@ CREATE TABLE public.video_rooms (
 );
 
 -- Create video_room_participants for tracking who joined
-CREATE TABLE public.video_room_participants (
+CREATE TABLE IF NOT EXISTS public.video_room_participants (
   id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   room_id UUID NOT NULL REFERENCES public.video_rooms(id) ON DELETE CASCADE,
   user_id UUID NOT NULL,
@@ -34,7 +34,7 @@ CREATE TABLE public.video_room_participants (
 );
 
 -- Create video_call_notes for in-call clinical notes
-CREATE TABLE public.video_call_notes (
+CREATE TABLE IF NOT EXISTS public.video_call_notes (
   id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   room_id UUID NOT NULL REFERENCES public.video_rooms(id) ON DELETE CASCADE,
   clinician_user_id UUID NOT NULL,
@@ -49,7 +49,7 @@ CREATE TABLE public.video_call_notes (
 );
 
 -- Create post_call_summaries for patient-facing summaries
-CREATE TABLE public.post_call_summaries (
+CREATE TABLE IF NOT EXISTS public.post_call_summaries (
   id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   room_id UUID NOT NULL REFERENCES public.video_rooms(id) ON DELETE CASCADE,
   patient_user_id UUID NOT NULL,
@@ -64,7 +64,7 @@ CREATE TABLE public.post_call_summaries (
 );
 
 -- Create waiting_room_queue for queue management
-CREATE TABLE public.waiting_room_queue (
+CREATE TABLE IF NOT EXISTS public.waiting_room_queue (
   id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   clinician_user_id UUID NOT NULL,
   patient_user_id UUID NOT NULL,
@@ -91,22 +91,28 @@ ALTER TABLE public.post_call_summaries ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.waiting_room_queue ENABLE ROW LEVEL SECURITY;
 
 -- RLS for video_rooms
+DROP POLICY IF EXISTS "Clinicians can view their video rooms" ON public.video_rooms;
 CREATE POLICY "Clinicians can view their video rooms" ON public.video_rooms
   FOR SELECT USING (auth.uid() = clinician_user_id);
 
+DROP POLICY IF EXISTS "Patients can view their video rooms" ON public.video_rooms;
 CREATE POLICY "Patients can view their video rooms" ON public.video_rooms
   FOR SELECT USING (auth.uid() = patient_user_id);
 
+DROP POLICY IF EXISTS "Clinicians can create video rooms" ON public.video_rooms;
 CREATE POLICY "Clinicians can create video rooms" ON public.video_rooms
   FOR INSERT WITH CHECK (auth.uid() = clinician_user_id AND is_clinician(auth.uid()));
 
+DROP POLICY IF EXISTS "Clinicians can update their video rooms" ON public.video_rooms;
 CREATE POLICY "Clinicians can update their video rooms" ON public.video_rooms
   FOR UPDATE USING (auth.uid() = clinician_user_id);
 
+DROP POLICY IF EXISTS "Admins can view all video rooms" ON public.video_rooms;
 CREATE POLICY "Admins can view all video rooms" ON public.video_rooms
   FOR SELECT USING (is_admin(auth.uid()));
 
 -- RLS for video_room_participants
+DROP POLICY IF EXISTS "Room participants can view participants" ON public.video_room_participants;
 CREATE POLICY "Room participants can view participants" ON public.video_room_participants
   FOR SELECT USING (
     EXISTS (
@@ -116,12 +122,15 @@ CREATE POLICY "Room participants can view participants" ON public.video_room_par
     )
   );
 
+DROP POLICY IF EXISTS "Users can insert themselves as participants" ON public.video_room_participants;
 CREATE POLICY "Users can insert themselves as participants" ON public.video_room_participants
   FOR INSERT WITH CHECK (user_id = auth.uid());
 
+DROP POLICY IF EXISTS "Users can update own participation" ON public.video_room_participants;
 CREATE POLICY "Users can update own participation" ON public.video_room_participants
   FOR UPDATE USING (user_id = auth.uid());
 
+DROP POLICY IF EXISTS "Clinicians can update participant status" ON public.video_room_participants;
 CREATE POLICY "Clinicians can update participant status" ON public.video_room_participants
   FOR UPDATE USING (
     EXISTS (
@@ -131,26 +140,33 @@ CREATE POLICY "Clinicians can update participant status" ON public.video_room_pa
   );
 
 -- RLS for video_call_notes
+DROP POLICY IF EXISTS "Clinicians can manage their call notes" ON public.video_call_notes;
 CREATE POLICY "Clinicians can manage their call notes" ON public.video_call_notes
   FOR ALL USING (auth.uid() = clinician_user_id);
 
+DROP POLICY IF EXISTS "Patients can view finalized notes" ON public.video_call_notes;
 CREATE POLICY "Patients can view finalized notes" ON public.video_call_notes
   FOR SELECT USING (auth.uid() = patient_user_id AND is_draft = false);
 
 -- RLS for post_call_summaries
+DROP POLICY IF EXISTS "Clinicians can manage summaries" ON public.post_call_summaries;
 CREATE POLICY "Clinicians can manage summaries" ON public.post_call_summaries
   FOR ALL USING (auth.uid() = clinician_user_id);
 
+DROP POLICY IF EXISTS "Patients can view their summaries" ON public.post_call_summaries;
 CREATE POLICY "Patients can view their summaries" ON public.post_call_summaries
   FOR SELECT USING (auth.uid() = patient_user_id);
 
 -- RLS for waiting_room_queue
+DROP POLICY IF EXISTS "Clinicians can manage their queue" ON public.waiting_room_queue;
 CREATE POLICY "Clinicians can manage their queue" ON public.waiting_room_queue
   FOR ALL USING (auth.uid() = clinician_user_id);
 
+DROP POLICY IF EXISTS "Patients can view their queue position" ON public.waiting_room_queue;
 CREATE POLICY "Patients can view their queue position" ON public.waiting_room_queue
   FOR SELECT USING (auth.uid() = patient_user_id);
 
+DROP POLICY IF EXISTS "Patients can join queue" ON public.waiting_room_queue;
 CREATE POLICY "Patients can join queue" ON public.waiting_room_queue
   FOR INSERT WITH CHECK (auth.uid() = patient_user_id);
 
@@ -160,10 +176,12 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.waiting_room_queue;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.video_room_participants;
 
 -- Create trigger for updated_at
+DROP TRIGGER IF EXISTS update_video_rooms_updated_at ON public.video_rooms;
 CREATE TRIGGER update_video_rooms_updated_at
   BEFORE UPDATE ON public.video_rooms
   FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_video_call_notes_updated_at ON public.video_call_notes;
 CREATE TRIGGER update_video_call_notes_updated_at
   BEFORE UPDATE ON public.video_call_notes
   FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();

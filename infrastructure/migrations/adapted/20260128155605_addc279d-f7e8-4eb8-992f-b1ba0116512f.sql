@@ -66,12 +66,14 @@ $$;
 -- Recreate policies using security definer functions that don't cause recursion
 
 -- Users can view their own membership
+DROP POLICY IF EXISTS "Users can view own membership" ON public.organization_members;
 CREATE POLICY "Users can view own membership"
 ON public.organization_members
 FOR SELECT
 USING (user_id = auth.uid());
 
 -- Users can view other members in their org (using security definer function)
+DROP POLICY IF EXISTS "Members can view org members" ON public.organization_members;
 CREATE POLICY "Members can view org members"
 ON public.organization_members
 FOR SELECT
@@ -80,6 +82,7 @@ USING (
 );
 
 -- Org admins/owners can manage members
+DROP POLICY IF EXISTS "Org admins can manage members" ON public.organization_members;
 CREATE POLICY "Org admins can manage members"
 ON public.organization_members
 FOR ALL
@@ -88,6 +91,7 @@ USING (
 );
 
 -- Managers can manage members in their org
+DROP POLICY IF EXISTS "Managers can manage org members" ON public.organization_members;
 CREATE POLICY "Managers can manage org members"
 ON public.organization_members
 FOR ALL
@@ -102,6 +106,7 @@ DROP POLICY IF EXISTS "Managers can view own organization" ON public.organizatio
 DROP POLICY IF EXISTS "Managers can update own organization" ON public.organizations;
 
 -- Members can view their organization
+DROP POLICY IF EXISTS "Members can view their organization" ON public.organizations;
 CREATE POLICY "Members can view their organization"
 ON public.organizations
 FOR SELECT
@@ -110,6 +115,7 @@ USING (
 );
 
 -- Org owners can update their organization
+DROP POLICY IF EXISTS "Org owners can update their organization" ON public.organizations;
 CREATE POLICY "Org owners can update their organization"
 ON public.organizations
 FOR UPDATE
@@ -118,6 +124,7 @@ USING (
 );
 
 -- Managers can view and update their organization
+DROP POLICY IF EXISTS "Managers can view own organization" ON public.organizations;
 CREATE POLICY "Managers can view own organization"
 ON public.organizations
 FOR SELECT
@@ -125,6 +132,7 @@ USING (
   public.is_manager_for_org(auth.uid(), id)
 );
 
+DROP POLICY IF EXISTS "Managers can update own organization" ON public.organizations;
 CREATE POLICY "Managers can update own organization"
 ON public.organizations
 FOR UPDATE
@@ -139,6 +147,7 @@ DROP POLICY IF EXISTS "Members can view org branding" ON public.organization_bra
 DROP POLICY IF EXISTS "Org admins can manage branding" ON public.organization_branding;
 
 -- Members can view their org's branding
+DROP POLICY IF EXISTS "Members can view org branding" ON public.organization_branding;
 CREATE POLICY "Members can view org branding"
 ON public.organization_branding
 FOR SELECT
@@ -147,6 +156,7 @@ USING (
 );
 
 -- Org admins can manage branding
+DROP POLICY IF EXISTS "Org admins can manage branding" ON public.organization_branding;
 CREATE POLICY "Org admins can manage branding"
 ON public.organization_branding
 FOR ALL
@@ -155,6 +165,7 @@ USING (
 );
 
 -- Managers can view and update branding
+DROP POLICY IF EXISTS "Managers can view org branding" ON public.organization_branding;
 CREATE POLICY "Managers can view org branding"
 ON public.organization_branding
 FOR SELECT
@@ -162,6 +173,7 @@ USING (
   public.is_manager_for_org(auth.uid(), organization_id)
 );
 
+DROP POLICY IF EXISTS "Managers can update org branding" ON public.organization_branding;
 CREATE POLICY "Managers can update org branding"
 ON public.organization_branding
 FOR UPDATE

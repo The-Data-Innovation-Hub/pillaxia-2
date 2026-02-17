@@ -3,15 +3,23 @@
 -- ==========================================
 
 -- Create organization status enum
-CREATE TYPE public.organization_status AS ENUM ('active', 'suspended', 'trial', 'cancelled');
+DO $$ BEGIN
+  CREATE TYPE public.organization_status AS ENUM ('active', 'suspended', 'trial', 'cancelled');
+EXCEPTION
+  WHEN duplicate_object THEN null;
+END $$;
 
 -- Create organization role enum for org-level permissions
-CREATE TYPE public.organization_role AS ENUM ('owner', 'admin', 'member');
+DO $$ BEGIN
+  CREATE TYPE public.organization_role AS ENUM ('owner', 'admin', 'member');
+EXCEPTION
+  WHEN duplicate_object THEN null;
+END $$;
 
 -- ==========================================
 -- ORGANIZATIONS TABLE
 -- ==========================================
-CREATE TABLE public.organizations (
+CREATE TABLE IF NOT EXISTS public.organizations (
   id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   name TEXT NOT NULL,
   slug TEXT NOT NULL UNIQUE, -- URL-friendly identifier (e.g., "lagos-general-hospital")
@@ -35,7 +43,7 @@ ALTER TABLE public.organizations ENABLE ROW LEVEL SECURITY;
 -- ==========================================
 -- ORGANIZATION BRANDING TABLE (White-labeling)
 -- ==========================================
-CREATE TABLE public.organization_branding (
+CREATE TABLE IF NOT EXISTS public.organization_branding (
   id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   organization_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE UNIQUE,
   
@@ -74,7 +82,7 @@ ALTER TABLE public.organization_branding ENABLE ROW LEVEL SECURITY;
 -- ==========================================
 -- ORGANIZATION MEMBERS TABLE (linking users to orgs)
 -- ==========================================
-CREATE TABLE public.organization_members (
+CREATE TABLE IF NOT EXISTS public.organization_members (
   id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   organization_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
   user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
@@ -185,6 +193,7 @@ $$;
 -- ==========================================
 
 -- Users can view their own organization
+DROP POLICY IF EXISTS "Members can view their organization" ON public.organizations;
 CREATE POLICY "Members can view their organization"
 ON public.organizations
 FOR SELECT
@@ -198,18 +207,21 @@ USING (
 );
 
 -- Platform admins can view all organizations
+DROP POLICY IF EXISTS "Platform admins can view all organizations" ON public.organizations;
 CREATE POLICY "Platform admins can view all organizations"
 ON public.organizations
 FOR SELECT
 USING (is_admin(auth.uid()));
 
 -- Platform admins can manage all organizations
+DROP POLICY IF EXISTS "Platform admins can manage organizations" ON public.organizations;
 CREATE POLICY "Platform admins can manage organizations"
 ON public.organizations
 FOR ALL
 USING (is_admin(auth.uid()));
 
 -- Org owners can update their organization
+DROP POLICY IF EXISTS "Org owners can update their organization" ON public.organizations;
 CREATE POLICY "Org owners can update their organization"
 ON public.organizations
 FOR UPDATE
@@ -228,12 +240,14 @@ USING (
 -- ==========================================
 
 -- Members can view their org's branding
+DROP POLICY IF EXISTS "Members can view org branding" ON public.organization_branding;
 CREATE POLICY "Members can view org branding"
 ON public.organization_branding
 FOR SELECT
 USING (can_access_organization(auth.uid(), organization_id));
 
 -- Org admins can update branding
+DROP POLICY IF EXISTS "Org admins can manage branding" ON public.organization_branding;
 CREATE POLICY "Org admins can manage branding"
 ON public.organization_branding
 FOR ALL
@@ -248,6 +262,7 @@ USING (
 );
 
 -- Platform admins can manage all branding
+DROP POLICY IF EXISTS "Platform admins can manage all branding" ON public.organization_branding;
 CREATE POLICY "Platform admins can manage all branding"
 ON public.organization_branding
 FOR ALL
@@ -258,6 +273,7 @@ USING (is_admin(auth.uid()));
 -- ==========================================
 
 -- Members can view other members in their org
+DROP POLICY IF EXISTS "Members can view org members" ON public.organization_members;
 CREATE POLICY "Members can view org members"
 ON public.organization_members
 FOR SELECT
@@ -266,6 +282,7 @@ USING (
 );
 
 -- Org admins can manage members
+DROP POLICY IF EXISTS "Org admins can manage members" ON public.organization_members;
 CREATE POLICY "Org admins can manage members"
 ON public.organization_members
 FOR ALL
@@ -280,6 +297,7 @@ USING (
 );
 
 -- Platform admins can manage all members
+DROP POLICY IF EXISTS "Platform admins can manage all members" ON public.organization_members;
 CREATE POLICY "Platform admins can manage all members"
 ON public.organization_members
 FOR ALL
@@ -289,16 +307,19 @@ USING (is_admin(auth.uid()));
 -- TRIGGERS FOR UPDATED_AT
 -- ==========================================
 
+DROP TRIGGER IF EXISTS update_organizations_updated_at ON public.organizations;
 CREATE TRIGGER update_organizations_updated_at
 BEFORE UPDATE ON public.organizations
 FOR EACH ROW
 EXECUTE FUNCTION public.update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_organization_branding_updated_at ON public.organization_branding;
 CREATE TRIGGER update_organization_branding_updated_at
 BEFORE UPDATE ON public.organization_branding
 FOR EACH ROW
 EXECUTE FUNCTION public.update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_organization_members_updated_at ON public.organization_members;
 CREATE TRIGGER update_organization_members_updated_at
 BEFORE UPDATE ON public.organization_members
 FOR EACH ROW
@@ -312,7 +333,7 @@ ALTER TABLE public.profiles
 ADD COLUMN organization_id UUID REFERENCES public.organizations(id) ON DELETE SET NULL;
 
 -- Create index for efficient queries
-CREATE INDEX idx_profiles_organization_id ON public.profiles(organization_id);
-CREATE INDEX idx_organization_members_user_id ON public.organization_members(user_id);
-CREATE INDEX idx_organization_members_organization_id ON public.organization_members(organization_id);
-CREATE INDEX idx_organizations_slug ON public.organizations(slug);
+CREATE INDEX IF NOT EXISTS idx_profiles_organization_id ON public.profiles(organization_id);
+CREATE INDEX IF NOT EXISTS idx_organization_members_user_id ON public.organization_members(user_id);
+CREATE INDEX IF NOT EXISTS idx_organization_members_organization_id ON public.organization_members(organization_id);
+CREATE INDEX IF NOT EXISTS idx_organizations_slug ON public.organizations(slug);

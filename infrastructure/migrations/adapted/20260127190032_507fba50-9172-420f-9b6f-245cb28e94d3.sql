@@ -1,8 +1,12 @@
 -- Create controlled drug schedule enum
-CREATE TYPE public.drug_schedule AS ENUM ('II', 'III', 'IV', 'V');
+DO $$ BEGIN
+  CREATE TYPE public.drug_schedule AS ENUM ('II', 'III', 'IV', 'V');
+EXCEPTION
+  WHEN duplicate_object THEN null;
+END $$;
 
 -- Create controlled drugs inventory table
-CREATE TABLE public.controlled_drugs (
+CREATE TABLE IF NOT EXISTS public.controlled_drugs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name TEXT NOT NULL,
   generic_name TEXT,
@@ -23,7 +27,7 @@ CREATE TABLE public.controlled_drugs (
 );
 
 -- Create controlled drug dispensing records table
-CREATE TABLE public.controlled_drug_dispensing (
+CREATE TABLE IF NOT EXISTS public.controlled_drug_dispensing (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   controlled_drug_id UUID NOT NULL REFERENCES public.controlled_drugs(id) ON DELETE RESTRICT,
   patient_name TEXT NOT NULL,
@@ -42,7 +46,7 @@ CREATE TABLE public.controlled_drug_dispensing (
 );
 
 -- Create stock adjustment log for receiving/adjusting inventory
-CREATE TABLE public.controlled_drug_adjustments (
+CREATE TABLE IF NOT EXISTS public.controlled_drug_adjustments (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   controlled_drug_id UUID NOT NULL REFERENCES public.controlled_drugs(id) ON DELETE RESTRICT,
   adjustment_type TEXT NOT NULL CHECK (adjustment_type IN ('received', 'return', 'destroyed', 'loss', 'correction')),
@@ -63,32 +67,39 @@ ALTER TABLE public.controlled_drug_dispensing ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.controlled_drug_adjustments ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policies for controlled_drugs
+DROP POLICY IF EXISTS "Pharmacists can view all controlled drugs" ON public.controlled_drugs;
 CREATE POLICY "Pharmacists can view all controlled drugs"
   ON public.controlled_drugs FOR SELECT
   USING (is_pharmacist(auth.uid()) OR is_admin(auth.uid()));
 
+DROP POLICY IF EXISTS "Pharmacists can create controlled drugs" ON public.controlled_drugs;
 CREATE POLICY "Pharmacists can create controlled drugs"
   ON public.controlled_drugs FOR INSERT
   WITH CHECK (is_pharmacist(auth.uid()));
 
+DROP POLICY IF EXISTS "Pharmacists can update controlled drugs" ON public.controlled_drugs;
 CREATE POLICY "Pharmacists can update controlled drugs"
   ON public.controlled_drugs FOR UPDATE
   USING (is_pharmacist(auth.uid()));
 
 -- RLS Policies for controlled_drug_dispensing
+DROP POLICY IF EXISTS "Pharmacists can view all dispensing records" ON public.controlled_drug_dispensing;
 CREATE POLICY "Pharmacists can view all dispensing records"
   ON public.controlled_drug_dispensing FOR SELECT
   USING (is_pharmacist(auth.uid()) OR is_admin(auth.uid()));
 
+DROP POLICY IF EXISTS "Pharmacists can create dispensing records" ON public.controlled_drug_dispensing;
 CREATE POLICY "Pharmacists can create dispensing records"
   ON public.controlled_drug_dispensing FOR INSERT
   WITH CHECK (is_pharmacist(auth.uid()) AND auth.uid() = dispensing_pharmacist_id);
 
 -- RLS Policies for controlled_drug_adjustments
+DROP POLICY IF EXISTS "Pharmacists can view all adjustments" ON public.controlled_drug_adjustments;
 CREATE POLICY "Pharmacists can view all adjustments"
   ON public.controlled_drug_adjustments FOR SELECT
   USING (is_pharmacist(auth.uid()) OR is_admin(auth.uid()));
 
+DROP POLICY IF EXISTS "Pharmacists can create adjustments" ON public.controlled_drug_adjustments;
 CREATE POLICY "Pharmacists can create adjustments"
   ON public.controlled_drug_adjustments FOR INSERT
   WITH CHECK (is_pharmacist(auth.uid()) AND auth.uid() = performed_by);
@@ -109,6 +120,7 @@ BEGIN
 END;
 $$;
 
+DROP TRIGGER IF EXISTS trigger_update_stock_on_dispense ON public.controlled_drug_dispensing;
 CREATE TRIGGER trigger_update_stock_on_dispense
   AFTER INSERT ON public.controlled_drug_dispensing
   FOR EACH ROW
@@ -130,26 +142,31 @@ BEGIN
 END;
 $$;
 
+DROP TRIGGER IF EXISTS trigger_update_stock_on_adjustment ON public.controlled_drug_adjustments;
 CREATE TRIGGER trigger_update_stock_on_adjustment
   AFTER INSERT ON public.controlled_drug_adjustments
   FOR EACH ROW
   EXECUTE FUNCTION public.update_controlled_drug_stock_on_adjustment();
 
 -- Create trigger for updated_at on controlled_drugs
+DROP TRIGGER IF EXISTS update_controlled_drugs_updated_at ON public.controlled_drugs;
 CREATE TRIGGER update_controlled_drugs_updated_at
   BEFORE UPDATE ON public.controlled_drugs
   FOR EACH ROW
   EXECUTE FUNCTION public.update_updated_at_column();
 
 -- Add audit logging triggers
+DROP TRIGGER IF EXISTS audit_controlled_drugs ON public.controlled_drugs;
 CREATE TRIGGER audit_controlled_drugs
   AFTER INSERT OR UPDATE OR DELETE ON public.controlled_drugs
   FOR EACH ROW EXECUTE FUNCTION public.log_audit_event();
 
+DROP TRIGGER IF EXISTS audit_controlled_drug_dispensing ON public.controlled_drug_dispensing;
 CREATE TRIGGER audit_controlled_drug_dispensing
   AFTER INSERT ON public.controlled_drug_dispensing
   FOR EACH ROW EXECUTE FUNCTION public.log_audit_event();
 
+DROP TRIGGER IF EXISTS audit_controlled_drug_adjustments ON public.controlled_drug_adjustments;
 CREATE TRIGGER audit_controlled_drug_adjustments
   AFTER INSERT ON public.controlled_drug_adjustments
   FOR EACH ROW EXECUTE FUNCTION public.log_audit_event();

@@ -1,5 +1,5 @@
 -- Create table for tracking user login locations
-CREATE TABLE public.user_login_locations (
+CREATE TABLE IF NOT EXISTS public.user_login_locations (
   id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id UUID NOT NULL,
   ip_address TEXT NOT NULL,
@@ -21,24 +21,28 @@ CREATE TABLE public.user_login_locations (
 ALTER TABLE public.user_login_locations ENABLE ROW LEVEL SECURITY;
 
 -- Users can view their own login locations
+DROP POLICY IF EXISTS "Users can view own login locations" ON public.user_login_locations;
 CREATE POLICY "Users can view own login locations"
 ON public.user_login_locations
 FOR SELECT
 USING (auth.uid() = user_id);
 
 -- System can insert login locations (via edge function with service role)
+DROP POLICY IF EXISTS "System can insert login locations" ON public.user_login_locations;
 CREATE POLICY "System can insert login locations"
 ON public.user_login_locations
 FOR INSERT
 WITH CHECK (true);
 
 -- Users can update their own locations (mark as trusted)
+DROP POLICY IF EXISTS "Users can update own login locations" ON public.user_login_locations;
 CREATE POLICY "Users can update own login locations"
 ON public.user_login_locations
 FOR UPDATE
 USING (auth.uid() = user_id);
 
 -- Admins can view all login locations
+DROP POLICY IF EXISTS "Admins can view all login locations" ON public.user_login_locations;
 CREATE POLICY "Admins can view all login locations"
 ON public.user_login_locations
 FOR SELECT
@@ -48,5 +52,5 @@ USING (is_admin(auth.uid()));
 ALTER TYPE public.security_event_type ADD VALUE IF NOT EXISTS 'new_login_location';
 
 -- Create index for faster lookups
-CREATE INDEX idx_user_login_locations_user_id ON public.user_login_locations(user_id);
-CREATE INDEX idx_user_login_locations_created_at ON public.user_login_locations(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_user_login_locations_user_id ON public.user_login_locations(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_login_locations_created_at ON public.user_login_locations(created_at DESC);

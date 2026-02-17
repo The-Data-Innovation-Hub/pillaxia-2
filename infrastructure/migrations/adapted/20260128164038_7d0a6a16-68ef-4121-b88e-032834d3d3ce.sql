@@ -1,8 +1,12 @@
 -- Create enum for subscription status
-CREATE TYPE public.subscription_status AS ENUM ('active', 'trialing', 'past_due', 'canceled', 'incomplete', 'incomplete_expired', 'unpaid', 'paused');
+DO $$ BEGIN
+  CREATE TYPE public.subscription_status AS ENUM ('active', 'trialing', 'past_due', 'canceled', 'incomplete', 'incomplete_expired', 'unpaid', 'paused');
+EXCEPTION
+  WHEN duplicate_object THEN null;
+END $$;
 
 -- Organization subscriptions table
-CREATE TABLE public.organization_subscriptions (
+CREATE TABLE IF NOT EXISTS public.organization_subscriptions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   organization_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
   stripe_customer_id TEXT,
@@ -25,7 +29,7 @@ CREATE TABLE public.organization_subscriptions (
 );
 
 -- Organization invoices table
-CREATE TABLE public.organization_invoices (
+CREATE TABLE IF NOT EXISTS public.organization_invoices (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   organization_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
   stripe_invoice_id TEXT UNIQUE,
@@ -46,7 +50,7 @@ CREATE TABLE public.organization_invoices (
 );
 
 -- Payment methods table
-CREATE TABLE public.organization_payment_methods (
+CREATE TABLE IF NOT EXISTS public.organization_payment_methods (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   organization_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
   stripe_payment_method_id TEXT UNIQUE,
@@ -61,7 +65,7 @@ CREATE TABLE public.organization_payment_methods (
 );
 
 -- Billing history/events table
-CREATE TABLE public.billing_events (
+CREATE TABLE IF NOT EXISTS public.billing_events (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   organization_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
   event_type TEXT NOT NULL,
@@ -80,6 +84,7 @@ ALTER TABLE public.organization_payment_methods ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.billing_events ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policies for organization_subscriptions
+DROP POLICY IF EXISTS "Org admins can view their subscription" ON public.organization_subscriptions;
 CREATE POLICY "Org admins can view their subscription"
   ON public.organization_subscriptions
   FOR SELECT
@@ -89,12 +94,14 @@ CREATE POLICY "Org admins can view their subscription"
     public.is_manager_for_org(auth.uid(), organization_id)
   );
 
+DROP POLICY IF EXISTS "Only platform admins can modify subscriptions" ON public.organization_subscriptions;
 CREATE POLICY "Only platform admins can modify subscriptions"
   ON public.organization_subscriptions
   FOR ALL
   USING (public.is_admin(auth.uid()));
 
 -- RLS Policies for organization_invoices
+DROP POLICY IF EXISTS "Org admins can view their invoices" ON public.organization_invoices;
 CREATE POLICY "Org admins can view their invoices"
   ON public.organization_invoices
   FOR SELECT
@@ -104,12 +111,14 @@ CREATE POLICY "Org admins can view their invoices"
     public.is_manager_for_org(auth.uid(), organization_id)
   );
 
+DROP POLICY IF EXISTS "Only platform admins can modify invoices" ON public.organization_invoices;
 CREATE POLICY "Only platform admins can modify invoices"
   ON public.organization_invoices
   FOR ALL
   USING (public.is_admin(auth.uid()));
 
 -- RLS Policies for organization_payment_methods
+DROP POLICY IF EXISTS "Org admins can view their payment methods" ON public.organization_payment_methods;
 CREATE POLICY "Org admins can view their payment methods"
   ON public.organization_payment_methods
   FOR SELECT
@@ -118,12 +127,14 @@ CREATE POLICY "Org admins can view their payment methods"
     public.is_org_admin_for(auth.uid(), organization_id)
   );
 
+DROP POLICY IF EXISTS "Only platform admins can modify payment methods" ON public.organization_payment_methods;
 CREATE POLICY "Only platform admins can modify payment methods"
   ON public.organization_payment_methods
   FOR ALL
   USING (public.is_admin(auth.uid()));
 
 -- RLS Policies for billing_events
+DROP POLICY IF EXISTS "Org admins can view their billing events" ON public.billing_events;
 CREATE POLICY "Org admins can view their billing events"
   ON public.billing_events
   FOR SELECT
@@ -133,26 +144,30 @@ CREATE POLICY "Org admins can view their billing events"
     public.is_manager_for_org(auth.uid(), organization_id)
   );
 
+DROP POLICY IF EXISTS "Only platform admins can create billing events" ON public.billing_events;
 CREATE POLICY "Only platform admins can create billing events"
   ON public.billing_events
   FOR INSERT
   WITH CHECK (public.is_admin(auth.uid()));
 
 -- Create indexes
-CREATE INDEX idx_org_subscriptions_org_id ON public.organization_subscriptions(organization_id);
-CREATE INDEX idx_org_subscriptions_stripe_sub ON public.organization_subscriptions(stripe_subscription_id);
-CREATE INDEX idx_org_invoices_org_id ON public.organization_invoices(organization_id);
-CREATE INDEX idx_billing_events_org_id ON public.billing_events(organization_id);
+CREATE INDEX IF NOT EXISTS idx_org_subscriptions_org_id ON public.organization_subscriptions(organization_id);
+CREATE INDEX IF NOT EXISTS idx_org_subscriptions_stripe_sub ON public.organization_subscriptions(stripe_subscription_id);
+CREATE INDEX IF NOT EXISTS idx_org_invoices_org_id ON public.organization_invoices(organization_id);
+CREATE INDEX IF NOT EXISTS idx_billing_events_org_id ON public.billing_events(organization_id);
 
 -- Add trigger for updated_at
+DROP TRIGGER IF EXISTS update_org_subscriptions_updated_at ON public.organization_subscriptions;
 CREATE TRIGGER update_org_subscriptions_updated_at
   BEFORE UPDATE ON public.organization_subscriptions
   FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_org_invoices_updated_at ON public.organization_invoices;
 CREATE TRIGGER update_org_invoices_updated_at
   BEFORE UPDATE ON public.organization_invoices
   FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_org_payment_methods_updated_at ON public.organization_payment_methods;
 CREATE TRIGGER update_org_payment_methods_updated_at
   BEFORE UPDATE ON public.organization_payment_methods
   FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();

@@ -16,8 +16,8 @@ ALTER TABLE public.medications
   ADD COLUMN IF NOT EXISTS pharmacy_id UUID REFERENCES public.pharmacy_locations(id) ON DELETE SET NULL;
 
 -- Add indexes for performance
-CREATE INDEX IF NOT EXISTS idx_medications_prescriber_user_id ON public.medications(prescriber_user_id);
-CREATE INDEX IF NOT EXISTS idx_medications_pharmacy_id ON public.medications(pharmacy_id);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_medications_prescriber_user_id ON public.medications(prescriber_user_id);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_medications_pharmacy_id ON public.medications(pharmacy_id);
 
 -- ============================================================
 -- Step 2: Create function to migrate existing TEXT data to FKs

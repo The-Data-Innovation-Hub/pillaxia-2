@@ -1,5 +1,5 @@
 -- Create SOAP notes table for clinician documentation
-CREATE TABLE public.soap_notes (
+CREATE TABLE IF NOT EXISTS public.soap_notes (
   id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   clinician_user_id UUID NOT NULL,
   patient_user_id UUID NOT NULL,
@@ -16,10 +16,12 @@ CREATE TABLE public.soap_notes (
 ALTER TABLE public.soap_notes ENABLE ROW LEVEL SECURITY;
 
 -- Create policies for SOAP notes
+DROP POLICY IF EXISTS "Clinicians can view their own notes" ON public.soap_notes;
 CREATE POLICY "Clinicians can view their own notes"
   ON public.soap_notes FOR SELECT
   USING (auth.uid() = clinician_user_id);
 
+DROP POLICY IF EXISTS "Clinicians can create notes for assigned patients" ON public.soap_notes;
 CREATE POLICY "Clinicians can create notes for assigned patients"
   ON public.soap_notes FOR INSERT
   WITH CHECK (
@@ -27,17 +29,19 @@ CREATE POLICY "Clinicians can create notes for assigned patients"
     is_clinician_assigned(patient_user_id, auth.uid())
   );
 
+DROP POLICY IF EXISTS "Clinicians can update their own notes" ON public.soap_notes;
 CREATE POLICY "Clinicians can update their own notes"
   ON public.soap_notes FOR UPDATE
   USING (auth.uid() = clinician_user_id)
   WITH CHECK (auth.uid() = clinician_user_id);
 
+DROP POLICY IF EXISTS "Clinicians can delete their own notes" ON public.soap_notes;
 CREATE POLICY "Clinicians can delete their own notes"
   ON public.soap_notes FOR DELETE
   USING (auth.uid() = clinician_user_id);
 
 -- Create red flag alerts table
-CREATE TABLE public.red_flag_alerts (
+CREATE TABLE IF NOT EXISTS public.red_flag_alerts (
   id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   patient_user_id UUID NOT NULL,
   clinician_user_id UUID NOT NULL,
@@ -56,6 +60,7 @@ CREATE TABLE public.red_flag_alerts (
 ALTER TABLE public.red_flag_alerts ENABLE ROW LEVEL SECURITY;
 
 -- Policies for red flag alerts
+DROP POLICY IF EXISTS "Clinicians can view alerts for their patients" ON public.red_flag_alerts;
 CREATE POLICY "Clinicians can view alerts for their patients"
   ON public.red_flag_alerts FOR SELECT
   USING (
@@ -63,10 +68,12 @@ CREATE POLICY "Clinicians can view alerts for their patients"
     is_clinician_assigned(patient_user_id, auth.uid())
   );
 
+DROP POLICY IF EXISTS "Patients can view their own alerts" ON public.red_flag_alerts;
 CREATE POLICY "Patients can view their own alerts"
   ON public.red_flag_alerts FOR SELECT
   USING (auth.uid() = patient_user_id);
 
+DROP POLICY IF EXISTS "Clinicians can update alerts they can see" ON public.red_flag_alerts;
 CREATE POLICY "Clinicians can update alerts they can see"
   ON public.red_flag_alerts FOR UPDATE
   USING (
@@ -75,7 +82,7 @@ CREATE POLICY "Clinicians can update alerts they can see"
   );
 
 -- Create polypharmacy warnings table
-CREATE TABLE public.polypharmacy_warnings (
+CREATE TABLE IF NOT EXISTS public.polypharmacy_warnings (
   id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   patient_user_id UUID NOT NULL,
   medication_count INTEGER NOT NULL,
@@ -90,25 +97,30 @@ CREATE TABLE public.polypharmacy_warnings (
 ALTER TABLE public.polypharmacy_warnings ENABLE ROW LEVEL SECURITY;
 
 -- Policies for polypharmacy warnings
+DROP POLICY IF EXISTS "Clinicians can view polypharmacy warnings for assigned patients" ON public.polypharmacy_warnings;
 CREATE POLICY "Clinicians can view polypharmacy warnings for assigned patients"
   ON public.polypharmacy_warnings FOR SELECT
   USING (is_clinician_assigned(patient_user_id, auth.uid()));
 
+DROP POLICY IF EXISTS "Clinicians can update polypharmacy warnings" ON public.polypharmacy_warnings;
 CREATE POLICY "Clinicians can update polypharmacy warnings"
   ON public.polypharmacy_warnings FOR UPDATE
   USING (is_clinician_assigned(patient_user_id, auth.uid()));
 
+DROP POLICY IF EXISTS "Admins can view all polypharmacy warnings" ON public.polypharmacy_warnings;
 CREATE POLICY "Admins can view all polypharmacy warnings"
   ON public.polypharmacy_warnings FOR SELECT
   USING (is_admin(auth.uid()));
 
 -- Add trigger for updated_at on SOAP notes
+DROP TRIGGER IF EXISTS update_soap_notes_updated_at ON public.soap_notes;
 CREATE TRIGGER update_soap_notes_updated_at
   BEFORE UPDATE ON public.soap_notes
   FOR EACH ROW
   EXECUTE FUNCTION public.update_updated_at_column();
 
 -- Add trigger for updated_at on polypharmacy warnings  
+DROP TRIGGER IF EXISTS update_polypharmacy_warnings_updated_at ON public.polypharmacy_warnings;
 CREATE TRIGGER update_polypharmacy_warnings_updated_at
   BEFORE UPDATE ON public.polypharmacy_warnings
   FOR EACH ROW

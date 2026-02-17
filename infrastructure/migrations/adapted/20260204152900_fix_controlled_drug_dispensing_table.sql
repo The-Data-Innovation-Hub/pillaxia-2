@@ -20,9 +20,9 @@ ALTER TABLE public.controlled_drug_dispensing
   ADD COLUMN IF NOT EXISTS prescription_id UUID REFERENCES public.prescriptions(id) ON DELETE SET NULL;
 
 -- Add indexes for performance
-CREATE INDEX IF NOT EXISTS idx_controlled_drug_dispensing_patient_user_id ON public.controlled_drug_dispensing(patient_user_id);
-CREATE INDEX IF NOT EXISTS idx_controlled_drug_dispensing_prescriber_user_id ON public.controlled_drug_dispensing(prescriber_user_id);
-CREATE INDEX IF NOT EXISTS idx_controlled_drug_dispensing_prescription_id ON public.controlled_drug_dispensing(prescription_id);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_controlled_drug_dispensing_patient_user_id ON public.controlled_drug_dispensing(patient_user_id);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_controlled_drug_dispensing_prescriber_user_id ON public.controlled_drug_dispensing(prescriber_user_id);
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_controlled_drug_dispensing_prescription_id ON public.controlled_drug_dispensing(prescription_id);
 
 -- ============================================================
 -- Step 2: Create function to migrate existing TEXT data to FKs

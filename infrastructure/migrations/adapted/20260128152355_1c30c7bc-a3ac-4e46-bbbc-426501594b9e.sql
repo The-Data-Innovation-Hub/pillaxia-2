@@ -1,5 +1,5 @@
 -- Create trusted devices table
-CREATE TABLE public.trusted_devices (
+CREATE TABLE IF NOT EXISTS public.trusted_devices (
   id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id UUID NOT NULL,
   device_token_hash TEXT NOT NULL,
@@ -16,30 +16,34 @@ CREATE TABLE public.trusted_devices (
 );
 
 -- Create unique index on device token hash per user
-CREATE UNIQUE INDEX idx_trusted_devices_token ON public.trusted_devices (user_id, device_token_hash) WHERE is_active = true;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_trusted_devices_token ON public.trusted_devices (user_id, device_token_hash) WHERE is_active = true;
 
 -- Enable RLS
 ALTER TABLE public.trusted_devices ENABLE ROW LEVEL SECURITY;
 
 -- Users can view their own trusted devices
+DROP POLICY IF EXISTS "Users can view own trusted devices" ON public.trusted_devices;
 CREATE POLICY "Users can view own trusted devices"
 ON public.trusted_devices
 FOR SELECT
 USING (auth.uid() = user_id);
 
 -- Users can insert their own trusted devices
+DROP POLICY IF EXISTS "Users can insert own trusted devices" ON public.trusted_devices;
 CREATE POLICY "Users can insert own trusted devices"
 ON public.trusted_devices
 FOR INSERT
 WITH CHECK (auth.uid() = user_id);
 
 -- Users can update (revoke) their own trusted devices
+DROP POLICY IF EXISTS "Users can update own trusted devices" ON public.trusted_devices;
 CREATE POLICY "Users can update own trusted devices"
 ON public.trusted_devices
 FOR UPDATE
 USING (auth.uid() = user_id);
 
 -- Users can delete their own trusted devices
+DROP POLICY IF EXISTS "Users can delete own trusted devices" ON public.trusted_devices;
 CREATE POLICY "Users can delete own trusted devices"
 ON public.trusted_devices
 FOR DELETE

@@ -1,7 +1,7 @@
 -- Patient Health Profile Tables
 
 -- Chronic conditions table
-CREATE TABLE public.patient_chronic_conditions (
+CREATE TABLE IF NOT EXISTS public.patient_chronic_conditions (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id uuid NOT NULL,
   condition_name text NOT NULL,
@@ -13,7 +13,7 @@ CREATE TABLE public.patient_chronic_conditions (
 );
 
 -- Allergies table
-CREATE TABLE public.patient_allergies (
+CREATE TABLE IF NOT EXISTS public.patient_allergies (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id uuid NOT NULL,
   allergen text NOT NULL,
@@ -25,7 +25,7 @@ CREATE TABLE public.patient_allergies (
 );
 
 -- Emergency contacts table
-CREATE TABLE public.patient_emergency_contacts (
+CREATE TABLE IF NOT EXISTS public.patient_emergency_contacts (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id uuid NOT NULL,
   name text NOT NULL,
@@ -38,7 +38,7 @@ CREATE TABLE public.patient_emergency_contacts (
 );
 
 -- Drug interactions knowledge base
-CREATE TABLE public.drug_interactions (
+CREATE TABLE IF NOT EXISTS public.drug_interactions (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   drug_a text NOT NULL,
   drug_b text NOT NULL,
@@ -55,101 +55,124 @@ ALTER TABLE public.patient_emergency_contacts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.drug_interactions ENABLE ROW LEVEL SECURITY;
 
 -- RLS policies for chronic conditions
+DROP POLICY IF EXISTS "Users can view own chronic conditions" ON public.patient_chronic_conditions;
 CREATE POLICY "Users can view own chronic conditions"
 ON public.patient_chronic_conditions FOR SELECT
 USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can insert own chronic conditions" ON public.patient_chronic_conditions;
 CREATE POLICY "Users can insert own chronic conditions"
 ON public.patient_chronic_conditions FOR INSERT
 WITH CHECK (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can update own chronic conditions" ON public.patient_chronic_conditions;
 CREATE POLICY "Users can update own chronic conditions"
 ON public.patient_chronic_conditions FOR UPDATE
 USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can delete own chronic conditions" ON public.patient_chronic_conditions;
 CREATE POLICY "Users can delete own chronic conditions"
 ON public.patient_chronic_conditions FOR DELETE
 USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Clinicians can view assigned patient conditions" ON public.patient_chronic_conditions;
 CREATE POLICY "Clinicians can view assigned patient conditions"
 ON public.patient_chronic_conditions FOR SELECT
 USING (is_clinician_assigned(user_id, auth.uid()));
 
+DROP POLICY IF EXISTS "Caregivers can view patient conditions" ON public.patient_chronic_conditions;
 CREATE POLICY "Caregivers can view patient conditions"
 ON public.patient_chronic_conditions FOR SELECT
 USING (is_caregiver_for_patient(user_id, auth.uid()));
 
 -- RLS policies for allergies
+DROP POLICY IF EXISTS "Users can view own allergies" ON public.patient_allergies;
 CREATE POLICY "Users can view own allergies"
 ON public.patient_allergies FOR SELECT
 USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can insert own allergies" ON public.patient_allergies;
 CREATE POLICY "Users can insert own allergies"
 ON public.patient_allergies FOR INSERT
 WITH CHECK (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can update own allergies" ON public.patient_allergies;
 CREATE POLICY "Users can update own allergies"
 ON public.patient_allergies FOR UPDATE
 USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can delete own allergies" ON public.patient_allergies;
 CREATE POLICY "Users can delete own allergies"
 ON public.patient_allergies FOR DELETE
 USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Clinicians can view assigned patient allergies" ON public.patient_allergies;
 CREATE POLICY "Clinicians can view assigned patient allergies"
 ON public.patient_allergies FOR SELECT
 USING (is_clinician_assigned(user_id, auth.uid()));
 
+DROP POLICY IF EXISTS "Caregivers can view patient allergies" ON public.patient_allergies;
 CREATE POLICY "Caregivers can view patient allergies"
 ON public.patient_allergies FOR SELECT
 USING (is_caregiver_for_patient(user_id, auth.uid()));
 
 -- RLS policies for emergency contacts
+DROP POLICY IF EXISTS "Users can view own emergency contacts" ON public.patient_emergency_contacts;
 CREATE POLICY "Users can view own emergency contacts"
 ON public.patient_emergency_contacts FOR SELECT
 USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can insert own emergency contacts" ON public.patient_emergency_contacts;
 CREATE POLICY "Users can insert own emergency contacts"
 ON public.patient_emergency_contacts FOR INSERT
 WITH CHECK (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can update own emergency contacts" ON public.patient_emergency_contacts;
 CREATE POLICY "Users can update own emergency contacts"
 ON public.patient_emergency_contacts FOR UPDATE
 USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can delete own emergency contacts" ON public.patient_emergency_contacts;
 CREATE POLICY "Users can delete own emergency contacts"
 ON public.patient_emergency_contacts FOR DELETE
 USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Clinicians can view assigned patient emergency contacts" ON public.patient_emergency_contacts;
 CREATE POLICY "Clinicians can view assigned patient emergency contacts"
 ON public.patient_emergency_contacts FOR SELECT
 USING (is_clinician_assigned(user_id, auth.uid()));
 
+DROP POLICY IF EXISTS "Caregivers can view patient emergency contacts" ON public.patient_emergency_contacts;
 CREATE POLICY "Caregivers can view patient emergency contacts"
 ON public.patient_emergency_contacts FOR SELECT
 USING (is_caregiver_for_patient(user_id, auth.uid()));
 
 -- RLS policies for drug interactions (read-only for all authenticated users)
+DROP POLICY IF EXISTS "Anyone can view drug interactions" ON public.drug_interactions;
 CREATE POLICY "Anyone can view drug interactions"
 ON public.drug_interactions FOR SELECT
 TO authenticated
 USING (true);
 
+DROP POLICY IF EXISTS "Admins can manage drug interactions" ON public.drug_interactions;
 CREATE POLICY "Admins can manage drug interactions"
 ON public.drug_interactions FOR ALL
 USING (is_admin(auth.uid()));
 
 -- Timestamp triggers
+DROP TRIGGER IF EXISTS update_patient_chronic_conditions_updated_at ON public.patient_chronic_conditions;
 CREATE TRIGGER update_patient_chronic_conditions_updated_at
 BEFORE UPDATE ON public.patient_chronic_conditions
 FOR EACH ROW
 EXECUTE FUNCTION public.update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_patient_allergies_updated_at ON public.patient_allergies;
 CREATE TRIGGER update_patient_allergies_updated_at
 BEFORE UPDATE ON public.patient_allergies
 FOR EACH ROW
 EXECUTE FUNCTION public.update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_patient_emergency_contacts_updated_at ON public.patient_emergency_contacts;
 CREATE TRIGGER update_patient_emergency_contacts_updated_at
 BEFORE UPDATE ON public.patient_emergency_contacts
 FOR EACH ROW

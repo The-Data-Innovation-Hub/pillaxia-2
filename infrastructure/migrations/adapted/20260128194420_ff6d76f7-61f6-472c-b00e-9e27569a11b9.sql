@@ -11,6 +11,7 @@ DROP POLICY IF EXISTS "System can insert login attempts" ON public.login_attempt
 
 -- Add a policy that prevents all direct inserts (function uses SECURITY DEFINER to bypass)
 -- This ensures no authenticated user can directly insert records
+DROP POLICY IF EXISTS "No direct inserts allowed" ON public.login_attempts;
 CREATE POLICY "No direct inserts allowed"
   ON public.login_attempts FOR INSERT
   WITH CHECK (false);

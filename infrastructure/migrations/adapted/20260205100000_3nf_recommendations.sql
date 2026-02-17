@@ -23,7 +23,7 @@ ALTER TABLE public.medications
   ADD COLUMN IF NOT EXISTS medication_catalog_id UUID
     REFERENCES public.medication_catalog(id) ON DELETE SET NULL;
 
-CREATE INDEX IF NOT EXISTS idx_medications_catalog_id
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_medications_catalog_id
   ON public.medications(medication_catalog_id);
 
 -- Function to backfill medication_catalog_id from existing text columns
@@ -387,7 +387,7 @@ ALTER TABLE public.medication_availability_alerts
   ADD COLUMN IF NOT EXISTS medication_catalog_id UUID
     REFERENCES public.medication_catalog(id) ON DELETE SET NULL;
 
-CREATE INDEX IF NOT EXISTS idx_med_avail_alerts_catalog_id
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_med_avail_alerts_catalog_id
   ON public.medication_availability_alerts(medication_catalog_id);
 
 -- Trigger to auto-populate catalog FK on insert

@@ -5,7 +5,7 @@ ADD COLUMN lot_number text,
 ADD COLUMN expiry_alert_sent boolean NOT NULL DEFAULT false;
 
 -- Create index for expiry date queries
-CREATE INDEX idx_controlled_drugs_expiry ON public.controlled_drugs(expiry_date) WHERE expiry_date IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_controlled_drugs_expiry ON public.controlled_drugs(expiry_date) WHERE expiry_date IS NOT NULL;
 
 -- Comment for clarity
 COMMENT ON COLUMN public.controlled_drugs.expiry_date IS 'Medication expiry date for inventory tracking';

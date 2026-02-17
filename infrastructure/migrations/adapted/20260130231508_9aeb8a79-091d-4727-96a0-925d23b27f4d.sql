@@ -19,6 +19,7 @@ DROP POLICY IF EXISTS "Clinicians can view all patient profiles" ON public.profi
 DROP POLICY IF EXISTS "Authenticated users can view active pharmacies" ON public.pharmacy_locations;
 
 -- Create a more restrictive policy: patients can view active pharmacies for search purposes
+DROP POLICY IF EXISTS "Patients can view active pharmacies" ON public.pharmacy_locations;
 CREATE POLICY "Patients can view active pharmacies"
   ON public.pharmacy_locations
   FOR SELECT

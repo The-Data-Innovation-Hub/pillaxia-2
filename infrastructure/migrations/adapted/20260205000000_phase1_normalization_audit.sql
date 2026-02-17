@@ -23,7 +23,7 @@ BEGIN
 END $$;
 
 -- 2. Add index on security_notification_preferences.user_id (if missing)
-CREATE INDEX IF NOT EXISTS idx_sec_notif_prefs_user_id
+CREATE INDEX IF NOT EXISTS IF NOT EXISTS idx_sec_notif_prefs_user_id
   ON public.security_notification_preferences(user_id);
 
 -- 3. Ensure medication_catalog exists and has data migration functions ready
@@ -58,7 +58,8 @@ BEGIN
         AND event_object_schema = 'public'
     ) THEN
       EXECUTE format(
-        'CREATE TRIGGER %I BEFORE UPDATE ON public.%I FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column()',
+        'DROP TRIGGER IF EXISTS %I ON public.%I;
+CREATE TRIGGER %I BEFORE UPDATE ON public.%I FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column()',
         trigger_name, tbl
       );
     END IF;

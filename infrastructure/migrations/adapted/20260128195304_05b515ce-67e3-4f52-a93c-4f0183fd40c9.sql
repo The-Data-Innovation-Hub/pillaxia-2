@@ -5,6 +5,7 @@
 DROP POLICY IF EXISTS "Public can view avatars" ON storage.objects;
 
 -- Create a new policy that requires authentication
+DROP POLICY IF EXISTS "Authenticated users can view avatars" ON storage.objects;
 CREATE POLICY "Authenticated users can view avatars"
 ON storage.objects FOR SELECT
 TO authenticated
