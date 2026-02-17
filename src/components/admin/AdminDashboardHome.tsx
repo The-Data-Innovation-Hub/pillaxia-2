@@ -32,13 +32,14 @@ export function AdminDashboardHome() {
         }
       });
 
-      // Get active patients today (patients with medication logs today)
+      // Get active patients today (patients who took medication today)
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       const { data: activePatientsData } = await db
         .from("medication_logs")
         .select("user_id")
-        .gte("logged_at", today.toISOString());
+        .gte("taken_at", today.toISOString())
+        .eq("status", "taken");
 
       const uniquePatients = new Set(activePatientsData?.map(log => log.user_id) || []);
       const activePatientsToday = uniquePatients.size;
@@ -50,16 +51,16 @@ export function AdminDashboardHome() {
         .select("*", { count: "exact", head: true })
         .gte("created_at", oneWeekAgo);
 
-      // Calculate adherence rate (medication logs taken vs scheduled)
+      // Calculate adherence rate (medication logs taken vs scheduled in last week)
       const { data: scheduledMeds } = await db
-        .from("medication_schedules")
+        .from("medication_logs")
         .select("id")
         .gte("scheduled_time", oneWeekAgo);
 
       const { data: takenLogs } = await db
         .from("medication_logs")
         .select("id")
-        .gte("logged_at", oneWeekAgo)
+        .gte("scheduled_time", oneWeekAgo)
         .eq("status", "taken");
 
       const adherenceRate = scheduledMeds && scheduledMeds.length > 0
@@ -70,7 +71,7 @@ export function AdminDashboardHome() {
       const { count: pendingApprovals } = await db
         .from("medications")
         .select("*", { count: "exact", head: true })
-        .eq("status", "pending");
+        .eq("prescription_status", "pending");
 
       return {
         roleCounts,
@@ -143,9 +144,9 @@ export function AdminDashboardHome() {
                   <role.icon className="h-6 w-6 text-muted-foreground" />
                 </div>
                 <div>
-                  <p className="text-3xl font-bold">
+                  <div className="text-3xl font-bold">
                     {isLoading ? <Skeleton className="h-8 w-12" /> : role.count}
-                  </p>
+                  </div>
                   <p className="text-sm text-muted-foreground">{role.role}</p>
                 </div>
               </div>
