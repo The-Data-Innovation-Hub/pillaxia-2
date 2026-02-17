@@ -144,7 +144,21 @@ export function PlatformOrganizationsList() {
   const handleCreate = async () => {
     setIsSaving(true);
     try {
-      const { error } = await db.from("organizations").insert([formData]);
+      // Only send fields that exist in the database schema
+      const { error } = await db.from("organizations").insert([{
+        name: formData.name,
+        slug: formData.slug,
+        description: formData.description || null,
+        status: formData.status,
+        license_type: formData.license_type,
+        max_users: formData.max_users,
+        contact_email: formData.contact_email || null,
+        contact_phone: formData.contact_phone || null,
+        address: formData.address || null,
+        city: formData.city || null,
+        state: formData.state || null,
+        country: formData.country || 'Nigeria',
+      }]);
 
       if (error) throw error;
 
@@ -165,9 +179,23 @@ export function PlatformOrganizationsList() {
 
     setIsSaving(true);
     try {
+      // Only send fields that exist in the database schema
       const { error } = await db
         .from("organizations")
-        .update(formData)
+        .update({
+          name: formData.name,
+          slug: formData.slug,
+          description: formData.description || null,
+          status: formData.status,
+          license_type: formData.license_type,
+          max_users: formData.max_users,
+          contact_email: formData.contact_email || null,
+          contact_phone: formData.contact_phone || null,
+          address: formData.address || null,
+          city: formData.city || null,
+          state: formData.state || null,
+          country: formData.country || 'Nigeria',
+        })
         .eq("id", selectedOrg.id);
 
       if (error) throw error;
