@@ -63,20 +63,22 @@ export function PlatformOrganizationsList() {
   const fetchOrganizations = async () => {
     setIsLoading(true);
     try {
-      const { data, error } = await db
-        .from("organizations")
-        .select("*")
-        .order("name");
+      const response = await fetch("/api/organizations", {
+        credentials: "include",
+      });
 
-      if (error) throw error;
+      if (!response.ok) {
+        throw new Error(`Failed to fetch organizations: ${response.statusText}`);
+      }
 
+      const data = await response.json();
       setOrganizations((data || []) as Organization[]);
 
       // Fetch member counts for each organization
       if (data) {
         const counts: Record<string, number> = {};
         await Promise.all(
-          data.map(async (org) => {
+          data.map(async (org: Organization) => {
             const { count } = await db
               .from("organization_members")
               .select("*", { count: "exact", head: true })
@@ -144,45 +146,13 @@ export function PlatformOrganizationsList() {
   const handleCreate = async () => {
     setIsSaving(true);
     try {
-      // Only send fields that exist in the database schema
-      const { error } = await db.from("organizations").insert([{
-        name: formData.name,
-        slug: formData.slug,
-        description: formData.description || null,
-        status: formData.status,
-        license_type: formData.license_type,
-        max_users: formData.max_users,
-        contact_email: formData.contact_email || null,
-        contact_phone: formData.contact_phone || null,
-        address: formData.address || null,
-        city: formData.city || null,
-        state: formData.state || null,
-        country: formData.country || 'Nigeria',
-      }]);
-
-      if (error) throw error;
-
-      toast.success("Organization created successfully");
-      setIsCreateDialogOpen(false);
-      resetForm();
-      fetchOrganizations();
-    } catch (error) {
-      console.error("Error creating organization:", error);
-      toast.error("Failed to create organization");
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const handleUpdate = async () => {
-    if (!selectedOrg) return;
-
-    setIsSaving(true);
-    try {
-      // Only send fields that exist in the database schema
-      const { error } = await db
-        .from("organizations")
-        .update({
+      const response = await fetch("/api/organizations", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify({
           name: formData.name,
           slug: formData.slug,
           description: formData.description || null,
@@ -195,10 +165,57 @@ export function PlatformOrganizationsList() {
           city: formData.city || null,
           state: formData.state || null,
           country: formData.country || 'Nigeria',
-        })
-        .eq("id", selectedOrg.id);
+        }),
+      });
 
-      if (error) throw error;
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to create organization");
+      }
+
+      toast.success("Organization created successfully");
+      setIsCreateDialogOpen(false);
+      resetForm();
+      fetchOrganizations();
+    } catch (error) {
+      console.error("Error creating organization:", error);
+      toast.error(error instanceof Error ? error.message : "Failed to create organization");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleUpdate = async () => {
+    if (!selectedOrg) return;
+
+    setIsSaving(true);
+    try {
+      const response = await fetch(`/api/organizations/${selectedOrg.id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify({
+          name: formData.name,
+          slug: formData.slug,
+          description: formData.description || null,
+          status: formData.status,
+          license_type: formData.license_type,
+          max_users: formData.max_users,
+          contact_email: formData.contact_email || null,
+          contact_phone: formData.contact_phone || null,
+          address: formData.address || null,
+          city: formData.city || null,
+          state: formData.state || null,
+          country: formData.country || 'Nigeria',
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to update organization");
+      }
 
       toast.success("Organization updated successfully");
       setIsEditDialogOpen(false);
@@ -207,7 +224,7 @@ export function PlatformOrganizationsList() {
       fetchOrganizations();
     } catch (error) {
       console.error("Error updating organization:", error);
-      toast.error("Failed to update organization");
+      toast.error(error instanceof Error ? error.message : "Failed to update organization");
     } finally {
       setIsSaving(false);
     }
@@ -218,12 +235,15 @@ export function PlatformOrganizationsList() {
 
     setIsSaving(true);
     try {
-      const { error } = await db
-        .from("organizations")
-        .delete()
-        .eq("id", selectedOrg.id);
+      const response = await fetch(`/api/organizations/${selectedOrg.id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
 
-      if (error) throw error;
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to delete organization");
+      }
 
       toast.success("Organization deleted successfully");
       setIsDeleteDialogOpen(false);
@@ -231,7 +251,7 @@ export function PlatformOrganizationsList() {
       fetchOrganizations();
     } catch (error) {
       console.error("Error deleting organization:", error);
-      toast.error("Failed to delete organization. It may have associated data.");
+      toast.error(error instanceof Error ? error.message : "Failed to delete organization. It may have associated data.");
     } finally {
       setIsSaving(false);
     }

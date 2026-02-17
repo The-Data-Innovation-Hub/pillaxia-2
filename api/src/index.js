@@ -489,6 +489,177 @@ app.get('/api/get-sentry-dsn', (_req, res) => {
   res.json({ dsn });
 });
 
+// ──────────────────────────────────────────────
+// Organization Management API (Admin only)
+// ──────────────────────────────────────────────
+
+// Get all organizations (admin only)
+app.get('/api/organizations', authMiddleware, async (req, res) => {
+  try {
+    // Check if user is admin
+    const { rows: roleCheck } = await pool.query(
+      'SELECT role FROM public.user_roles WHERE user_id = $1 AND role = $2',
+      [req.userId, 'admin']
+    );
+
+    if (roleCheck.length === 0) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const { rows } = await pool.query(
+      `SELECT id, name, slug, description, status, license_type, max_users,
+              contact_email, contact_phone, address, city, state, country,
+              created_at, updated_at
+       FROM public.organizations
+       ORDER BY name`
+    );
+
+    res.json(rows);
+  } catch (err) {
+    logger.error({ err }, 'Failed to fetch organizations');
+    res.status(500).json({ error: 'Failed to fetch organizations' });
+  }
+});
+
+// Create organization (admin only)
+app.post('/api/organizations', authMiddleware, async (req, res) => {
+  try {
+    // Check if user is admin
+    const { rows: roleCheck } = await pool.query(
+      'SELECT role FROM public.user_roles WHERE user_id = $1 AND role = $2',
+      [req.userId, 'admin']
+    );
+
+    if (roleCheck.length === 0) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const {
+      name,
+      slug,
+      description,
+      status,
+      license_type,
+      max_users,
+      contact_email,
+      contact_phone,
+      address,
+      city,
+      state,
+      country
+    } = req.body;
+
+    // Validate required fields
+    if (!name || !slug) {
+      return res.status(400).json({ error: 'Name and slug are required' });
+    }
+
+    const { rows } = await pool.query(
+      `INSERT INTO public.organizations
+       (name, slug, description, status, license_type, max_users,
+        contact_email, contact_phone, address, city, state, country)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+       RETURNING *`,
+      [name, slug, description || null, status || 'trial', license_type || 'standard',
+       max_users || 50, contact_email || null, contact_phone || null,
+       address || null, city || null, state || null, country || 'Nigeria']
+    );
+
+    res.status(201).json(rows[0]);
+  } catch (err) {
+    logger.error({ err }, 'Failed to create organization');
+    if (err.code === '23505') { // Unique violation
+      res.status(409).json({ error: 'Organization with this slug already exists' });
+    } else {
+      res.status(500).json({ error: 'Failed to create organization' });
+    }
+  }
+});
+
+// Update organization (admin only)
+app.patch('/api/organizations/:id', authMiddleware, async (req, res) => {
+  try {
+    // Check if user is admin
+    const { rows: roleCheck } = await pool.query(
+      'SELECT role FROM public.user_roles WHERE user_id = $1 AND role = $2',
+      [req.userId, 'admin']
+    );
+
+    if (roleCheck.length === 0) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const {
+      name,
+      slug,
+      description,
+      status,
+      license_type,
+      max_users,
+      contact_email,
+      contact_phone,
+      address,
+      city,
+      state,
+      country
+    } = req.body;
+
+    const { rows } = await pool.query(
+      `UPDATE public.organizations
+       SET name = $2, slug = $3, description = $4, status = $5,
+           license_type = $6, max_users = $7, contact_email = $8,
+           contact_phone = $9, address = $10, city = $11, state = $12,
+           country = $13, updated_at = NOW()
+       WHERE id = $1
+       RETURNING *`,
+      [req.params.id, name, slug, description, status, license_type,
+       max_users, contact_email, contact_phone, address, city, state, country]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'Organization not found' });
+    }
+
+    res.json(rows[0]);
+  } catch (err) {
+    logger.error({ err }, 'Failed to update organization');
+    if (err.code === '23505') {
+      res.status(409).json({ error: 'Organization with this slug already exists' });
+    } else {
+      res.status(500).json({ error: 'Failed to update organization' });
+    }
+  }
+});
+
+// Delete organization (admin only)
+app.delete('/api/organizations/:id', authMiddleware, async (req, res) => {
+  try {
+    // Check if user is admin
+    const { rows: roleCheck } = await pool.query(
+      'SELECT role FROM public.user_roles WHERE user_id = $1 AND role = $2',
+      [req.userId, 'admin']
+    );
+
+    if (roleCheck.length === 0) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const { rows } = await pool.query(
+      'DELETE FROM public.organizations WHERE id = $1 RETURNING id',
+      [req.params.id]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'Organization not found' });
+    }
+
+    res.json({ success: true, id: rows[0].id });
+  } catch (err) {
+    logger.error({ err }, 'Failed to delete organization');
+    res.status(500).json({ error: 'Failed to delete organization. It may have associated data.' });
+  }
+});
+
 // ── API documentation (Swagger UI) ──
 try {
   const __filename = fileURLToPath(import.meta.url);
