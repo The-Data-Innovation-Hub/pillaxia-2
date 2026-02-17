@@ -221,7 +221,7 @@ jobs:
     name: Deploy Azure Functions
     needs: build-and-deploy
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && vars.DEPLOY_FUNCTIONS == 'true'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -233,6 +233,12 @@ jobs:
 
       - name: Install Functions dependencies
         run: cd functions && npm ci
+
+      - name: Azure Login (if using RBAC)
+        if: secrets.AZURE_CREDENTIALS != ''
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
 
       - name: Deploy to Azure Functions
         uses: Azure/functions-action@v1
