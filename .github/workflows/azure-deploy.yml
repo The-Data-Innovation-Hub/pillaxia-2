@@ -235,7 +235,7 @@ jobs:
         run: cd functions && npm ci
 
       - name: Azure Login (if using RBAC)
-        if: secrets.AZURE_CREDENTIALS != ''
+        if: vars.USE_AZURE_RBAC == 'true'
         uses: azure/login@v2
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
