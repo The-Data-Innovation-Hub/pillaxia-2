@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { db } from "@/integrations/db";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Users, Pill, Activity, Shield, FileText, Building2 } from "lucide-react";
+import { Users, Pill, Activity, Shield, FileText, CheckCircle2, ClockAlert } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -14,11 +14,6 @@ export function AdminDashboardHome() {
   const { data: stats, isLoading } = useQuery({
     queryKey: ["admin-stats"],
     queryFn: async () => {
-      // Get total users
-      const { count: totalUsers } = await db
-        .from("profiles")
-        .select("*", { count: "exact", head: true });
-
       // Get user role counts
       const { data: roles } = await db
         .from("user_roles")
@@ -37,64 +32,84 @@ export function AdminDashboardHome() {
         }
       });
 
-      // Get total medications
-      const { count: totalMedications } = await db
+      // Get active patients today (patients with medication logs today)
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const { data: activePatientsData } = await db
+        .from("medication_logs")
+        .select("user_id")
+        .gte("logged_at", today.toISOString());
+
+      const uniquePatients = new Set(activePatientsData?.map(log => log.user_id) || []);
+      const activePatientsToday = uniquePatients.size;
+
+      // Get prescriptions filled this week
+      const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+      const { count: prescriptionsFilledWeek } = await db
         .from("medications")
-        .select("*", { count: "exact", head: true });
-
-      // Get total organizations
-      const { count: totalOrganizations } = await db
-        .from("organizations")
-        .select("*", { count: "exact", head: true });
-
-      // Get recent audit logs count (last 24h)
-      const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-      const { count: recentAuditLogs } = await db
-        .from("audit_log")
         .select("*", { count: "exact", head: true })
-        .gte("created_at", oneDayAgo);
+        .gte("created_at", oneWeekAgo);
+
+      // Calculate adherence rate (medication logs taken vs scheduled)
+      const { data: scheduledMeds } = await db
+        .from("medication_schedules")
+        .select("id")
+        .gte("scheduled_time", oneWeekAgo);
+
+      const { data: takenLogs } = await db
+        .from("medication_logs")
+        .select("id")
+        .gte("logged_at", oneWeekAgo)
+        .eq("status", "taken");
+
+      const adherenceRate = scheduledMeds && scheduledMeds.length > 0
+        ? Math.round((takenLogs?.length || 0) / scheduledMeds.length * 100)
+        : 0;
+
+      // Get pending approvals (medications awaiting approval)
+      const { count: pendingApprovals } = await db
+        .from("medications")
+        .select("*", { count: "exact", head: true })
+        .eq("status", "pending");
 
       return {
-        totalUsers: totalUsers || 0,
         roleCounts,
-        totalMedications: totalMedications || 0,
-        totalOrganizations: totalOrganizations || 0,
-        recentAuditLogs: recentAuditLogs || 0,
+        activePatientsToday,
+        prescriptionsFilledWeek: prescriptionsFilledWeek || 0,
+        adherenceRate,
+        pendingApprovals: pendingApprovals || 0,
       };
     },
   });
 
   const statCards = [
     {
-      title: t.admin.totalUsers,
-      value: stats?.totalUsers || 0,
+      title: "Active Patients Today",
+      value: stats?.activePatientsToday || 0,
       icon: Users,
       color: "text-blue-600",
       bgColor: "bg-blue-50",
-      link: "/dashboard/users",
     },
     {
-      title: t.admin.organizations,
-      value: stats?.totalOrganizations || 0,
-      icon: Building2,
-      color: "text-violet-600",
-      bgColor: "bg-violet-50",
-      link: "/dashboard/organization",
-    },
-    {
-      title: t.admin.totalMedications,
-      value: stats?.totalMedications || 0,
+      title: "Prescriptions This Week",
+      value: stats?.prescriptionsFilledWeek || 0,
       icon: Pill,
       color: "text-emerald-600",
       bgColor: "bg-emerald-50",
     },
     {
-      title: t.admin.recentActivity,
-      value: stats?.recentAuditLogs || 0,
-      icon: Activity,
+      title: "Adherence Rate",
+      value: `${stats?.adherenceRate || 0}%`,
+      icon: CheckCircle2,
+      color: "text-green-600",
+      bgColor: "bg-green-50",
+    },
+    {
+      title: "Pending Approvals",
+      value: stats?.pendingApprovals || 0,
+      icon: ClockAlert,
       color: "text-amber-600",
       bgColor: "bg-amber-50",
-      link: "/dashboard/audit-logs",
     },
   ];
 
@@ -106,7 +121,7 @@ export function AdminDashboardHome() {
   ];
 
   const { isAdmin, isManager } = useAuth();
-  
+
   return (
     <div className="space-y-6">
       <div>
@@ -118,64 +133,49 @@ export function AdminDashboardHome() {
         </p>
       </div>
 
-      {/* Main Stats */}
-      <div className={`grid gap-4 md:grid-cols-2 ${isManager && !isAdmin ? 'lg:grid-cols-3' : 'lg:grid-cols-4'}`}>
-        {statCards
-          .filter(stat => !(isManager && !isAdmin && stat.title === t.admin.organizations))
-          .map((stat) => (
-            <Card key={stat.title} className="hover:shadow-md transition-shadow">
-              <CardHeader className="pb-2">
-                <div className={`p-2 rounded-lg ${stat.bgColor} mb-1`}>
-                  <stat.icon className={`h-5 w-5 ${stat.color}`} />
-                </div>
-                <CardTitle className="text-sm">
-                  {stat.title}
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {isLoading ? (
-                  <Skeleton className="h-8 w-16 mx-auto" />
-                ) : (
-                  <div className="text-3xl font-bold">{stat.value}</div>
-                )}
-                {stat.link && (
-                  <Link to={stat.link}>
-                    <Button variant="link" className="px-0 mt-1 h-auto text-xs">
-                      {t.common.viewDetails} →
-                    </Button>
-                  </Link>
-                )}
-              </CardContent>
-            </Card>
-          ))}
-      </div>
-
-      {/* Role Distribution */}
-      <Card>
-        <CardHeader>
-          <CardTitle>{t.admin.userDistribution}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-4 sm:grid-cols-4">
-            {roleCards.map((role) => (
-              <div
-                key={role.role}
-                className="flex items-center gap-3 p-4 rounded-lg border"
-              >
-                <div className="h-10 w-10 rounded-lg bg-muted flex items-center justify-center">
-                  <role.icon className="h-5 w-5 text-muted-foreground" />
+      {/* Role Distribution - Moved to top without heading */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {roleCards.map((role) => (
+          <Card key={role.role} className="hover:shadow-md transition-shadow">
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-3">
+                <div className="h-12 w-12 rounded-lg bg-muted flex items-center justify-center">
+                  <role.icon className="h-6 w-6 text-muted-foreground" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold">
-                    {isLoading ? <Skeleton className="h-7 w-8" /> : role.count}
+                  <p className="text-3xl font-bold">
+                    {isLoading ? <Skeleton className="h-8 w-12" /> : role.count}
                   </p>
                   <p className="text-sm text-muted-foreground">{role.role}</p>
                 </div>
               </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* New KPI Cards */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        {statCards.map((stat) => (
+          <Card key={stat.title} className="hover:shadow-md transition-shadow">
+            <CardHeader className="pb-2">
+              <div className={`p-2 rounded-lg ${stat.bgColor} mb-1 w-fit`}>
+                <stat.icon className={`h-5 w-5 ${stat.color}`} />
+              </div>
+              <CardTitle className="text-sm">
+                {stat.title}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {isLoading ? (
+                <Skeleton className="h-8 w-16" />
+              ) : (
+                <div className="text-3xl font-bold">{stat.value}</div>
+              )}
+            </CardContent>
+          </Card>
+        ))}
+      </div>
 
       {/* Quick Actions */}
       <Card>
