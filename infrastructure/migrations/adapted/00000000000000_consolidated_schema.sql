@@ -148,7 +148,7 @@ END $$;
 -- Name: uid(); Type: FUNCTION; Schema: auth; Owner: -
 --
 
-CREATE FUNCTION auth.uid() RETURNS uuid
+CREATE OR REPLACE FUNCTION auth.uid() RETURNS uuid
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'public', 'auth'
     AS $$
@@ -160,7 +160,7 @@ $$;
 -- Name: auto_link_alert_catalog(); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.auto_link_alert_catalog() RETURNS trigger
+CREATE OR REPLACE FUNCTION public.auto_link_alert_catalog() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
@@ -180,7 +180,7 @@ $$;
 -- Name: auto_link_availability_catalog(); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.auto_link_availability_catalog() RETURNS trigger
+CREATE OR REPLACE FUNCTION public.auto_link_availability_catalog() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
@@ -217,7 +217,7 @@ $$;
 -- Name: auto_link_medication_catalog(); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.auto_link_medication_catalog() RETURNS trigger
+CREATE OR REPLACE FUNCTION public.auto_link_medication_catalog() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
@@ -250,7 +250,7 @@ $$;
 -- Name: auto_link_transfer_catalog(); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.auto_link_transfer_catalog() RETURNS trigger
+CREATE OR REPLACE FUNCTION public.auto_link_transfer_catalog() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
@@ -287,7 +287,7 @@ $$;
 -- Name: backfill_medications_catalog_fk(); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.backfill_medications_catalog_fk() RETURNS TABLE(matched integer, unmatched integer)
+CREATE OR REPLACE FUNCTION public.backfill_medications_catalog_fk() RETURNS TABLE(matched integer, unmatched integer)
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
@@ -333,7 +333,7 @@ $$;
 -- Name: can_access_organization(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.can_access_organization(p_user_id uuid, p_org_id uuid) RETURNS boolean
+CREATE OR REPLACE FUNCTION public.can_access_organization(p_user_id uuid, p_org_id uuid) RETURNS boolean
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
@@ -351,7 +351,7 @@ $$;
 -- Name: check_account_locked(text); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.check_account_locked(p_email text) RETURNS jsonb
+CREATE OR REPLACE FUNCTION public.check_account_locked(p_email text) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
@@ -386,7 +386,7 @@ $$;
 -- Name: check_medication_schedules_integrity(); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.check_medication_schedules_integrity() RETURNS TABLE(orphaned_schedules integer, schedules_with_mismatched_user_id integer)
+CREATE OR REPLACE FUNCTION public.check_medication_schedules_integrity() RETURNS TABLE(orphaned_schedules integer, schedules_with_mismatched_user_id integer)
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
@@ -410,7 +410,7 @@ $$;
 -- Name: check_session_limits(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.check_session_limits(p_user_id uuid) RETURNS boolean
+CREATE OR REPLACE FUNCTION public.check_session_limits(p_user_id uuid) RETURNS boolean
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
@@ -440,7 +440,7 @@ $$;
 -- Name: count_org_seats_used(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.count_org_seats_used(p_org_id uuid) RETURNS integer
+CREATE OR REPLACE FUNCTION public.count_org_seats_used(p_org_id uuid) RETURNS integer
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
@@ -455,7 +455,7 @@ $$;
 -- Name: current_user_id(); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.current_user_id() RETURNS uuid
+CREATE OR REPLACE FUNCTION public.current_user_id() RETURNS uuid
     LANGUAGE plpgsql STABLE SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
@@ -497,7 +497,7 @@ $$;
 -- Name: generate_prescription_number(); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.generate_prescription_number() RETURNS text
+CREATE OR REPLACE FUNCTION public.generate_prescription_number() RETURNS text
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
@@ -524,7 +524,7 @@ $$;
 -- Name: get_user_organization_id(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.get_user_organization_id(p_user_id uuid) RETURNS uuid
+CREATE OR REPLACE FUNCTION public.get_user_organization_id(p_user_id uuid) RETURNS uuid
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
@@ -540,7 +540,7 @@ $$;
 -- Name: get_user_roles(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.get_user_roles(_user_id uuid) RETURNS SETOF public.app_role
+CREATE OR REPLACE FUNCTION public.get_user_roles(_user_id uuid) RETURNS SETOF public.app_role
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
@@ -552,7 +552,7 @@ $$;
 -- Name: handle_new_user(); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.handle_new_user() RETURNS trigger
+CREATE OR REPLACE FUNCTION public.handle_new_user() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
@@ -587,7 +587,7 @@ $$;
 -- Name: has_org_role(uuid, public.organization_role); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.has_org_role(p_user_id uuid, p_role public.organization_role) RETURNS boolean
+CREATE OR REPLACE FUNCTION public.has_org_role(p_user_id uuid, p_role public.organization_role) RETURNS boolean
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
@@ -605,7 +605,7 @@ $$;
 -- Name: has_role(uuid, public.app_role); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.has_role(_user_id uuid, _role public.app_role) RETURNS boolean
+CREATE OR REPLACE FUNCTION public.has_role(_user_id uuid, _role public.app_role) RETURNS boolean
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
@@ -622,7 +622,7 @@ $$;
 -- Name: is_admin(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.is_admin(_user_id uuid) RETURNS boolean
+CREATE OR REPLACE FUNCTION public.is_admin(_user_id uuid) RETURNS boolean
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
@@ -634,7 +634,7 @@ $$;
 -- Name: is_caregiver_for_patient(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.is_caregiver_for_patient(_patient_user_id uuid, _caregiver_user_id uuid) RETURNS boolean
+CREATE OR REPLACE FUNCTION public.is_caregiver_for_patient(_patient_user_id uuid, _caregiver_user_id uuid) RETURNS boolean
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
@@ -652,7 +652,7 @@ $$;
 -- Name: is_clinician(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.is_clinician(_user_id uuid) RETURNS boolean
+CREATE OR REPLACE FUNCTION public.is_clinician(_user_id uuid) RETURNS boolean
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
@@ -664,7 +664,7 @@ $$;
 -- Name: is_clinician_assigned(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.is_clinician_assigned(_patient_user_id uuid, _clinician_user_id uuid) RETURNS boolean
+CREATE OR REPLACE FUNCTION public.is_clinician_assigned(_patient_user_id uuid, _clinician_user_id uuid) RETURNS boolean
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
@@ -681,7 +681,7 @@ $$;
 -- Name: is_device_trusted(uuid, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.is_device_trusted(p_user_id uuid, p_device_token_hash text) RETURNS boolean
+CREATE OR REPLACE FUNCTION public.is_device_trusted(p_user_id uuid, p_device_token_hash text) RETURNS boolean
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
@@ -714,7 +714,7 @@ $$;
 -- Name: is_manager(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.is_manager(_user_id uuid) RETURNS boolean
+CREATE OR REPLACE FUNCTION public.is_manager(_user_id uuid) RETURNS boolean
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
@@ -731,7 +731,7 @@ $$;
 -- Name: is_manager_for_org(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.is_manager_for_org(p_user_id uuid, p_org_id uuid) RETURNS boolean
+CREATE OR REPLACE FUNCTION public.is_manager_for_org(p_user_id uuid, p_org_id uuid) RETURNS boolean
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
@@ -751,7 +751,7 @@ $$;
 -- Name: is_org_admin(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.is_org_admin(p_user_id uuid) RETURNS boolean
+CREATE OR REPLACE FUNCTION public.is_org_admin(p_user_id uuid) RETURNS boolean
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
@@ -769,7 +769,7 @@ $$;
 -- Name: is_org_admin_for(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.is_org_admin_for(p_user_id uuid, p_org_id uuid) RETURNS boolean
+CREATE OR REPLACE FUNCTION public.is_org_admin_for(p_user_id uuid, p_org_id uuid) RETURNS boolean
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
@@ -788,7 +788,7 @@ $$;
 -- Name: is_org_manager(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.is_org_manager(_user_id uuid, _org_id uuid) RETURNS boolean
+CREATE OR REPLACE FUNCTION public.is_org_manager(_user_id uuid, _org_id uuid) RETURNS boolean
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
@@ -808,7 +808,7 @@ $$;
 -- Name: is_patient(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.is_patient(_user_id uuid) RETURNS boolean
+CREATE OR REPLACE FUNCTION public.is_patient(_user_id uuid) RETURNS boolean
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
@@ -820,7 +820,7 @@ $$;
 -- Name: is_pharmacist(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.is_pharmacist(_user_id uuid) RETURNS boolean
+CREATE OR REPLACE FUNCTION public.is_pharmacist(_user_id uuid) RETURNS boolean
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
@@ -832,7 +832,7 @@ $$;
 -- Name: is_same_organization(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.is_same_organization(p_user_id_a uuid, p_user_id_b uuid) RETURNS boolean
+CREATE OR REPLACE FUNCTION public.is_same_organization(p_user_id_a uuid, p_user_id_b uuid) RETURNS boolean
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
@@ -852,7 +852,7 @@ $$;
 -- Name: log_audit_event(); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.log_audit_event() RETURNS trigger
+CREATE OR REPLACE FUNCTION public.log_audit_event() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
@@ -877,7 +877,7 @@ $$;
 -- Name: log_controlled_drug_access(); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.log_controlled_drug_access() RETURNS trigger
+CREATE OR REPLACE FUNCTION public.log_controlled_drug_access() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
@@ -907,7 +907,7 @@ $$;
 -- Name: log_data_access(uuid, text, uuid, text, text, uuid, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.log_data_access(p_user_id uuid, p_accessed_table text, p_accessed_record_id uuid, p_access_type text, p_data_category text DEFAULT 'general'::text, p_patient_id uuid DEFAULT NULL::uuid, p_reason text DEFAULT NULL::text) RETURNS uuid
+CREATE OR REPLACE FUNCTION public.log_data_access(p_user_id uuid, p_accessed_table text, p_accessed_record_id uuid, p_access_type text, p_data_category text DEFAULT 'general'::text, p_patient_id uuid DEFAULT NULL::uuid, p_reason text DEFAULT NULL::text) RETURNS uuid
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
@@ -942,7 +942,7 @@ $$;
 -- Name: log_security_event(uuid, public.security_event_type, text, text, text, text, text, jsonb); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.log_security_event(p_user_id uuid, p_event_type public.security_event_type, p_event_category text DEFAULT 'authentication'::text, p_severity text DEFAULT 'info'::text, p_description text DEFAULT NULL::text, p_ip_address text DEFAULT NULL::text, p_user_agent text DEFAULT NULL::text, p_metadata jsonb DEFAULT '{}'::jsonb) RETURNS uuid
+CREATE OR REPLACE FUNCTION public.log_security_event(p_user_id uuid, p_event_type public.security_event_type, p_event_category text DEFAULT 'authentication'::text, p_severity text DEFAULT 'info'::text, p_description text DEFAULT NULL::text, p_ip_address text DEFAULT NULL::text, p_user_agent text DEFAULT NULL::text, p_metadata jsonb DEFAULT '{}'::jsonb) RETURNS uuid
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
@@ -977,7 +977,7 @@ $$;
 -- Name: manager_can_access_user(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.manager_can_access_user(_manager_id uuid, _target_user_id uuid) RETURNS boolean
+CREATE OR REPLACE FUNCTION public.manager_can_access_user(_manager_id uuid, _target_user_id uuid) RETURNS boolean
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
@@ -998,7 +998,7 @@ $$;
 -- Name: migrate_controlled_drug_dispensing_to_fks(); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.migrate_controlled_drug_dispensing_to_fks() RETURNS TABLE(patient_matched integer, prescriber_matched integer, prescription_matched integer, patient_unmatched integer, prescriber_unmatched integer, prescription_unmatched integer)
+CREATE OR REPLACE FUNCTION public.migrate_controlled_drug_dispensing_to_fks() RETURNS TABLE(patient_matched integer, prescriber_matched integer, prescription_matched integer, patient_unmatched integer, prescriber_unmatched integer, prescription_unmatched integer)
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
@@ -1092,7 +1092,7 @@ $$;
 -- Name: migrate_drug_transfers_to_catalog(); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.migrate_drug_transfers_to_catalog() RETURNS TABLE(catalog_entries_created integer, transfers_migrated integer, unmatched_records integer)
+CREATE OR REPLACE FUNCTION public.migrate_drug_transfers_to_catalog() RETURNS TABLE(catalog_entries_created integer, transfers_migrated integer, unmatched_records integer)
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
@@ -1152,7 +1152,7 @@ $$;
 -- Name: migrate_medication_availability_to_catalog(); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.migrate_medication_availability_to_catalog() RETURNS TABLE(catalog_entries_created integer, availability_records_migrated integer, unmatched_records integer)
+CREATE OR REPLACE FUNCTION public.migrate_medication_availability_to_catalog() RETURNS TABLE(catalog_entries_created integer, availability_records_migrated integer, unmatched_records integer)
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
@@ -1213,7 +1213,7 @@ $$;
 -- Name: migrate_medications_text_to_fks(); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.migrate_medications_text_to_fks() RETURNS TABLE(migrated_count integer, prescriber_matched integer, pharmacy_matched integer, prescriber_unmatched integer, pharmacy_unmatched integer)
+CREATE OR REPLACE FUNCTION public.migrate_medications_text_to_fks() RETURNS TABLE(migrated_count integer, prescriber_matched integer, pharmacy_matched integer, prescriber_unmatched integer, pharmacy_unmatched integer)
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
@@ -1292,7 +1292,7 @@ $$;
 -- Name: org_has_available_seats(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.org_has_available_seats(p_org_id uuid) RETURNS boolean
+CREATE OR REPLACE FUNCTION public.org_has_available_seats(p_org_id uuid) RETURNS boolean
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
@@ -1310,7 +1310,7 @@ $$;
 -- Name: record_login_attempt(text, boolean, text, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.record_login_attempt(p_email text, p_success boolean, p_ip_address text DEFAULT NULL::text, p_user_agent text DEFAULT NULL::text) RETURNS jsonb
+CREATE OR REPLACE FUNCTION public.record_login_attempt(p_email text, p_success boolean, p_ip_address text DEFAULT NULL::text, p_user_agent text DEFAULT NULL::text) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
@@ -1378,7 +1378,7 @@ $$;
 -- Name: refresh_all_materialized_views(); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.refresh_all_materialized_views() RETURNS void
+CREATE OR REPLACE FUNCTION public.refresh_all_materialized_views() RETURNS void
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
@@ -1429,7 +1429,7 @@ $$;
 -- Name: revoke_all_trusted_devices(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.revoke_all_trusted_devices(p_user_id uuid DEFAULT NULL::uuid) RETURNS integer
+CREATE OR REPLACE FUNCTION public.revoke_all_trusted_devices(p_user_id uuid DEFAULT NULL::uuid) RETURNS integer
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
@@ -1451,7 +1451,7 @@ $$;
 -- Name: revoke_trusted_device(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.revoke_trusted_device(p_device_id uuid) RETURNS boolean
+CREATE OR REPLACE FUNCTION public.revoke_trusted_device(p_device_id uuid) RETURNS boolean
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
@@ -1470,7 +1470,7 @@ $$;
 -- Name: trust_device(uuid, text, text, text, text, text, integer); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.trust_device(p_user_id uuid, p_device_token_hash text, p_device_name text DEFAULT NULL::text, p_browser text DEFAULT NULL::text, p_os text DEFAULT NULL::text, p_ip text DEFAULT NULL::text, p_days integer DEFAULT 30) RETURNS uuid
+CREATE OR REPLACE FUNCTION public.trust_device(p_user_id uuid, p_device_token_hash text, p_device_name text DEFAULT NULL::text, p_browser text DEFAULT NULL::text, p_os text DEFAULT NULL::text, p_ip text DEFAULT NULL::text, p_days integer DEFAULT 30) RETURNS uuid
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
@@ -1509,7 +1509,7 @@ $$;
 -- Name: unlock_account(text); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.unlock_account(p_email text) RETURNS boolean
+CREATE OR REPLACE FUNCTION public.unlock_account(p_email text) RETURNS boolean
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
@@ -1534,7 +1534,7 @@ $$;
 -- Name: update_controlled_drug_stock_on_adjustment(); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.update_controlled_drug_stock_on_adjustment() RETURNS trigger
+CREATE OR REPLACE FUNCTION public.update_controlled_drug_stock_on_adjustment() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
@@ -1552,7 +1552,7 @@ $$;
 -- Name: update_controlled_drug_stock_on_dispense(); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.update_controlled_drug_stock_on_dispense() RETURNS trigger
+CREATE OR REPLACE FUNCTION public.update_controlled_drug_stock_on_dispense() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
@@ -1570,7 +1570,7 @@ $$;
 -- Name: update_updated_at_column(); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.update_updated_at_column() RETURNS trigger
+CREATE OR REPLACE FUNCTION public.update_updated_at_column() RETURNS trigger
     LANGUAGE plpgsql
     SET search_path TO 'public'
     AS $$
@@ -1585,7 +1585,7 @@ $$;
 -- Name: upsert_user_from_jwt(uuid, text, jsonb); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.upsert_user_from_jwt(p_id uuid, p_email text DEFAULT NULL::text, p_raw_user_meta_data jsonb DEFAULT '{}'::jsonb) RETURNS uuid
+CREATE OR REPLACE FUNCTION public.upsert_user_from_jwt(p_id uuid, p_email text DEFAULT NULL::text, p_raw_user_meta_data jsonb DEFAULT '{}'::jsonb) RETURNS uuid
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
@@ -1605,7 +1605,7 @@ $$;
 -- Name: user_belongs_to_org(uuid, uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.user_belongs_to_org(p_user_id uuid, p_org_id uuid) RETURNS boolean
+CREATE OR REPLACE FUNCTION public.user_belongs_to_org(p_user_id uuid, p_org_id uuid) RETURNS boolean
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
