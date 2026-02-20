@@ -154,9 +154,11 @@ export function ClinicalDecisionSupport({ patient, onClose }: ClinicalDecisionSu
         { id: assistantMessageId, role: "assistant", content: "", timestamp: new Date() },
       ]);
 
-      while (true) {
+      let readerFinished = false;
+      while (!readerFinished) {
         const { done, value } = await reader.read();
-        if (done) break;
+        readerFinished = done;
+        if (readerFinished) break;
 
         textBuffer += decoder.decode(value, { stream: true });
 
